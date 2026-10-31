@@ -639,13 +639,13 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
     <div id="box" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;max-width:440px;padding:12px 16px;
       border-radius:10px;background:${colors[kind]};color:#fff;font:14px/1.6 system-ui,sans-serif;
       box-shadow:0 4px 16px rgba(0,0,0,.25)">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>Lastclick Pigeon</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>Last One Click</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
       <div style="white-space:pre-wrap">${escapeHtml(summary ?? "")}</div>
       ${details ? `<div id="det" hidden style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.95;white-space:pre-wrap">${escapeHtml(details)}</div>` : ""}
       <div style="margin-top:10px;display:flex;align-items:center;justify-content:flex-end;gap:12px">${details ? `<button type="button" id="tog" aria-expanded="false" aria-controls="det" style="${link}">詳細</button>` : ""}${buttons}</div>
     </div>
-    <button type="button" id="pill" hidden aria-label="Lastclick Pigeon のバナーを開く" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:6px 12px;border:0;border-radius:999px;
-      background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">Lastclick Pigeon ▴</button>`;
+    <button type="button" id="pill" hidden aria-label="Last One Click のバナーを開く" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:6px 12px;border:0;border-radius:999px;
+      background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">Last One Click ▴</button>`;
   const root = host.shadowRoot!;
   const box = root.getElementById("box")!;
   const pill = root.getElementById("pill")!;

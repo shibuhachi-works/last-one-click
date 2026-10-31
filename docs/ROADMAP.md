@@ -1,4 +1,4 @@
-# Lastclick Pigeon — 現状と将来展望
+# Last One Click — 現状と将来展望
 
 最終更新: 2026-10-29
 

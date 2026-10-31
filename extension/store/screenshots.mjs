@@ -58,7 +58,7 @@ mkdirSync(dir, { recursive: true });
 
 // 2) 文字なしの SVG に掲載用の文言を重ねる。SVG 自体には文字を入れない。
 for (const [name, width, height, copy] of [
-  ["promo-small", 440, 280, '<h1>Lastclick Pigeon for note</h1><p>Markdown を選ぶだけで、<br>note の下書きが完成</p><small>公開ボタンは押しません</small>'],
+  ["promo-small", 440, 280, '<h1>Last One Click</h1><p>Markdown を選ぶだけで、<br>note の下書きが完成</p><small>公開ボタンは押しません</small>'],
   ["marquee", 1400, 560, '<small class="eyebrow">The last click is yours.</small><h1>Markdown の記事を、<br>そのまま note の下書きに</h1><p>タイトル・本文・見出し画像・ハッシュタグまで入力して止まる</p><small>公開ボタンは、あなたが押す。</small>'],
 ]) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
@@ -98,7 +98,7 @@ async function slide(name, cls, body, css = "", preCss = "") {
   await page.close();
 }
 const bannerHtml = (kind, text) =>
-  `<div class="banner" style="background:${kind === "ok" ? "#1f9d7a" : "#c27c0e"}"><b>Lastclick Pigeon</b>${text}<span class="x">閉じる</span></div>`;
+  `<div class="banner" style="background:${kind === "ok" ? "#1f9d7a" : "#c27c0e"}"><b>Last One Click</b>${text}<span class="x">閉じる</span></div>`;
 
 // screenshot-2: 公開ボタンは、あなたが押す(マーキーの素材を背景なしで使い、本物のバナーを重ねる)
 {
