@@ -7,7 +7,7 @@ import { validateSelectorsJson } from "../../../shared/selectors-schema";
 import { STORAGE, type Selectors } from "./types";
 
 /** リポジトリの selectors/note.json。フォークした場合はここか、ポップアップの「設定」で差し替える */
-export const DEFAULT_SELECTORS_URL = "https://raw.githubusercontent.com/shibuhachi-works/lastclick-pigeon/main/selectors/note.json";
+export const DEFAULT_SELECTORS_URL = "https://raw.githubusercontent.com/shibuhachi-works/last-one-click/main/selectors/note.json";
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
 

@@ -1,7 +1,7 @@
 // GitHub 上の記事ディレクトリ URL を受け取り、note の下書きを組み立てて
 // 「公開ボタンの手前」で止める。公開は人間が押す。
 //
-//   npm run draft -- https://github.com/you/lastclick-pigeon/tree/main/posts/2026-10-28-xxx
+//   npm run draft -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
 //
 // スクリプト名が publish だと npm 自身の publish コマンド(レジストリへの公開)と
 // ぶつかって動かないので draft にしている。

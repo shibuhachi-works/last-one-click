@@ -1,7 +1,7 @@
 // ブラウザを開かずに、記事の取得・パース・HTML 変換だけを確認する。
 // note の画面に触る前に「md が正しく読めているか」を切り分けるためのもの。
 //
-//   npm run preview -- https://github.com/you/lastclick-pigeon/tree/main/posts/2026-10-28-xxx
+//   npm run preview -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
 //
 // 結果は .preview/ に書き出す(index.html をブラウザで開けば見た目を確認できる)。
 import { mkdir, writeFile } from "node:fs/promises";

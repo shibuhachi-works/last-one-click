@@ -123,7 +123,7 @@ src/
 手順は [../docs/store-submission.md](../docs/store-submission.md)、掲載文と審査の回答は [store/listing.md](store/listing.md)。
 
 ```bash
-npm run package       # → release/lastclick-pigeon-for-note-<version>.zip(ストアに上げるファイル)
+npm run package       # → release/last-one-click-<version>.zip(ストアに上げるファイル)
 npm run icons         # icons/icon.svg → icon16/32/48/128.png
 npm run screenshots   # store/screenshot-1.png(1280x800)と store/promo-small.png(440x280)
 ```
