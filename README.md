@@ -1,4 +1,4 @@
-# Lastclick Pigeon(ラストクリック・ピジョン)
+# Last One Click(ラストワンクリック)
 
 **The last click is yours.** — 下書きまでは拡張が組み立てる。最後のクリックはあなたのもの。
 
@@ -6,12 +6,12 @@
 **投稿・公開ボタンは絶対に押しません。** 内容を確認して最後の1クリックをするのは、いつも人間です。
 
 対象は「AI を使って投稿する人」。入力は AI の出力そのもの(Markdown)で、人が手で整形する前提にしません。
-現在対応している媒体は **note** です。X / TikTok / Instagram も同じ方針(下書きまで作り、投稿は本人のクリック)で順次追加します。
+現在対応している媒体は **note** です(説明文のとおり、現在は note に対応しています)。X / TikTok / Instagram も同じ方針(下書きまで作り、投稿は本人のクリック)で順次追加します。
 現状と今後の計画は [docs/ROADMAP.md](docs/ROADMAP.md) にまとめています。
 
 | | 用途 | 入口 |
 |---|---|---|
-| **[extension/](extension/)** Chrome 拡張「Lastclick Pigeon for note」 | 配布用。普段の Chrome で動き、認証情報に触れない | md ファイル(貼り付け・GitHub URL は上級者向け) |
+| **[extension/](extension/)** Chrome 拡張「Last One Click」 | 配布用。普段の Chrome で動き、認証情報に触れない | md ファイル(貼り付け・GitHub URL は上級者向け) |
 | **tools/** Playwright 版 | 自分用・開発用。壊れた箇所を Inspector で調べられる | GitHub URL |
 
 どちらも `selectors/note.json`(note の DOM セレクタ)を共有しています。以下は Playwright 版の説明です。拡張は [extension/README.md](extension/README.md) を見てください。

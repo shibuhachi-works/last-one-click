@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Lastclick Pigeon for note",
-  "version": "0.1.1",
-  "description": "Markdown のファイルを選ぶだけで note の下書き(タイトル・本文・見出し画像・ハッシュタグ・マガジン)を組み立てます。公開ボタンは押しません。",
+  "name": "Last One Click",
+  "version": "0.1.2",
+  "description": "Markdown のファイルを選ぶだけで note の下書き(タイトル・本文・見出し画像・ハッシュタグ・マガジン)を組み立てます。最後のワンクリックは、あなたの手で。現在は note に対応しています。",
   "homepage_url": "https://shibuhachi.works/lastclick-pigeon/",
   "minimum_chrome_version": "120",
   "icons": {
@@ -13,7 +13,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Lastclick Pigeon for note",
+    "default_title": "Last One Click",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

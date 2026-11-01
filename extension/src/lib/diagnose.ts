@@ -9,7 +9,7 @@ const TEXT_LEN = 40;
 
 export function buildDiagnosticReport(S: Selectors): string {
   const lines: string[] = [];
-  lines.push(`# lastclick-pigeon 診断レポート`);
+  lines.push(`# Last One Click 診断レポート`);
   lines.push(`url: ${location.origin}${location.pathname}`); // クエリは除く
   lines.push(`title: ${document.title}`);
   lines.push(`selectors.version: ${S.version}`);

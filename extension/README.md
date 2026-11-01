@@ -1,4 +1,4 @@
-# Lastclick Pigeon for note(Chrome 拡張)
+# Last One Click(Chrome 拡張)
 
 **The last click is yours.**
 

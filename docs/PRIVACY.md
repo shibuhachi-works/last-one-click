@@ -1,10 +1,10 @@
-# プライバシーポリシー / Privacy Policy — Lastclick Pigeon for note
+# プライバシーポリシー / Privacy Policy — Last One Click
 
 最終更新: 2026-10-28
 
 ## 日本語
 
-**Lastclick Pigeon for note**(以下「本拡張」)は、ユーザーが貼り付けた Markdown の記事を note.com のエディタに下書きとして入力する Chrome 拡張です。
+**Last One Click**(以下「本拡張」)は、ユーザーが貼り付けた Markdown の記事を note.com のエディタに下書きとして入力する Chrome 拡張です。
 
 ### 収集するデータ
 
@@ -39,7 +39,7 @@ https://shibuhachi.works/about/ のお問い合わせ先、または Chrome ウ�
 
 ## English
 
-**Lastclick Pigeon for note** is a Chrome extension that fills a note.com draft (title, body, header image, hashtags, magazine) from Markdown you paste.
+**Last One Click** is a Chrome extension that fills a note.com draft (title, body, header image, hashtags, magazine) from Markdown you paste.
 
 - **No data collection.** The extension does not collect, transmit, or sell any data, has no server, and runs no analytics.
 - **Data handled locally.** The article you paste is stored temporarily in `chrome.storage.local` to hand it from the popup to the note.com tab, and is sent nowhere except note.com. An optional GitHub token (for private repositories) is stored only in the extension's storage and sent only to `raw.githubusercontent.com`.

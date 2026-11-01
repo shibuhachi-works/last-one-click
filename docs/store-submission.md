@@ -19,7 +19,7 @@
 ```bash
 cd extension
 npm ci
-npm run package     # → extension/release/lastclick-pigeon-for-note-<version>.zip
+npm run package     # → extension/release/last-one-click-<version>.zip
 ```
 
 - `manifest.json` の `version` を上げるのは、ストアに上げ直すとき(同じ version は再アップロードできない)
