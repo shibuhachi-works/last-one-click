@@ -93,11 +93,11 @@ Markdown(GFM)を note のエディタが受け付ける形に変換して貼り�
 
 ```bash
 # 1. まず md ファイルが正しく読めるかだけ確認(ブラウザは開かない)
-npm run preview -- https://github.com/you/lastclick-pigeon/tree/main/posts/2026-10-28-xxx
+npm run preview -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
 #    → .preview/index.html を開いて見た目をチェック
 
 # 2. note の下書きを組み立てる
-npm run draft -- https://github.com/you/lastclick-pigeon/tree/main/posts/2026-10-28-xxx
+npm run draft -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
 ```
 
 URL は `tree/`(ディレクトリ)でも `blob/.../article.md`(ファイル)でも raw URL でも構いません。

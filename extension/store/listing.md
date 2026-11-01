@@ -68,7 +68,7 @@ md ファイルと見出し画像を選ぶだけで、note の下書きができ
 ・note の画面構成が変わると動かなくなることがあります
 　その場合はサポート URL のお問い合わせから、ポップアップの「診断」で取れるレポートを添えてご連絡ください
 ・ソースコードは GitHub で公開しています(MIT ライセンス)
-　https://github.com/shibuhachi-works/lastclick-pigeon
+　https://github.com/shibuhachi-works/last-one-click
 ```
 
 ## 単一の目的(Single purpose)
