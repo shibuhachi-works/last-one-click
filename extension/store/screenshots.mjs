@@ -110,7 +110,7 @@ const bannerHtml = (kind, text) =>
     "teal",
     `<div style="position:absolute;left:72px;top:64px;width:600px"><span class="tag">The last click is yours.</span>
        <h1>公開ボタンは、<br>あなたが押す。</h1>
-       <p class="sub">下書きまでを組み立てます。<br>投稿・公開のボタンは、設計上いっさい押しません。<br>内容を確かめて、最後の 1 クリックだけ自分で。</p></div>
+       <p class="sub" style="font-size:19px">下書きまでを組み立てます。<br>投稿・公開のボタンは、設計上いっさい押しません。<br>内容を確かめて、最後の 1 クリックだけ自分で。</p></div>
      <div style="position:absolute;left:520px;top:220px;width:760px;height:580px;overflow:hidden">
        <div style="position:absolute;left:-160px;top:-10px;width:1150px;height:460px">${art.replace('width="1400" height="560"', 'width="1150" height="460"')}</div>
      </div>
@@ -130,7 +130,7 @@ const bannerHtml = (kind, text) =>
     "light",
     `<div style="position:absolute;left:72px;top:150px;width:620px"><span class="tag">ドラッグ＆ドロップ</span>
        <h1 style="font-size:42px">md ファイルと見出し画像を、<br>ドラッグ＆ドロップするだけ。</h1>
-       <p class="sub">2 つ同時でも構いません。<br>タイトル・ハッシュタグ・マガジンも記事ファイルから読み取るので、<br>入力し直す必要はありません。</p></div>
+       <p class="sub">2 つ同時でも構いません。<br>タイトル・ハッシュタグ・マガジンも記事ファイルから<br>読み取るので、入力し直す必要はありません。</p></div>
      <div class="popup dropping" style="position:absolute;left:700px;top:200px;width:520px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.15)">${html.replace(/^[\s\S]*<body>/, "").replace(/<\/body>[\s\S]*$/, "")}</div>
      ${chip(540, 520, -10, "2026-10-28-weekly-note.md", "#41c9b4")}
      ${chip(590, 610, 7, "thumbnail.png", "#e8b96a")}
@@ -145,8 +145,8 @@ const bannerHtml = (kind, text) =>
 {
   const card = (title, sub) =>
     `<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:22px 22px 20px">
-       <div style="font-size:26px;font-weight:800;margin-bottom:10px"><span style="display:inline-block;width:30px;height:30px;border-radius:50%;background:#fff;color:#1f6f62;text-align:center;line-height:30px;font-size:18px;margin-right:10px">✓</span>${title}</div>
-       <div style="font-size:16px;line-height:1.6;opacity:.9">${sub}</div></div>`;
+       <div style="font-size:24px;font-weight:800;margin-bottom:10px"><span style="display:inline-block;width:30px;height:30px;border-radius:50%;background:#fff;color:#1f6f62;text-align:center;line-height:30px;font-size:18px;margin-right:10px">✓</span>${title}</div>
+       <div style="font-size:15px;line-height:1.6;opacity:.9">${sub}</div></div>`;
   await slide(
     "screenshot-4",
     "teal",
