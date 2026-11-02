@@ -26,7 +26,7 @@ mkdirSync(dir, { recursive: true });
     .side{max-width:520px;color:#1f2d2a} .side h2{font:700 34px/1.3 system-ui,sans-serif;margin:0 0 14px} .side p{font:17px/1.7 system-ui,sans-serif;margin:0 0 10px;color:#3a4a46}
     .side .tag{display:inline-block;background:#41c9b4;color:#fff;border-radius:999px;padding:4px 12px;font:700 13px system-ui,sans-serif;margin-bottom:14px}
   </style></head><body>
-    <div class="side"><span class="tag">The last click is yours.</span><h2>Markdown を選ぶだけで、note の下書きが組み上がる。</h2>
+    <div class="side"><span class="tag">The last one click is yours.</span><h2>Markdown を選ぶだけで、note の下書きが組み上がる。</h2>
       <p>貼り直し、整え直し、画像のアップロード、ハッシュタグの入力。<br>記事ごとに繰り返していた作業が、ファイルを選ぶ 1 回で済みます。</p>
       <p><b>公開ボタンは押しません。</b><br>最後の 1 クリックはあなたのものです。</p>
       <p>note の Cookie・パスワードには触れません。<br>ログイン済みのタブの中で動くだけです。</p></div>
@@ -59,7 +59,7 @@ mkdirSync(dir, { recursive: true });
 // 2) 文字なしの SVG に掲載用の文言を重ねる。SVG 自体には文字を入れない。
 for (const [name, width, height, copy] of [
   ["promo-small", 440, 280, '<h1>Last One Click</h1><p>Markdown を選ぶだけで、<br>note の下書きが完成</p><small>公開ボタンは押しません</small>'],
-  ["marquee", 1400, 560, '<small class="eyebrow">The last click is yours.</small><h1>Markdown の記事を、<br>そのまま note の下書きに</h1><p>タイトル・本文・見出し画像・ハッシュタグまで入力して止まる</p><small>公開ボタンは、あなたが押す。</small>'],
+  ["marquee", 1400, 560, '<small class="eyebrow">The last one click is yours.</small><h1>Markdown の記事を、<br>そのまま note の下書きに</h1><p>タイトル・本文・見出し画像・ハッシュタグまで入力して止まる</p><small>公開ボタンは、あなたが押す。</small>'],
 ]) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   const artwork = readFileSync(path.join(dir, name + ".svg"), "utf8");
@@ -108,7 +108,7 @@ const bannerHtml = (kind, text) =>
   await slide(
     "screenshot-2",
     "teal",
-    `<div style="position:absolute;left:72px;top:64px;width:600px"><span class="tag">The last click is yours.</span>
+    `<div style="position:absolute;left:72px;top:64px;width:600px"><span class="tag">The last one click is yours.</span>
        <h1>公開ボタンは、<br>あなたが押す。</h1>
        <p class="sub" style="font-size:19px">下書きまでを組み立てます。<br>投稿・公開のボタンは、設計上いっさい押しません。<br>内容を確かめて、最後の 1 クリックだけ自分で。</p></div>
      <div style="position:absolute;left:520px;top:220px;width:760px;height:580px;overflow:hidden">
