@@ -12,6 +12,12 @@ name: リリースを作る
 # - 古いコミット(workflow の差分がある)は、人が先にタグを打つ。タグが既にあれば、それを使ってリリースだけ作る
 #
 # リリースの本文は docs/releases/<タグ名>.md。無ければ止まる(文面は PR でレビューしてから置く)。
+#
+# ストアに出す ZIP(last-one-click-<版>.zip)も、この workflow がそのコミットから作って、リリースに添える。
+# - ZIP は、指定したコミットを別の場所に取り出して作る(本文を読む main とは分ける)。manifest.json の version がタグと同じことを確かめる
+# - ZIP を作る手順(npm ci・build)は、リリースを作る token を持たない手順で行う(npm ci は --ignore-scripts)
+# - 本文の末尾に、ZIP の SHA-256 と「通常はストアから入れる」の注意を足す
+# - ストアには、リリースに添えた ZIP をそのまま上げる(手元で作り直さない。ZIP は作るたびに中身の時刻が変わる)
 on:
   workflow_dispatch:
     inputs:
@@ -35,10 +41,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: 入力を確かめて、リリースを作る
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: 入力を確かめて、ストアに出す ZIP を作る(リリースの token は渡さない)
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag }}
           SHA: ${{ inputs.sha }}
         run: |
@@ -50,6 +57,29 @@ jobs:
           git merge-base --is-ancestor "$SHA" origin/main || { echo "main に入っていないコミットです: $SHA"; exit 1; }
           NOTES="docs/releases/$TAG.md"
           [[ -f "$NOTES" ]] || { echo "本文がありません: $NOTES(先に PR で置いてください)"; exit 1; }
+          # 指定したコミットを別の場所に取り出して、そこで ZIP を作る
+          SRC="$RUNNER_TEMP/src"
+          git worktree add --detach "$SRC" "$SHA"
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('$SRC/extension/manifest.json','utf8')).version")
+          [[ "v$VERSION" == "$TAG" ]] || { echo "manifest.json の version（$VERSION）がタグ（$TAG）と違います"; exit 1; }
+          # 取り出した先の依存を入れる。インストール時のスクリプトは動かさない
+          ( cd "$SRC" && npm ci --ignore-scripts )
+          ( cd "$SRC/extension" && npm ci --ignore-scripts && node package.mjs )
+          ZIP="$SRC/extension/release/last-one-click-$VERSION.zip"
+          [[ -f "$ZIP" ]] || { echo "ZIP ができていません: $ZIP"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/assets"
+          cp "$ZIP" "$RUNNER_TEMP/assets/"
+          ( cd "$RUNNER_TEMP/assets" && sha256sum "last-one-click-$VERSION.zip" | tee SHA256SUMS )
+          echo "ZIP の中身:"; unzip -l "$RUNNER_TEMP/assets/last-one-click-$VERSION.zip"
+      - name: リリースを作る(ZIP を添える)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          set -eu
+          NOTES="docs/releases/$TAG.md"
           if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
             echo "リリースは既にあります: $TAG"; exit 1
           fi
@@ -57,14 +87,24 @@ jobs:
           TITLE=$(sed -n '1s/^#\+ *//p' "$NOTES")
           [[ -n "$TITLE" ]] || { echo "本文の 1 行目は「# タイトル」にしてください: $NOTES"; exit 1; }
           tail -n +2 "$NOTES" > "$RUNNER_TEMP/notes.md"
+          ZIPNAME="last-one-click-${TAG#v}.zip"
+          HASH=$(cut -d' ' -f1 "$RUNNER_TEMP/assets/SHA256SUMS")
+          {
+            echo
+            echo "## ZIP の確認"
+            echo
+            echo "- ファイル: \`$ZIPNAME\`(Chrome ウェブストアに出した版と同じ ZIP です)"
+            echo "- SHA-256: \`$HASH\`"
+            echo "- 通常は、Chrome ウェブストアから入れてください(自動で更新されます)。この ZIP は、中身を確かめたい人向けです"
+          } >> "$RUNNER_TEMP/notes.md"
           # タグが既にあれば、それが指すコミットを確かめて、そのタグでリリースを作る。無ければタグも一緒に作る
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
             git fetch -q origin "refs/tags/$TAG:refs/tags/$TAG"
             TAG_SHA=$(git rev-parse "refs/tags/$TAG^{commit}")
             [[ "$TAG_SHA" == "$SHA" ]] || { echo "タグ $TAG は別のコミットを指しています: $TAG_SHA"; exit 1; }
-            gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md"
+            gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "$RUNNER_TEMP/assets/$ZIPNAME" "$RUNNER_TEMP/assets/SHA256SUMS"
             echo "既にあるタグでリリースを作りました: $TAG → $SHA"
           else
-            gh release create "$TAG" --repo "$REPO" --target "$SHA" --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md"
+            gh release create "$TAG" --repo "$REPO" --target "$SHA" --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "$RUNNER_TEMP/assets/$ZIPNAME" "$RUNNER_TEMP/assets/SHA256SUMS"
             echo "タグとリリースを作りました: $TAG → $SHA"
           fi
