@@ -7,7 +7,7 @@
 
 - **公開範囲**: 「公開」にする(ストアの検索で見つかり、誰でも無料で入れられる)。`selectors/note.json` は 2026-10-29 に実機で全工程 ✓ を確認済み。note の画面が変わって ✗ になったときは、`selectors/note.json` を直して main に push すれば、拡張を出し直さずに全員に届く。限定公開(URL を知っている人だけ)にしたいときは、公開範囲だけを切り替えられる
 - **料金**: 「料金なし」。拡張の中に購入の機能は無い
-- **プライバシーポリシーの URL**: 審査で必須。https://shibuhachi.works/lastclick-pigeon/privacy/ を使う(portfolio リポジトリの `src/pages/lastclick-pigeon/privacy.astro`。文面は `docs/PRIVACY.md` と同じに保つ)。ホームページ URL は https://shibuhachi.works/lastclick-pigeon/
+- **プライバシーポリシーの URL**: 審査で必須。https://shibuhachi.works/last-one-click/privacy/ を使う(portfolio リポジトリの `src/pages/last-one-click/privacy.astro`。文面は `docs/PRIVACY.md` と同じに保つ)。ホームページ URL は https://shibuhachi.works/last-one-click/
 
 ## 1. 準備(1 回だけ)
 

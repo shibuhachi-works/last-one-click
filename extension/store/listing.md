@@ -11,9 +11,10 @@
 | 概要(132 字以内) | md ファイルと見出し画像を選ぶだけで、note の下書き(タイトル・本文・ハッシュタグ・マガジンまで)を作ります。公開ボタンは押しません。現在は note に対応しています。 |
 | カテゴリ | 仕事効率化(Productivity) |
 | 言語 | 日本語 |
-| 公式 URL | https://shibuhachi.works/lastclick-pigeon/ |
+| 公式 URL | shibuhachi.works(確認済みのサイトを選ぶ) |
+| ホームページ URL | https://shibuhachi.works/last-one-click/ |
 | サポート URL | https://shibuhachi.works/about/(お問い合わせ先。リポジトリ公開後は GitHub Issues に変えてもよい) |
-| プライバシーポリシー URL | https://shibuhachi.works/lastclick-pigeon/privacy/(文面は `docs/PRIVACY.md` と同じ。portfolio リポジトリで管理) |
+| プライバシーポリシー URL | https://shibuhachi.works/last-one-click/privacy/(文面は `docs/PRIVACY.md` と同じ。portfolio リポジトリで管理) |
 
 ## 詳細な説明
 
