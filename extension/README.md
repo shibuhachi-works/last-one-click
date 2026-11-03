@@ -1,6 +1,6 @@
 # Last One Click(Chrome 拡張)
 
-**The last click is yours.**
+**The last one click is yours.**
 
 Markdown のファイルを選ぶだけで、note の下書き(タイトル・本文・見出し画像・ハッシュタグ・マガジン)を組み立てる拡張です。
 **公開ボタンは押しません。** 最後は自分で確認して押してください。
