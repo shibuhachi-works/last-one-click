@@ -5,6 +5,8 @@
 **AI で書いた投稿を、そのまま各 SNS の投稿画面に届けるツール群です。** 整形・画像・タグまで入力して止まります。
 **投稿・公開ボタンは絶対に押しません。** 内容を確認して最後の1クリックをするのは、いつも人間です。
 
+**入れ方**:[Chrome ウェブストアで入手](https://chromewebstore.google.com/detail/last-one-click/jomapffkhcdpnodaffobmpfofnnaihnd)(Chrome と Edge などの Chromium 系ブラウザで使えます)。通常はストアから入れてください。ZIP から手で入れる方法は [extension/README.md](extension/README.md) にあります。
+
 対象は「AI を使って投稿する人」。入力は AI の出力そのもの(Markdown)で、人が手で整形する前提にしません。
 現在対応している媒体は **note** です(説明文のとおり、現在は note に対応しています)。X / TikTok / Instagram も同じ方針(下書きまで作り、投稿は本人のクリック)で順次追加します。
 現状と今後の計画は [docs/ROADMAP.md](docs/ROADMAP.md) にまとめています。
