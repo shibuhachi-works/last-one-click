@@ -26,7 +26,7 @@ mkdirSync(dir, { recursive: true });
     .side{max-width:520px;color:#1f2d2a} .side h2{font:700 34px/1.3 system-ui,sans-serif;margin:0 0 14px} .side p{font:17px/1.7 system-ui,sans-serif;margin:0 0 10px;color:#3a4a46}
     .side .tag{display:inline-block;background:#41c9b4;color:#fff;border-radius:999px;padding:4px 12px;font:700 13px system-ui,sans-serif;margin-bottom:14px}
   </style></head><body>
-    <div class="side"><span class="tag">The last click is yours.</span><h2>Markdown を選ぶだけで、note の下書きが組み上がる。</h2>
+    <div class="side"><span class="tag">The last one click is yours.</span><h2>Markdown を選ぶだけで、note の下書きが組み上がる。</h2>
       <p>貼り直し、整え直し、画像のアップロード、ハッシュタグの入力。<br>記事ごとに繰り返していた作業が、ファイルを選ぶ 1 回で済みます。</p>
       <p><b>公開ボタンは押しません。</b><br>最後の 1 クリックはあなたのものです。</p>
       <p>note の Cookie・パスワードには触れません。<br>ログイン済みのタブの中で動くだけです。</p></div>
@@ -59,7 +59,7 @@ mkdirSync(dir, { recursive: true });
 // 2) 文字なしの SVG に掲載用の文言を重ねる。SVG 自体には文字を入れない。
 for (const [name, width, height, copy] of [
   ["promo-small", 440, 280, '<h1>Last One Click</h1><p>Markdown を選ぶだけで、<br>note の下書きが完成</p><small>公開ボタンは押しません</small>'],
-  ["marquee", 1400, 560, '<small class="eyebrow">The last click is yours.</small><h1>Markdown の記事を、<br>そのまま note の下書きに</h1><p>タイトル・本文・見出し画像・ハッシュタグまで入力して止まる</p><small>公開ボタンは、あなたが押す。</small>'],
+  ["marquee", 1400, 560, '<small class="eyebrow">The last one click is yours.</small><h1>Markdown の記事を、<br>そのまま note の下書きに</h1><p>タイトル・本文・見出し画像・ハッシュタグまで入力して止まる</p><small>公開ボタンは、あなたが押す。</small>'],
 ]) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   const artwork = readFileSync(path.join(dir, name + ".svg"), "utf8");
@@ -108,9 +108,9 @@ const bannerHtml = (kind, text) =>
   await slide(
     "screenshot-2",
     "teal",
-    `<div style="position:absolute;left:72px;top:64px;width:600px"><span class="tag">The last click is yours.</span>
+    `<div style="position:absolute;left:72px;top:64px;width:600px"><span class="tag">The last one click is yours.</span>
        <h1>公開ボタンは、<br>あなたが押す。</h1>
-       <p class="sub">下書きまでを組み立てます。<br>投稿・公開のボタンは、設計上いっさい押しません。<br>内容を確かめて、最後の 1 クリックだけ自分で。</p></div>
+       <p class="sub" style="font-size:19px">下書きまでを組み立てます。<br>投稿・公開のボタンは、設計上いっさい押しません。<br>内容を確かめて、最後の 1 クリックだけ自分で。</p></div>
      <div style="position:absolute;left:520px;top:220px;width:760px;height:580px;overflow:hidden">
        <div style="position:absolute;left:-160px;top:-10px;width:1150px;height:460px">${art.replace('width="1400" height="560"', 'width="1150" height="460"')}</div>
      </div>
@@ -130,7 +130,7 @@ const bannerHtml = (kind, text) =>
     "light",
     `<div style="position:absolute;left:72px;top:150px;width:620px"><span class="tag">ドラッグ＆ドロップ</span>
        <h1 style="font-size:42px">md ファイルと見出し画像を、<br>ドラッグ＆ドロップするだけ。</h1>
-       <p class="sub">2 つ同時でも構いません。<br>タイトル・ハッシュタグ・マガジンも記事ファイルから読み取るので、<br>入力し直す必要はありません。</p></div>
+       <p class="sub">2 つ同時でも構いません。<br>タイトル・ハッシュタグ・マガジンも記事ファイルから<br>読み取るので、入力し直す必要はありません。</p></div>
      <div class="popup dropping" style="position:absolute;left:700px;top:200px;width:520px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.15)">${html.replace(/^[\s\S]*<body>/, "").replace(/<\/body>[\s\S]*$/, "")}</div>
      ${chip(540, 520, -10, "2026-10-28-weekly-note.md", "#41c9b4")}
      ${chip(590, 610, 7, "thumbnail.png", "#e8b96a")}
@@ -145,8 +145,8 @@ const bannerHtml = (kind, text) =>
 {
   const card = (title, sub) =>
     `<div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:22px 22px 20px">
-       <div style="font-size:26px;font-weight:800;margin-bottom:10px"><span style="display:inline-block;width:30px;height:30px;border-radius:50%;background:#fff;color:#1f6f62;text-align:center;line-height:30px;font-size:18px;margin-right:10px">✓</span>${title}</div>
-       <div style="font-size:16px;line-height:1.6;opacity:.9">${sub}</div></div>`;
+       <div style="font-size:24px;font-weight:800;margin-bottom:10px"><span style="display:inline-block;width:30px;height:30px;border-radius:50%;background:#fff;color:#1f6f62;text-align:center;line-height:30px;font-size:18px;margin-right:10px">✓</span>${title}</div>
+       <div style="font-size:15px;line-height:1.6;opacity:.9">${sub}</div></div>`;
   await slide(
     "screenshot-4",
     "teal",
