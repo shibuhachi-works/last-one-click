@@ -13,11 +13,11 @@
     "screenshots": "node store/screenshots.mjs"
   },
   "dependencies": {
-    "marked": "^18.1.1",
+    "marked": "^18.1.2",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@types/chrome": "^0.3.6",
+    "@types/chrome": "^0.3.7",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
