@@ -28,6 +28,8 @@ jobs:
       - run: npm ci && npm run build
         working-directory: extension
       - run: npm run typecheck
+      # shared/no-unsafe-click.test.ts が extension/src と shared の全 .ts を検査する
+      # (テストと extension/src/lib/safe-click.ts のみ除外)
       - run: npm test
 
   extension:
@@ -46,9 +48,3 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
-      # 公開ボタンを押すコードが紛れ込んでいないかの最低限の検査:
-      # クリックは必ず safeClick を通す(素の .click() は safeClick の中にしか無い)
-      - name: 素の .click() が safeClick の外に無いことを確認
-        run: |
-          hits=$(grep -n "\.click()" src/content.ts | grep -v "el\.click();" || true)
-          if [ -n "$hits" ]; then echo "safeClick を通らない click があります:"; echo "$hits"; exit 1; fi
