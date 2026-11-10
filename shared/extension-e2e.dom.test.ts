@@ -300,23 +300,47 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(banner, /21 件あり、上限の 20 件を超えた 1 件は埋め込みにしていません/);
     assert.deepEqual(errors, []);
   });
-  it("「記事の最後に…リンクを入れる」のチェックを外すと、リンクを入れない。チェックを覚える", async () => {
+  it("「記事の最後に…リンクと #LastOneClick を入れる」は外に出ていて既定はチェックあり。本文の最後にリンク、ハッシュタグに LastOneClick が入る。外すと入らず、チェックを覚える", async () => {
+    let first: Page | undefined;
     const { editor, errors } = await draftFromPopup(async (popup) => {
-      assert.equal(await popup.locator("#credit-link").isChecked(), true, "既定はチェックあり");
-      // 「記事の設定」は既定でたたんであり、見出しの横にオンのものが出る
-      assert.equal(await popup.locator("#article-options").getAttribute("open"), null);
-      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・リンク)");
-      await safeClickLike(popup, "#article-options > summary");
-      await safeClickLike(popup, "#credit-link");
+      first = popup;
+      // 作成を押したときに保存される記事(ハッシュタグ)を、あとで読めるように控えておく
+      await popup.evaluate(() => {
+        type Change = Record<string, { newValue?: { hashtags?: string[] } }>;
+        const c = (globalThis as unknown as { chrome: { storage: { onChanged: { addListener: (f: (ch: Change) => void) => void } } } }).chrome;
+        c.storage.onChanged.addListener((ch) => {
+          const tags = ch.pendingArticle?.newValue?.hashtags;
+          if (tags) (globalThis as unknown as { __tags: string[] }).__tags = tags;
+        });
+      });
+      const credit = popup.locator("#credit-link");
+      assert.equal(await credit.isChecked(), true, "既定はチェックあり");
+      // 「記事の設定」の中ではなく、たたまれていない所にあり、文言にリンクとハッシュタグの両方が書いてある
+      assert.equal(await popup.locator("#article-options #credit-link").count(), 0);
+      assert.ok(await credit.isVisible());
+      assert.match((await popup.locator("label:has(#credit-link)").textContent()) ?? "", /リンクと、ハッシュタグ #LastOneClick を入れる/);
+      // 「記事の設定」の見出しの横には、リンクは出ない
       assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み)");
-      assert.equal(await popup.locator("#credit-link").isChecked(), false);
     });
     const body = await editor.locator("#body").innerHTML();
-    assert.doesNotMatch(body, /下書きしました/);
+    assert.match(body, /<hr>\s*<p>この記事は、<a href="https:\/\/chromewebstore\.google\.com\/detail\/last-one-click\/jomapffkhcdpnodaffobmpfofnnaihnd">Last One Click<\/a> で下書きしました。<\/p>\s*$/);
+    // 公開設定で入れるハッシュタグに LastOneClick が足されている(md のハッシュタグはテスト)
+    const tags = await first!.evaluate(() => (globalThis as unknown as { __tags?: string[] }).__tags);
+    assert.deepEqual(tags, ["テスト", "LastOneClick"]);
+    assert.deepEqual(errors, []);
+
+    // チェックを外すと、リンクもハッシュタグも入らない。外したことを覚える
+    const second = await draftFromPopup(async (popup) => {
+      await safeClickLike(popup, "#credit-link");
+      assert.equal(await popup.locator("#credit-link").isChecked(), false);
+    });
+    assert.doesNotMatch(await second.editor.locator("#body").innerHTML(), /下書きしました/);
     const popup = await context.newPage();
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
     await popup.waitForFunction(() => !(document.getElementById("credit-link") as HTMLInputElement).checked, null, { timeout: 5_000 });
+    // 後のテストに残さないよう、チェックを戻しておく
+    await safeClickLike(popup, "#credit-link");
     await popup.close();
-    assert.deepEqual(errors, []);
+    assert.deepEqual(second.errors, []);
   });
 });

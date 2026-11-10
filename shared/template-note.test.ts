@@ -28,6 +28,7 @@ const FEATURES: [string, RegExp, RegExp][] = [
   ["埋め込みにする URL だけの行", /^https?:\/\/\S+$/m, /<p><a href="https:[^"]+">https:[^<]+<\/a><\/p>/],
   ["目次の説明", /目次/, /目次/],
   ["最後の 1 行(下書きしました)の説明", /下書きしました/, /下書きしました/],
+  ["チェックで入るハッシュタグ #LastOneClick の説明", /ハッシュタグ #LastOneClick/, /ハッシュタグ #LastOneClick/],
 ];
 
 describe("templates/note/article.md(見本)", () => {

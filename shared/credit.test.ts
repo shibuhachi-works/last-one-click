@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { Marked } from "marked";
 import { parse as parseYaml } from "yaml";
 import { renderArticle } from "./article.js";
-import { CREDIT_HTML, CREDIT_MARKDOWN, CREDIT_URL, appendCreditHtml } from "./credit.js";
+import { CREDIT_HASHTAG, CREDIT_HTML, CREDIT_MARKDOWN, CREDIT_URL, appendCreditHtml, withCreditHashtag } from "./credit.js";
 import { SAFE_RENDERER } from "./markdown-safe.js";
 
 const md = new Marked({ gfm: true, breaks: true, renderer: SAFE_RENDERER as never });
@@ -61,5 +61,24 @@ describe("記事の書き方に影響されない(Codex の指摘)", () => {
     const a = await build("---\n# タイトル\n\n本文です。\n", true);
     assert.ok(a.html.includes("本文です。"), a.html);
     assert.ok(a.html.includes("下書きしました"), a.html);
+  });
+});
+
+describe("withCreditHashtag", () => {
+  it("チェックを入れたときだけ、最後に LastOneClick を足す", () => {
+    assert.equal(CREDIT_HASHTAG, "LastOneClick");
+    assert.deepEqual(withCreditHashtag(["AI", "note"], true), ["AI", "note", "LastOneClick"]);
+    assert.deepEqual(withCreditHashtag(["AI", "note"], false), ["AI", "note"]);
+    assert.deepEqual(withCreditHashtag([], true), ["LastOneClick"]);
+  });
+  it("すでにあれば足さない(大文字・小文字・# の違いは同じとみなす)", () => {
+    for (const t of ["LastOneClick", "lastoneclick", "#LastOneClick"]) {
+      assert.deepEqual(withCreditHashtag(["AI", t], true), ["AI", t]);
+    }
+  });
+  it("元の配列は変えない", () => {
+    const tags = ["AI"];
+    withCreditHashtag(tags, true);
+    assert.deepEqual(tags, ["AI"]);
   });
 });

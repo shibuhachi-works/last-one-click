@@ -98,18 +98,18 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
   $<HTMLInputElement>("github-token").value = (s[STORAGE.githubToken] as string | undefined) ?? "";
   applyAdvanced(Boolean(s[STORAGE.advancedMode]));
   skipReviewEl.checked = Boolean(s[STORAGE.skipBodyReview]);
-  // 目次・埋め込み・最後の 1 行は、一度も触っていなければ(undefined)入れる。外した人は外したまま
+  // 目次・埋め込みは、一度も触っていなければ(undefined)入れる。外した人は外したまま
   insertTocEl.checked = s[STORAGE.insertToc] === undefined ? true : Boolean(s[STORAGE.insertToc]);
   embedUrlsEl.checked = s[STORAGE.embedUrls] === undefined ? true : Boolean(s[STORAGE.embedUrls]);
-  // 既定は入れる(まだ一度も変えていなければ値が無い)
+  // 最後のリンクと #LastOneClick は、既定で入れる(何が入るかはチェックの文言に書いてある)。外した人は外したまま
   creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
   showArticleOptions();
 });
 // 「記事の設定」はたたんでおき、見出しの横にオンになっているものを出す
 function showArticleOptions() {
-  $("article-options-on").textContent = articleOptionsLabel({ toc: insertTocEl.checked, embed: embedUrlsEl.checked, credit: creditLinkEl.checked });
+  $("article-options-on").textContent = articleOptionsLabel({ toc: insertTocEl.checked, embed: embedUrlsEl.checked });
 }
-for (const el of [insertTocEl, embedUrlsEl, creditLinkEl]) el.addEventListener("change", showArticleOptions);
+for (const el of [insertTocEl, embedUrlsEl]) el.addEventListener("change", showArticleOptions);
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
 // 「記事の先頭に目次を入れる」も次回も同じにする
