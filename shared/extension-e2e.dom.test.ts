@@ -20,15 +20,50 @@ const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../exte
 // note の記事編集ページを模したもの。タイトル欄と本文(ProseMirror)だけを持ち、貼り付けは text/html をそのまま入れる
 const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>note</title></head><body>
   <textarea id="title" placeholder="記事タイトル"></textarea>
-  <div id="body" class="ProseMirror" contenteditable="true"></div>
+  <div id="body" class="ProseMirror" contenteditable="true"><p><br></p></div>
   <div id="spacer"></div>
+  <button id="open-menu" type="button" aria-label="メニューを開く">+</button>
+  <div id="menu" hidden><button id="toc-setting" type="button">目次</button></div>
   <script>
-    document.getElementById("body").addEventListener("paste", (e) => {
+    const body = document.getElementById("body");
+    // カーソルのある本文の行(body の直下の要素)
+    const caretBlock = () => {
+      const sel = getSelection();
+      let n = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
+      while (n && n.parentNode !== body) n = n.parentNode;
+      return n;
+    };
+    // 貼り付けは、カーソルのある空の行に text/html を入れる(カーソルが無ければ最後に足す)
+    body.addEventListener("paste", (e) => {
       e.preventDefault();
-      e.currentTarget.innerHTML = e.clipboardData.getData("text/html");
+      const t = document.createElement("template");
+      t.innerHTML = e.clipboardData.getData("text/html");
+      const b = caretBlock();
+      if (b && b.tagName === "P" && b.textContent.trim() === "") b.replaceWith(t.content);
+      else body.append(t.content);
       // 本物のエディタは、長い本文を貼ると画面が本文の最後まで動く
       document.getElementById("spacer").style.height = "5000px";
       window.scrollTo(0, document.body.scrollHeight);
+      // 本物のエディタは貼り付けで画面の要素を作り直し、目次は作り(要素の種類など)も変わる(2026-11-10 実機)。
+      // 拡張が貼ったあとに目次を要素や特徴で探すと、目次が残っていても「消えた」と誤って出るので、それを再現する
+      for (const toc of body.querySelectorAll(".toc")) {
+        const nav = document.createElement("nav");
+        nav.className = "toc";
+        nav.textContent = toc.textContent;
+        toc.replaceWith(nav);
+      }
+    });
+    // 本物と同じく「+」→「目次」で、カーソルのある行の次の行に目次が入る(その下に空の行ができる)
+    document.getElementById("open-menu").addEventListener("click", () => (document.getElementById("menu").hidden = false));
+    document.getElementById("toc-setting").addEventListener("click", () => {
+      const toc = document.createElement("div");
+      toc.className = "toc";
+      toc.textContent = "目次";
+      const p = document.createElement("p");
+      p.innerHTML = "<br>";
+      const b = caretBlock() ?? body.lastElementChild;
+      b.after(toc, p);
+      document.getElementById("menu").hidden = true;
     });
   </script>
 </body></html>`;
@@ -105,7 +140,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.close();
   });
 
-  it("md ファイルを選んで「note の下書きを作成」を押すと、エディタにタイトルと本文が入って止まる", async () => {
+  /** ポップアップで md を選び、「note の下書きを作成」を押して、本文の確認待ちのバナーが出るまで進める */
+  async function draftFromPopup(prepare: (popup: Page) => Promise<void> = async () => {}): Promise<{ editor: Page; errors: string[] }> {
     const popup = await context.newPage();
     // 拡張が chrome.tabs.create で開いたタブの最初の読み込みは、Playwright の差し替え(route)より先に通ることがある
     // (CI で本物の note.com に出ていった)。テストでは一度 about:blank で開き、差し替えが効いてから note の URL に移す
@@ -130,6 +166,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
     await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
     await popup.locator("#fields").waitFor({ state: "visible" });
+    await prepare(popup);
     assert.equal(await popup.locator("#title").inputValue(), "起動テストの記事");
 
     // 新しいタブは about:blank で作られてから note の URL に移るので、作られたあとで URL を待つ
@@ -153,6 +190,11 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         throw new Error(`バナーが出ませんでした。URL: ${editor.url()} / バナー: ${text.replace(/\s+/g, " ").trim()} / コンソール: ${logs.join(" | ") || "(なし)"} (${(e as Error).message.split("\n")[0]})`);
       });
 
+    return { editor, errors };
+  }
+
+  it("md ファイルを選んで「note の下書きを作成」を押すと、エディタにタイトルと本文が入って止まる", async () => {
+    const { editor, errors } = await draftFromPopup();
     assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
     // 作り終えたら、エディタのいちばん上に戻っている(貼り付けで最後まで動いた画面を戻す)
     assert.equal(await editor.evaluate(() => window.scrollY), 0);
@@ -162,6 +204,24 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(body, /<li>箇条書き 1<\/li>/);
     // GitHub への取得は止めたので、同梱のセレクタで最後まで通ったことになる
     assert.ok(selectorsFetches >= 1, "セレクタの取得が遮断されていません(GitHub から取っている可能性)");
+    assert.deepEqual(errors, []);
+  });
+  it("「記事の先頭に目次を入れる」にチェックを入れると、本文の先頭(本文より前)に目次が入る", async () => {
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      await safeClickLike(popup, "#insert-toc");
+      assert.equal(await popup.locator("#insert-toc").isChecked(), true);
+    });
+    const order = await editor.locator("#body").evaluate((b) => Array.from(b.children).map((c) => c.className || c.tagName));
+    const toc = order.indexOf("toc");
+    assert.ok(toc >= 0, `目次が入っていません: ${order.join(", ")}`);
+    assert.ok(toc < order.indexOf("H2"), `目次が本文より前にありません: ${order.join(", ")}`);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /目次 ✓/);
+    // チェックは次回も覚えている
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.waitForFunction(() => (document.getElementById("insert-toc") as HTMLInputElement).checked, null, { timeout: 5_000 });
+    await popup.close();
     assert.deepEqual(errors, []);
   });
 });

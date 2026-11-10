@@ -61,7 +61,10 @@ async function main() {
   watchArticleKey(keyRef);
 
   await step("タイトル", results, () => fillTitle(titleEl, article));
-  await step("本文", results, () => pasteBody(S, article));
+  // 目次は「カーソルのある行の次の行」に入るので、本文を貼る前の空の本文で入れ、本文はその下に貼る
+  const tocRef: TocRef = { node: null };
+  if (article.insertToc) await step("目次", results, () => insertToc(S, tocRef));
+  await step("本文", results, () => pasteBody(S, article, tocRef));
   const goOn = await step("見出し画像", results, () => setThumbnail(S, article));
   // 本文を貼ったり見出し画像を入れたりすると、画面が本文の途中や最後まで動く。確かめやすいよう、エディタのいちばん上に戻す
   scrollToTop(titleEl);
@@ -214,15 +217,73 @@ function fillTitle(el: HTMLElement, a: ArticlePayload) {
   }
 }
 
-/** md→HTML を、クリップボードから貼り付けたのと同じ経路でエディタに渡す */
-async function pasteBody(S: Selectors, a: ArticlePayload) {
+/** 目次の工程で入った目次の要素(本文を、その次の行に貼るために使う) */
+type TocRef = { node: Element | null };
+
+const TOC_MANUAL = "note の画面で、本文の先頭の行にカーソルを置き、左の「+」→「目次」を押してください";
+
+/**
+ * 空の本文の 1 行目にカーソルを置き、「+」(メニューを開く)→「目次」を押す。
+ * 目次はカーソルのある行の次の行に入る(2026-11-10 実機)。入ったかは、本文の子要素が増えたかで確かめる。
+ * 失敗しても下書きづくりは止めない(step が ✗ を記録して先へ進む)
+ */
+async function insertToc(S: Selectors, ref: TocRef) {
   const el = await waitFor(S.body, 10_000);
   el.focus();
+  placeCaret(el, el.firstElementChild ?? el, "start");
+  await sleep(200);
+  const before = new Set(Array.from(el.children));
+
+  const open = await waitUntil(() => visibleMatch(S.toc.openMenuButton), 3_000);
+  if (!open) throw new Error(`「+」(メニューを開く)のボタンが見つかりません。${TOC_MANUAL}`);
+  safeClick(open, "目次: メニューを開く");
+
+  const item = await waitUntil(() => visibleMatch(S.toc.itemSelector) ?? findByText("button", S.toc.itemText), 3_000);
+  if (!item) throw new Error(`メニューに「目次」が見つかりません。${TOC_MANUAL}`);
+  safeClick(item, "目次: 目次を入れる");
+
+  const added = await waitUntil(() => Array.from(el.children).find((c) => !before.has(c)) ?? null, 3_000);
+  if (!added) throw new Error(`目次が入ったか確かめられませんでした。${TOC_MANUAL}`);
+  ref.node = added;
+  return "本文の先頭";
+}
+
+/** md→HTML を、クリップボードから貼り付けたのと同じ経路でエディタに渡す */
+async function pasteBody(S: Selectors, a: ArticlePayload, toc: TocRef = { node: null }) {
+  const el = await waitFor(S.body, 10_000);
+  el.focus();
+  if (toc.node?.isConnected) {
+    // 目次の下に貼る。目次の次の行があればその行頭、無ければ本文の最後にカーソルを置く
+    const next = toc.node.nextElementSibling;
+    if (next) placeCaret(el, next, "start");
+    else placeCaret(el, el, "end");
+    await sleep(200);
+  }
   const dt = new DataTransfer();
   dt.setData("text/html", a.html);
   dt.setData("text/plain", htmlToText(a.html)); // innerHTML は使わない
   el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   await sleep(500);
+  // 貼ったあとに目次が残っているかは確かめない。note のエディタは貼り付けで目次の要素を作り直し、作りも変わるので、
+  // 要素や特徴で探すと、目次が残っていても「消えた」と誤って出た(2026-11-10 実機で 2 回)
+}
+
+/** contenteditable の中の target の先頭(または末尾)にカーソルを置く。エディタは selectionchange で自分の選択範囲に取り込む */
+function placeCaret(root: HTMLElement, target: Node, where: "start" | "end") {
+  const sel = window.getSelection();
+  if (!sel || !root.contains(target)) return;
+  const range = document.createRange();
+  range.selectNodeContents(target);
+  range.collapse(where === "start");
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/** セレクタに当たる要素のうち、画面に見えているもの(メニューの中身は閉じていると hidden) */
+function visibleMatch(selector: string): HTMLElement | null {
+  return (
+    Array.from(document.querySelectorAll<HTMLElement>(selector)).find((e) => e.offsetParent !== null || e.getClientRects().length > 0) ?? null
+  );
 }
 
 async function setThumbnail(S: Selectors, a: ArticlePayload) {
