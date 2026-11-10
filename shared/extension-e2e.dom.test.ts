@@ -351,7 +351,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("本文の画像が見つからないときは、目印を残してバナーで知らせる", async () => {
     const md = "---\ntitle: 画像が無いテスト\n---\n\n## 見出し\n\n![図](missing.png)\n";
     const { editor, errors } = await draftFromPopup(async () => {}, md, "一部は入力できませんでした");
-    assert.match(await editor.locator("#body").innerText(), /［画像1: missing\.png］/);
+    assert.match(await editor.locator("#body").innerText(), /［画像1・[0-9a-z]{4}: missing\.png］/);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /見つからなかった画像があります\(missing\.png\)/);
     assert.deepEqual(errors, []);

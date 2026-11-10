@@ -12,8 +12,17 @@
 /** 1 記事に入れる本文の画像の上限(埋め込みと同じ) */
 export const MAX_BODY_IMAGES = 20;
 
-/** 画像のファイルの合計の上限(base64 にする前のバイト数)。chrome.storage.local に入れて content script に渡すため */
-export const MAX_BODY_IMAGE_BYTES = 7 * 1024 * 1024;
+/**
+ * 下書きの中身(本文・見出し画像・本文の画像)を chrome.storage.local に入れて content script に渡すときの上限。
+ * storage.local は 10MB まで(unlimitedStorage の権限は持たない)なので、ほかの保存データの分を残して 9MB にする。
+ * 画像は base64 で入れるので、元の大きさの 4/3 で数える
+ */
+export const MAX_PENDING_BYTES = 9 * 1024 * 1024;
+
+/** base64 にしたときの長さ(バイト) */
+export function base64Size(bytes: number): number {
+  return Math.ceil(bytes / 3) * 4;
+}
 
 /** URL ではなく、記事からの相対パスで書いた画像か(https:・data: などのスキーム、// 始まり、# 始まりは違う) */
 export function isLocalImageSrc(src: string): boolean {
@@ -33,9 +42,20 @@ export function imageFileName(src: string): string {
   }
 }
 
-/** 本文に置く目印の文字。n は 1 から(同じファイルを 2 回使っても目印は別になる) */
-export function imageMarker(n: number, src: string): string {
-  return `［画像${n}: ${imageFileName(src)}］`;
+/**
+ * 本文に置く目印の文字。n は 1 から(同じファイルを 2 回使っても目印は別になる)。
+ * tag は変換のたびに作る印で、記事の中にもともと同じ文字があっても取り違えないようにする(makeMarkerTag)
+ */
+export function imageMarker(n: number, src: string, tag: string): string {
+  return `［画像${n}・${tag}: ${imageFileName(src)}］`;
+}
+
+/** 目印の印。記事の md に含まれない文字列になるまで作り直す */
+export function makeMarkerTag(markdown: string, random: () => number = Math.random): string {
+  for (;;) {
+    const tag = Math.floor(random() * 36 ** 4).toString(36).padStart(4, "0");
+    if (!markdown.includes(tag)) return tag;
+  }
 }
 
 export type BodyImageRef = { marker: string; src: string; alt: string };
@@ -44,10 +64,10 @@ export type BodyImageRef = { marker: string; src: string; alt: string };
  * md を HTML にするときの image の差し替え。相対パスの画像は目印の文字にして refs に足し、
  * それ以外は fallback(SAFE_RENDERER.image)に任せる
  */
-export function makeImageRenderer(refs: BodyImageRef[], fallback: (token: { href: string; title?: string | null; text: string }) => string) {
+export function makeImageRenderer(refs: BodyImageRef[], fallback: (token: { href: string; title?: string | null; text: string }) => string, tag: string) {
   return (token: { href: string; title?: string | null; text: string }): string => {
     if (!isLocalImageSrc(token.href)) return fallback(token);
-    const marker = imageMarker(refs.length + 1, token.href);
+    const marker = imageMarker(refs.length + 1, token.href, tag);
     refs.push({ marker, src: token.href.trim(), alt: token.text });
     // 目印は文字として貼る。HTML の特殊文字はファイル名に入っていても文字のまま出す
     return marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -60,12 +80,16 @@ export function findDroppedImage<T extends { name: string }>(files: T[], src: st
   return files.find((f) => f.name.toLowerCase() === want);
 }
 
-/** md の中で、相対パスで書いた画像のファイル名(ドロップされた画像を、本文の画像と見出し画像に振り分けるため) */
-export function localImageNamesInMarkdown(md: string): Set<string> {
-  const names = new Set<string>();
-  // コードの中まで厳密には除かない。ここは振り分けの目安で、実際に入れる画像は変換のときに決まる
-  for (const m of md.matchAll(/!\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+["'][^"']*["'])?\s*\)/g)) {
-    if (isLocalImageSrc(m[1])) names.add(imageFileName(m[1]).toLowerCase());
-  }
-  return names;
+type MarkedLike = new (options: Record<string, unknown>) => { parse: (src: string, options?: Record<string, unknown>) => unknown };
+
+/**
+ * md の本文に、ファイル名(相対パス)で書いた画像のファイル名(小文字)。ドロップされた画像を、本文の画像と見出し画像に振り分けるため。
+ * 本文を変換するときと同じ marked で読むので、<a b.png> の形や参照形式(![図][fig])でも同じ結果になる。
+ * marked はここでは import しない(使う側の Marked を渡す)
+ */
+export function localImageNames(MarkedClass: MarkedLike, markdown: string, fallback: (token: { href: string; title?: string | null; text: string }) => string): Set<string> {
+  const refs: BodyImageRef[] = [];
+  const body = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+  new MarkedClass({ gfm: true, breaks: true, renderer: { image: makeImageRenderer(refs, fallback, "0000") } }).parse(body);
+  return new Set(refs.map((r) => imageFileName(r.src).toLowerCase()));
 }

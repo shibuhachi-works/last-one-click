@@ -7,7 +7,7 @@ import { renderArticle, resolveArticleUrl } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
 import { appendCreditHtml } from "../../../shared/credit";
-import { MAX_BODY_IMAGES, MAX_BODY_IMAGE_BYTES, findDroppedImage, imageFileName, makeImageRenderer, type BodyImageRef } from "../../../shared/body-images";
+import { MAX_BODY_IMAGES, MAX_PENDING_BYTES, base64Size, findDroppedImage, imageFileName, makeImageRenderer, makeMarkerTag, localImageNames as sharedLocalImageNames, type BodyImageRef } from "../../../shared/body-images";
 import { SAFE_RENDERER } from "../../../shared/markdown-safe";
 import { STORAGE, type ArticlePayload } from "./types";
 
@@ -32,19 +32,26 @@ export type BuildInput = {
   bodyImageFiles?: File[];
 };
 
+/** 本文の画像を目印にする変換。refs に、どの画像をどこに入れるかが集まる */
+function imageParser(refs: BodyImageRef[], markdown: string): Marked {
+  return new Marked({
+    gfm: true,
+    breaks: true,
+    renderer: { ...SAFE_RENDERER, image: makeImageRenderer(refs, SAFE_RENDERER.image, makeMarkerTag(markdown)) } as never,
+    extensions: CJK_EMPHASIS_EXTENSIONS as never,
+  });
+}
+
+/** md の本文に、ファイル名で書いた画像のファイル名(小文字)。ドロップされた画像の振り分けに使う(shared/body-images.ts) */
+export function localImageNames(markdown: string): Set<string> {
+  return sharedLocalImageNames(Marked as never, markdown, SAFE_RENDERER.image);
+}
+
 export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePayload, "tabId" | "skipBodyReview" | "insertToc" | "embedUrls">> {
   // 本文の画像を入れるときは、相対パスの画像を目印の文字にして、どの画像をどこに入れるかを集める
   const refs: BodyImageRef[] = [];
-  const parser = input.insertImages
-    ? new Marked({
-        gfm: true,
-        breaks: true,
-        renderer: { ...SAFE_RENDERER, image: makeImageRenderer(refs, SAFE_RENDERER.image) } as never,
-        extensions: CJK_EMPHASIS_EXTENSIONS as never,
-      })
-    : marked;
+  const parser = input.insertImages ? imageParser(refs, input.markdown) : marked;
   const a = await renderArticle(input.markdown, { markdown: (body) => parser.parse(body, { gfm: true, breaks: true }) as string, yaml: parseYaml }, input.override);
-  const { images, imageNotes } = await collectBodyImages(refs, input);
 
   let thumbnail: ArticlePayload["thumbnail"];
   if (input.thumbnailFile) {
@@ -60,6 +67,9 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
   // 本文の最後に「この記事は、Last One Click で下書きしました。」を足す。md ではなく変換後の HTML に足す
   // (記事の最後が閉じていないコードブロックや、先頭の --- に左右されないように)。「読み込んだ内容」の欄には足さない
   const html = appendCreditHtml(a.html, input.creditLink ?? true);
+  // 本文の画像は、本文と見出し画像を入れたうえで、保存できる残りの大きさまで入れる
+  const used = new TextEncoder().encode(html).length + (thumbnail?.base64.length ?? 0);
+  const { images, imageNotes } = await collectBodyImages(refs, input, MAX_PENDING_BYTES - used);
   return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, html, thumbnail, images, imageNotes, createdAt: Date.now() };
 }
 
@@ -67,7 +77,7 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
  * 目印にした画像のファイルを集める。上限(枚数・合計の大きさ)を超えた分と、見つからなかった分は入れず、notes で知らせる
  * (目印は本文に残るので、どこに何が入っていないかは note の画面で分かる)
  */
-async function collectBodyImages(refs: BodyImageRef[], input: BuildInput): Promise<{ images: NonNullable<ArticlePayload["images"]>; imageNotes: string[] }> {
+async function collectBodyImages(refs: BodyImageRef[], input: BuildInput, budget: number): Promise<{ images: NonNullable<ArticlePayload["images"]>; imageNotes: string[] }> {
   const images: NonNullable<ArticlePayload["images"]> = [];
   const notes: string[] = [];
   if (refs.length === 0) return { images, imageNotes: notes };
@@ -86,15 +96,15 @@ async function collectBodyImages(refs: BodyImageRef[], input: BuildInput): Promi
       missing.push(imageFileName(ref.src));
       continue;
     }
-    if (total + file.size > MAX_BODY_IMAGE_BYTES) {
+    if (total + base64Size(file.size) > budget) {
       tooBig.push(imageFileName(ref.src));
       continue;
     }
-    total += file.size;
+    total += base64Size(file.size);
     images.push({ marker: ref.marker, ...(await fileToPayload(file)) });
   }
   if (missing.length) notes.push(`見つからなかった画像があります(${missing.join(", ")})`);
-  if (tooBig.length) notes.push(`画像の合計が大きすぎるため入れていない画像があります(${tooBig.join(", ")}。合計 ${MAX_BODY_IMAGE_BYTES / 1024 / 1024}MB まで)`);
+  if (tooBig.length) notes.push(`画像の合計が大きすぎるため入れていない画像があります(${tooBig.join(", ")}。本文・見出し画像と合わせて約 ${Math.floor(MAX_PENDING_BYTES / 1024 / 1024 / (4 / 3))}MB まで)`);
   return { images, imageNotes: notes };
 }
 

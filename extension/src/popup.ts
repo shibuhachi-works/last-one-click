@@ -4,8 +4,7 @@ import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
-import { localImageNamesInMarkdown } from "../../shared/body-images";
-import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, payloadToFile } from "./lib/article";
+import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
 import { STORAGE, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
@@ -280,7 +279,7 @@ document.body.addEventListener("drop", async (e) => {
       await loadMarkdownFile(md);
       got.push(`md ファイル: ${md.name}`);
     }
-    const names = localImageNamesInMarkdown(markdownEl.value);
+    const names = localImageNames(markdownEl.value);
     const body = imgs.filter((f) => names.has(f.name.toLowerCase()));
     const thumb = imgs.find((f) => !names.has(f.name.toLowerCase()));
     if (thumb) {
