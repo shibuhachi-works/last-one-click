@@ -55,9 +55,12 @@ magazine: マガジン名
   <button id="submit" type="button" class="primary">note の下書きを作成</button>
   <p class="hint">note が新しいタブで開き、タイトル・本文・見出し画像を入れたところで止まります。<br>投稿するボタンは自分で押してください。</p>
   <label class="check hint-check tip" title="入れると、ハッシュタグとマガジンまで一気に入れて止まります。note の公開設定を「キャンセル」で閉じるとハッシュタグとマガジンは消えるので、本文を先に確かめたいときは外しておいてください。"><input id="skip-review" type="checkbox">本文の確認を飛ばして、公開設定まで進む</label>
-  <label class="check hint-check tip" title="本文の最後に、区切り線と「この記事は、Last One Click で下書きしました。」の 1 行を入れます。下書きに入るので、公開する前に note の画面で確かめられます。"><input id="credit-link" type="checkbox" checked>記事の最後に「Last One Click で下書きしました」のリンクを入れる</label>
-  <label class="check hint-check tip" title="入れると、本文の先頭に note の目次を入れます。目次は本文の見出し(## と ###)から note が作ります。見出しが無い記事には入れません。"><input id="insert-toc" type="checkbox" checked>記事の先頭に目次を入れる</label>
-  <label class="check hint-check tip" title="入れると、本文の中で URL だけが書かれた行を、note の埋め込み(カード)にします。文の中のリンクはそのままです。"><input id="embed-urls" type="checkbox" checked>URL だけの行を埋め込みにする</label>
+  <details id="article-options" class="article-options">
+    <summary>記事の設定 <small id="article-options-on" class="hint-inline"></small></summary>
+    <label class="check hint-check tip" title="入れると、本文の先頭に note の目次を入れます。目次は本文の見出し(## と ###)から note が作ります。見出しが無い記事には入れません。"><input id="insert-toc" type="checkbox" checked>記事の先頭に目次を入れる</label>
+    <label class="check hint-check tip" title="入れると、本文の中で URL だけが書かれた行を、note の埋め込み(カード)にします。文の中のリンクはそのままです。"><input id="embed-urls" type="checkbox" checked>URL だけの行を埋め込みにする</label>
+    <label class="check hint-check tip" title="本文の最後に、区切り線と「この記事は、Last One Click で下書きしました。」の 1 行を入れます。下書きに入るので、公開する前に note の画面で確かめられます。"><input id="credit-link" type="checkbox" checked>記事の最後に「Last One Click で下書きしました」のリンクを入れる</label>
+  </details>
   <p id="status" class="status" hidden></p>
 
   <details>

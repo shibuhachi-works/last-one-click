@@ -3,6 +3,7 @@
 import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
+import { articleOptionsLabel } from "../../shared/article-options";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
@@ -102,7 +103,13 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
   embedUrlsEl.checked = s[STORAGE.embedUrls] === undefined ? true : Boolean(s[STORAGE.embedUrls]);
   // 既定は入れる(まだ一度も変えていなければ値が無い)
   creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
+  showArticleOptions();
 });
+// 「記事の設定」はたたんでおき、見出しの横にオンになっているものを出す
+function showArticleOptions() {
+  $("article-options-on").textContent = articleOptionsLabel({ toc: insertTocEl.checked, embed: embedUrlsEl.checked, credit: creditLinkEl.checked });
+}
+for (const el of [insertTocEl, embedUrlsEl, creditLinkEl]) el.addEventListener("change", showArticleOptions);
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
 // 「記事の先頭に目次を入れる」も次回も同じにする

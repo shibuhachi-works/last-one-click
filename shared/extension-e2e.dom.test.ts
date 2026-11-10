@@ -303,7 +303,12 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("「記事の最後に…リンクを入れる」のチェックを外すと、リンクを入れない。チェックを覚える", async () => {
     const { editor, errors } = await draftFromPopup(async (popup) => {
       assert.equal(await popup.locator("#credit-link").isChecked(), true, "既定はチェックあり");
+      // 「記事の設定」は既定でたたんであり、見出しの横にオンのものが出る
+      assert.equal(await popup.locator("#article-options").getAttribute("open"), null);
+      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・リンク)");
+      await popup.locator("#article-options > summary").click();
       await safeClickLike(popup, "#credit-link");
+      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み)");
       assert.equal(await popup.locator("#credit-link").isChecked(), false);
     });
     const body = await editor.locator("#body").innerHTML();
