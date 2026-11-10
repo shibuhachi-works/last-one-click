@@ -48,6 +48,7 @@ type HtmlToken = { text: string };
 // "javascript&colon;" が javascript: に化けることはない(& は常に &amp; になる)。
 type LinkToken = { href: string; title?: string | null; tokens: unknown[] };
 type ImageToken = { href: string; title?: string | null; text: string };
+type CodeToken = { text: string; lang?: string; escaped?: boolean };
 
 /**
  * marked v13+ の token 形式の renderer。
@@ -69,6 +70,18 @@ export const SAFE_RENDERER = {
     if (href === null) return text;
     const title = token.title ? ` title="${attr(token.title)}"` : "";
     return `<a href="${escapeHtml(href)}"${title}>${text}</a>`;
+  },
+  /**
+   * コードブロック(``` と字下げ)。marked の既定は中身の最後に改行を 1 つ足し(`…\n</code></pre>`)、
+   * note はそれを空の行として表示する(2026-11-10 実機)ので、足さない。
+   * それ以外(エスケープ・言語の class)は marked の既定と同じ
+   */
+  code(token: CodeToken): string {
+    const lang = (token.lang ?? "").match(/^\S*/)?.[0] ?? "";
+    const body = token.text.replace(/\n$/, "");
+    const code = token.escaped ? body : escapeHtml(body);
+    const cls = lang ? ` class="language-${escapeHtml(lang)}"` : "";
+    return `<pre><code${cls}>${code}</code></pre>\n`;
   },
   image(token: ImageToken): string {
     const href = sanitizeUrl(decodeEntities(token.href), SAFE_IMAGE_PROTOCOLS);
@@ -102,9 +115,13 @@ export function htmlToText(html: string): string {
   return text.replace(/^\n+|\n+$/g, ""); // 前後の改行だけ落とす(コードの先頭の字下げは残す)
 }
 
-/** コードブロック: タグを除いて文字参照を戻すだけ。改行の圧縮や trim はしない */
+/**
+ * コードブロック: タグを除いて文字参照を戻すだけ。改行の圧縮や trim はしない。
+ * SAFE_RENDERER はコードの最後に改行を足さない(#59)ので、無ければ 1 つ足して、次のブロックとの間を空ける
+ */
 function preToText(pre: string): string {
-  return decodeEntities(pre.replace(/<[^>]+>/g, ""));
+  const text = decodeEntities(pre.replace(/<[^>]+>/g, ""));
+  return text.endsWith("\n") ? text : text + "\n";
 }
 
 /** 地の文: ブロックの切れ目を改行にし、3 つ以上続く改行は 2 つに詰める */

@@ -7,6 +7,19 @@ const md = new Marked({ gfm: true, breaks: true, renderer: SAFE_RENDERER as neve
 const render = (s: string) => md.parse(s) as string;
 
 describe("SAFE_RENDERER", () => {
+  it("コードブロックの最後に改行を足さない(note で空の行になるため #59)。途中の空行・エスケープ・言語は今までどおり", () => {
+    const url = "https://github.com/shibuhachi-works/last-one-click/tree/main/templates/note";
+    assert.equal(render("```\n" + url + "\n```\n"), `<pre><code>${url}</code></pre>\n`);
+    assert.equal(render("```\n1 行目\n\n3 行目\n```\n"), "<pre><code>1 行目\n\n3 行目</code></pre>\n");
+    assert.equal(render("```js\nconst a = 1 < 2 && b > 0;\n```\n"), '<pre><code class="language-js">const a = 1 &lt; 2 &amp;&amp; b &gt; 0;</code></pre>\n');
+    assert.equal(render("前の段落\n\n    indented\n    x\n"), "<p>前の段落</p>\n<pre><code>indented\nx</code></pre>\n");
+    assert.ok(!/\n<\/code><\/pre>/.test(render("```\na\nb\n```\n\n    c\n")));
+  });
+
+  it("インラインコードは変えない", () => {
+    assert.equal(render("文の中の `a < b` です"), "<p>文の中の <code>a &lt; b</code> です</p>\n");
+  });
+
   it("onerror 付きの img(生の HTML)は文字として出て、属性としては残らない", () => {
     const out = render('前\n\n<img src=x onerror="alert(1)">\n\n後');
     assert.ok(!/<img/i.test(out), out); // タグとしては存在しない
