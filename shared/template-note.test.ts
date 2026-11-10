@@ -34,7 +34,7 @@ describe("templates/note/article.md(見本)", () => {
   it("front matter が読め、タイトル・ハッシュタグ・見出し画像が入る", async () => {
     const a = await renderArticle(src, convert);
     assert.equal(a.title, "記事のタイトル");
-    assert.deepEqual(a.hashtags, ["タグ1", "タグ2", "タグ3"]);
+    assert.deepEqual(a.hashtags, ["LastOneClick", "最後のワンクリックは自分で", "コピペ卒業", "公開ボタンは押さない派", "貼り直しはもう嫌だ", "下書きは拡張に任せた", "投稿ボタンは自分で押す", "AIと一緒に書いて下書きは自動化"]);
     assert.equal(a.thumbnail, "./thumbnail.png");
     // そのまま読み込んでもマガジンで止まらないよう、magazine はコメントにしてある
     assert.equal(a.magazine, undefined);
