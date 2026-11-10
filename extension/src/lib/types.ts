@@ -19,6 +19,8 @@ export type ArticlePayload = {
    * false(既定)なら、タイトル・本文・見出し画像を入れたところで止まり、バナーの「公開設定を入れる」を待つ
    */
   skipBodyReview: boolean;
+  /** URL だけの行を note の埋め込み(カード)にするか(「URL だけの行を埋め込みにする」のチェック) */
+  embedUrls: boolean;
 };
 
 /** selectors/note.json の形(検査は shared/selectors-schema.ts) */
@@ -47,6 +49,8 @@ export const STORAGE = {
   advancedMode: "advancedMode",
   /** 「本文の確認を飛ばして、公開設定まで進む」のチェック(覚えておく) */
   skipBodyReview: "skipBodyReview",
+  /** 「URL だけの行を埋め込みにする」のチェック(覚えておく) */
+  embedUrls: "embedUrls",
   /** 「ウィンドウで開く」で入力途中の状態を新しいウィンドウへ渡す(chrome.storage.session。受け取ったら消す) */
   windowHandoff: "windowHandoff",
 } as const;

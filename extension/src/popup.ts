@@ -51,6 +51,7 @@ const markdownBoxEl = $<HTMLDivElement>("markdown-box");
 const statusEl = $<HTMLParagraphElement>("status");
 const submitEl = $<HTMLButtonElement>("submit");
 const skipReviewEl = $<HTMLInputElement>("skip-review");
+const embedUrlsEl = $<HTMLInputElement>("embed-urls");
 
 let baseUrl: string | undefined; // GitHub から読んだ場合の、相対 thumbnail の基準
 
@@ -89,14 +90,17 @@ function setStatus(msg: string, isError = false) {
 }
 
 // 設定の読み書き
-chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.advancedMode, STORAGE.skipBodyReview]).then((s) => {
+chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.advancedMode, STORAGE.skipBodyReview, STORAGE.embedUrls]).then((s) => {
   $<HTMLInputElement>("selectors-url").value = (s[STORAGE.selectorsUrl] as string | undefined) ?? "";
   $<HTMLInputElement>("github-token").value = (s[STORAGE.githubToken] as string | undefined) ?? "";
   applyAdvanced(Boolean(s[STORAGE.advancedMode]));
   skipReviewEl.checked = Boolean(s[STORAGE.skipBodyReview]);
+  embedUrlsEl.checked = Boolean(s[STORAGE.embedUrls]);
 });
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
+// 「URL だけの行を埋め込みにする」も次回も同じにする
+embedUrlsEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.embedUrls]: embedUrlsEl.checked }));
 
 // 上級者向け(GitHub から読み込む・貼り付け・selectors の URL・GitHub トークン)は普段は隠す。
 // 「設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
@@ -343,13 +347,14 @@ submitEl.addEventListener("click", async () => {
     // タブは非アクティブで作る: アクティブで作るとフォーカスが移ってポップアップが閉じられ、
     // 後続の tabId の書き込みが走らないことがある。ID を保存し終えてからアクティブにする
     const skipBodyReview = skipReviewEl.checked;
-    await chrome.storage.local.set({ [STORAGE.pendingArticle]: { ...article, tabId: null, skipBodyReview } });
+    const embedUrls = embedUrlsEl.checked;
+    await chrome.storage.local.set({ [STORAGE.pendingArticle]: { ...article, tabId: null, skipBodyReview, embedUrls } });
     const tab = await chrome.tabs.create({ url: selectors.newNoteUrl, active: false });
     if (tab.id === undefined) {
       await chrome.storage.local.remove(STORAGE.pendingArticle);
       throw new Error("タブを開けませんでした。");
     }
-    await chrome.storage.local.set({ [STORAGE.pendingArticle]: { ...article, tabId: tab.id, skipBodyReview } });
+    await chrome.storage.local.set({ [STORAGE.pendingArticle]: { ...article, tabId: tab.id, skipBodyReview, embedUrls } });
     await chrome.tabs.update(tab.id, { active: true });
 
     setStatus(

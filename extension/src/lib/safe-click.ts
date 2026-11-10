@@ -61,7 +61,7 @@ export function safePress(el: HTMLElement, context: string, at: { x: number; y: 
  * キーボードでボタンを押す(keydown → keyup)。禁止クリックの判定は safeClick と同じ。
  * pointer / click に反応しない部品(キー操作だけ別のハンドラで開くもの)向けの最後の手段
  */
-export function safeKey(el: HTMLElement, context: string, key: "Enter" | " ") {
+export function safeKey(el: HTMLElement, context: string, key: "Enter" | " " | "Backspace") {
   assertClickAllowed(collectClickLabels(el), context);
   const init = { key, code: key === " " ? "Space" : key, bubbles: true, cancelable: true, composed: true };
   el.dispatchEvent(new KeyboardEvent("keydown", init));

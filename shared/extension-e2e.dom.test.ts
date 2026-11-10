@@ -22,9 +22,41 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
   <textarea id="title" placeholder="記事タイトル"></textarea>
   <div id="body" class="ProseMirror" contenteditable="true"></div>
   <script>
-    document.getElementById("body").addEventListener("paste", (e) => {
+    const body = document.getElementById("body");
+    body.addEventListener("paste", (e) => {
       e.preventDefault();
       e.currentTarget.innerHTML = e.clipboardData.getData("text/html");
+    });
+    // カーソルのある本文の行(body の直下の要素)
+    const caretBlock = () => {
+      const sel = getSelection();
+      let n = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
+      while (n && n.parentNode !== body) n = n.parentNode;
+      return n;
+    };
+    // 本物と同じく、URL だけの行の末尾で Enter を押すと埋め込み(カード)に変わる(2026-11-10 実機)。
+    // URL 以外の行での Enter は空の行を足し、空の行での Backspace はその行を消す
+    body.addEventListener("keydown", (e) => {
+      const b = caretBlock();
+      if (!b) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const text = b.textContent.trim();
+        if (b.tagName === "P" && /^https?:\\/\\/\\S+$/.test(text)) {
+          const card = document.createElement("figure");
+          card.className = "embed";
+          card.dataset.url = text;
+          b.replaceWith(card);
+          return;
+        }
+        const p = document.createElement("p");
+        p.innerHTML = "<br>";
+        b.after(p);
+        getSelection().collapse(p, 0);
+      } else if (e.key === "Backspace" && b.tagName === "P" && b.textContent.trim() === "") {
+        e.preventDefault();
+        b.remove();
+      }
     });
   </script>
 </body></html>`;
@@ -40,6 +72,10 @@ hashtags: [テスト]
 
 - 箇条書き 1
 - 箇条書き 2
+
+https://example.com/embed-me
+
+文の中のリンク https://example.com/in-text はそのまま。
 `;
 
 /** 拡張の safeClick と同じ手順(禁止文字の判定 → クリック)。テストのクリックもここを通す(AGENTS.md) */
@@ -101,7 +137,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.close();
   });
 
-  it("md ファイルを選んで「note の下書きを作成」を押すと、エディタにタイトルと本文が入って止まる", async () => {
+  /** ポップアップで md を選び、「note の下書きを作成」を押して、本文の確認待ちのバナーが出るまで進める */
+  async function draftFromPopup(prepare: (popup: Page) => Promise<void> = async () => {}): Promise<{ editor: Page; errors: string[] }> {
     const popup = await context.newPage();
     // 拡張が chrome.tabs.create で開いたタブの最初の読み込みは、Playwright の差し替え(route)より先に通ることがある
     // (CI で本物の note.com に出ていった)。テストでは一度 about:blank で開き、差し替えが効いてから note の URL に移す
@@ -126,6 +163,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
     await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
     await popup.locator("#fields").waitFor({ state: "visible" });
+    await prepare(popup);
     assert.equal(await popup.locator("#title").inputValue(), "起動テストの記事");
 
     // 新しいタブは about:blank で作られてから note の URL に移るので、作られたあとで URL を待つ
@@ -149,13 +187,39 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         throw new Error(`バナーが出ませんでした。URL: ${editor.url()} / バナー: ${text.replace(/\s+/g, " ").trim()} / コンソール: ${logs.join(" | ") || "(なし)"} (${(e as Error).message.split("\n")[0]})`);
       });
 
+    return { editor, errors };
+  }
+
+  it("md ファイルを選んで「note の下書きを作成」を押すと、エディタにタイトルと本文が入って止まる", async () => {
+    const { editor, errors } = await draftFromPopup();
     assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
     const body = await editor.locator("#body").innerHTML();
     assert.match(body, /<h2[^>]*>見出しです<\/h2>/);
     assert.match(body, /<strong>太字<\/strong>/);
     assert.match(body, /<li>箇条書き 1<\/li>/);
+    // チェックを入れていなければ、URL だけの行は埋め込みにしない
+    assert.doesNotMatch(body, /<figure/);
     // GitHub への取得は止めたので、同梱のセレクタで最後まで通ったことになる
     assert.ok(selectorsFetches >= 1, "セレクタの取得が遮断されていません(GitHub から取っている可能性)");
+    assert.deepEqual(errors, []);
+  });
+  it("「URL だけの行を埋め込みにする」にチェックを入れると、URL だけの行が埋め込みになり、文の中のリンクはそのまま", async () => {
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      await safeClickLike(popup, "#embed-urls");
+      assert.equal(await popup.locator("#embed-urls").isChecked(), true);
+    });
+    const cards = await editor.locator("#body figure.embed").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.url));
+    assert.deepEqual(cards, ["https://example.com/embed-me"]);
+    const lines = await editor.locator("#body > p").evaluateAll((els) => els.map((e) => e.textContent?.trim()));
+    assert.ok(!lines.includes("https://example.com/embed-me"), `URL の行が残っています: ${lines.join(" / ")}`);
+    assert.ok(lines.some((t) => t?.includes("https://example.com/in-text")), "文の中のリンクが消えました");
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /埋め込み ✓\(1 件\)/);
+    // チェックは次回も覚えている
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.waitForFunction(() => (document.getElementById("embed-urls") as HTMLInputElement).checked, null, { timeout: 5_000 });
+    await popup.close();
     assert.deepEqual(errors, []);
   });
 });

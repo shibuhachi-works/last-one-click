@@ -21,7 +21,7 @@ export type BuildInput = {
   override?: { title?: string; hashtags?: string; magazine?: string; final?: boolean };
 };
 
-export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePayload, "tabId" | "skipBodyReview">> {
+export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePayload, "tabId" | "skipBodyReview" | "embedUrls">> {
   const a = await renderArticle(input.markdown, { markdown: (body) => marked.parse(body, { gfm: true, breaks: true }), yaml: parseYaml }, input.override);
 
   let thumbnail: ArticlePayload["thumbnail"];
