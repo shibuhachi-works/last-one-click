@@ -48,7 +48,7 @@ https://chromewebstore.google.com/detail/last-one-click/jomapffkhcdpnodaffobmpfo
 
 ### 最後の 1 行
 
-記事の最後に「この記事は、Last One Click で下書きしました。」の 1 行が入ります。入れたくないときは、「記事の設定」でチェックを外します。
+「記事の最後に『Last One Click で下書きしました』のリンクと、ハッシュタグ #LastOneClick を入れる」にチェックを入れると、記事の最後に「この記事は、Last One Click で下書きしました。」の 1 行が入り、ハッシュタグに #LastOneClick が足されます。最初はチェックが入っていません。
 
 ---
 
