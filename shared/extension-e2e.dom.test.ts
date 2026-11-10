@@ -21,10 +21,14 @@ const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../exte
 const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>note</title></head><body>
   <textarea id="title" placeholder="記事タイトル"></textarea>
   <div id="body" class="ProseMirror" contenteditable="true"></div>
+  <div id="spacer"></div>
   <script>
     document.getElementById("body").addEventListener("paste", (e) => {
       e.preventDefault();
       e.currentTarget.innerHTML = e.clipboardData.getData("text/html");
+      // 本物のエディタは、長い本文を貼ると画面が本文の最後まで動く
+      document.getElementById("spacer").style.height = "5000px";
+      window.scrollTo(0, document.body.scrollHeight);
     });
   </script>
 </body></html>`;
@@ -150,6 +154,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       });
 
     assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
+    // 作り終えたら、エディタのいちばん上に戻っている(貼り付けで最後まで動いた画面を戻す)
+    assert.equal(await editor.evaluate(() => window.scrollY), 0);
     const body = await editor.locator("#body").innerHTML();
     assert.match(body, /<h2[^>]*>見出しです<\/h2>/);
     assert.match(body, /<strong>太字<\/strong>/);
