@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
+import { DEFAULT_TOC, SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
 
 const bundled = JSON.parse(readFileSync(new URL("../selectors/note.json", import.meta.url), "utf8"));
 const clone = () => JSON.parse(JSON.stringify(bundled));
@@ -20,6 +20,25 @@ describe("validateSelectorsJson", () => {
     const v = validateSelectorsJson(j);
     assert.deepEqual(v.thumbnail.uploadMenuText, ["画像をアップロード"]);
     assert.deepEqual(v.publishSettings.magazineAddButtonText, ["追加"]);
+  });
+
+  it("toc は省略できる(古い selectors でも既定値で目次を入れられる)", () => {
+    const j = clone();
+    delete j.toc;
+    assert.deepEqual(validateSelectorsJson(j).toc, DEFAULT_TOC);
+  });
+
+  it("同梱の toc は「+」(メニューを開く)と「目次」のボタンを指す", () => {
+    const v = validateSelectorsJson(bundled);
+    assert.equal(v.toc.openMenuButton, 'button[aria-label="メニューを開く"]');
+    assert.equal(v.toc.itemSelector, "#toc-setting");
+    assert.deepEqual(v.toc.itemText, ["目次"]);
+  });
+
+  it("toc の中身が空なら通さない", () => {
+    const j = clone();
+    j.toc.itemText = [];
+    assert.throws(() => validateSelectorsJson(j), SelectorsValidationError);
   });
 
   it("newNoteUrl が note 以外(フィッシング)なら通さない", () => {
