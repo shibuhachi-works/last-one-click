@@ -4,6 +4,8 @@ import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
+import { collectFolderFiles, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
+import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
@@ -265,7 +267,8 @@ markdownFileEl.addEventListener("change", async () => {
   const file = markdownFileEl.files?.[0];
   if (!file) return;
   try {
-    await loadMarkdownFile(file);
+    if (isZip(file)) await loadBundle(await zipItems(file), file.name);
+    else await loadMarkdownFile(file);
   } catch (e) {
     setStatus((e as Error).message, true);
   }
@@ -284,35 +287,99 @@ document.body.addEventListener("drop", async (e) => {
   const files = Array.from(e.dataTransfer?.files ?? []);
   if (files.length === 0) return;
   e.preventDefault();
-  const imgs = files.filter((f) => f.type.startsWith("image/"));
-  const md = files.find((f) => !f.type.startsWith("image/"));
-  const got: string[] = [];
+  // フォルダは webkitGetAsEntry でたどる。ドロップのイベントを抜けると読めなくなるので、await の前に取っておく
+  const entries = Array.from(e.dataTransfer?.items ?? [])
+    .map((i) => i.webkitGetAsEntry?.())
+    .filter((x): x is FileSystemEntry => !!x);
   try {
-    // md を先に読む。md の本文に ![説明](ファイル名) で書いてある画像は本文の画像、それ以外の 1 枚は見出し画像にする
-    if (md) {
-      await loadMarkdownFile(md);
-      got.push(`md ファイル: ${md.name}`);
+    if (entries.some((x) => x.isDirectory)) {
+      const items = await collectFolderFiles<File>(entries as unknown as Array<FsFileEntry<File> | FsDirEntry<File>>, isBundleFile, MAX_ZIP_ENTRIES);
+      await loadBundle(items, entries.filter((x) => x.isDirectory).map((x) => x.name).join(", ") + " フォルダ");
+      return;
     }
-    const names = localImageNames(markdownEl.value);
-    const body = imgs.filter((f) => names.has(f.name.toLowerCase()));
-    const thumb = imgs.find((f) => !names.has(f.name.toLowerCase()));
-    if (thumb) {
-      setThumbnailFile(thumb);
-      got.push(`見出し画像: ${thumb.name}`);
+    if (files.length === 1 && isZip(files[0])) {
+      await loadBundle(await zipItems(files[0]), files[0].name);
+      return;
     }
-    if (body.length) {
-      // 同じ名前の画像をもう一度ドロップしたら、新しいほうに置き換える
-      bodyImageFiles = [...bodyImageFiles.filter((f) => !body.some((b) => b.name.toLowerCase() === f.name.toLowerCase())), ...body];
-      renderPicked();
-      got.push(`本文の画像: ${body.length} 枚`);
-    }
-    const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
-    if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
-    setStatus(`${got.join(" / ")} を受け取りました。「note の下書きを作成」を押してください。`);
+    await loadLooseFiles(files);
   } catch (err) {
     setStatus((err as Error).message, true);
   }
 });
+
+/** md と画像を、ばらばらにドロップしたとき。md の本文に ![説明](ファイル名) で書いてある画像は本文の画像、それ以外の 1 枚は見出し画像にする */
+async function loadLooseFiles(files: File[]) {
+  const imgs = files.filter((f) => f.type.startsWith("image/"));
+  const md = files.find((f) => !f.type.startsWith("image/"));
+  const got: string[] = [];
+  // md を先に読む
+  if (md) {
+    await loadMarkdownFile(md);
+    got.push(`md ファイル: ${md.name}`);
+  }
+  const names = localImageNames(markdownEl.value);
+  const body = imgs.filter((f) => names.has(f.name.toLowerCase()));
+  const thumb = imgs.find((f) => !names.has(f.name.toLowerCase()));
+  if (thumb) {
+    setThumbnailFile(thumb);
+    got.push(`見出し画像: ${thumb.name}`);
+  }
+  if (body.length) {
+    // 同じ名前の画像をもう一度ドロップしたら、新しいほうに置き換える
+    bodyImageFiles = [...bodyImageFiles.filter((f) => !body.some((b) => b.name.toLowerCase() === f.name.toLowerCase())), ...body];
+    renderPicked();
+    got.push(`本文の画像: ${body.length} 枚`);
+  }
+  const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
+  if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
+  setStatus(`${got.join(" / ")} を受け取りました。「note の下書きを作成」を押してください。`);
+}
+
+const MAX_ZIP_FILE_BYTES = 60 * 1024 * 1024;
+function isZip(f: File): boolean {
+  return /\.zip$/i.test(f.name) || f.type === "application/zip" || f.type === "application/x-zip-compressed";
+}
+/** ZIP の中の md と画像を、File にして返す(path は ZIP の中のパス) */
+async function zipItems(zip: File): Promise<Array<{ path: string; file: File }>> {
+  if (zip.size > MAX_ZIP_FILE_BYTES) throw new Error(`ZIP ファイルが大きすぎます(${MAX_ZIP_FILE_BYTES / 1024 / 1024}MB まで)。`);
+  const entries = await readZip(new Uint8Array(await zip.arrayBuffer()));
+  return entries.map((e) => ({ path: e.path, file: new File([e.data as BlobPart], e.path.slice(e.path.lastIndexOf("/") + 1), { type: mimeTypeOf(e.path) }) }));
+}
+
+/**
+ * 記事のフォルダ・ZIP をまとめて受け取ったとき。記事の md を 1 つ選び、
+ * 本文に ![説明](ファイル名) で書いてある画像を本文の画像に、front matter の thumbnail に当たる画像を見出し画像にする
+ * (ばらばらのドロップと違い、関係ない画像を見出し画像にはしない)
+ */
+async function loadBundle(items: Array<{ path: string; file: File }>, label: string) {
+  const md = pickArticleMarkdown(items);
+  await loadMarkdownFile(md.file);
+  pickedMdName = md.path;
+  const imgs = items.filter((i) => i !== md && i.file.type.startsWith("image/"));
+  const names = localImageNames(markdownEl.value);
+  const body: File[] = [];
+  for (const i of imgs) {
+    const n = i.file.name.toLowerCase();
+    if (names.has(n) && !body.some((b) => b.name.toLowerCase() === n)) body.push(i.file);
+  }
+  bodyImageFiles = body;
+  const got = [`md ファイル: ${md.path}`];
+  let thumbName: string | undefined;
+  try {
+    thumbName = parseFrontMatter(markdownEl.value, parseYaml).data.thumbnail;
+  } catch {
+    // front matter が読めないときは、組み立て時に同じエラーを案内する
+  }
+  const thumb = findThumbnail(imgs, md.path, thumbName);
+  if (thumb) {
+    setThumbnailFile(thumb.file);
+    got.push(`見出し画像: ${thumb.file.name}`);
+  }
+  renderPicked();
+  if (body.length) got.push(`本文の画像: ${body.length} 枚`);
+  const missingThumb = thumbName && !thumb ? `\nfront matter の見出し画像(${thumbName})が見つかりませんでした。ドロップするか「画像を選ぶ」で選んでください。` : "";
+  setStatus(`${label} から ${got.join(" / ")} を受け取りました。「note の下書きを作成」を押してください。${missingThumb}`);
+}
 
 // 「md を選ぶ」「画像を選ぶ」は本物の button(キーボードでも押せる)。隠した file input を開く。
 // 拡張内の file input でも、クリックは必ず safeClick() を通す(AGENTS.md)
