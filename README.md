@@ -52,6 +52,8 @@ private リポジトリの記事を扱う場合は `.env.example` を `.env` に
 `posts/<日付-スラッグ>/` に `article.md` と 見出し画像を置きます。
 `posts/example/` がサンプルです。
 
+Chrome 拡張で使う md の見本(書き換えて使う型と説明)は [templates/note/](templates/note/) にあります。
+
 ```markdown
 ---
 title: 記事タイトル

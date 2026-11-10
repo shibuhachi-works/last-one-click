@@ -43,6 +43,8 @@ npm run build        # → dist/ ができる
 
 ### Markdown の形
 
+書き換えて使える見本は [templates/note/](../templates/note/) にあります。
+
 ```markdown
 ---
 title: 記事タイトル
