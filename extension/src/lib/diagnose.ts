@@ -24,6 +24,8 @@ export function buildDiagnosticReport(S: Selectors): string {
     ["thumbnail.addButton", S.thumbnail.addButton],
     ["publishSettings.hashtagInput", S.publishSettings.hashtagInput],
     ["publishSettings.magazineItem", S.publishSettings.magazineItem],
+    ["toc.openMenuButton", S.toc.openMenuButton],
+    ["toc.itemSelector", S.toc.itemSelector],
   ];
   for (const [key, sel] of checks) lines.push(`- ${key}: ${count(sel)} 件  \`${sel}\``);
   const textChecks: [string, string[]][] = [
@@ -34,6 +36,7 @@ export function buildDiagnosticReport(S: Selectors): string {
     ["publishSettings.magazineToggleText", S.publishSettings.magazineToggleText],
     ["publishSettings.magazineAddButtonText", S.publishSettings.magazineAddButtonText],
     ["publishSettings.publishButtonText", S.publishSettings.publishButtonText],
+    ["toc.itemText", S.toc.itemText],
   ];
   for (const [key, texts] of textChecks) {
     const hits = texts.map((t) => `${t}:${countByText("button", t)}`).join(", ");
