@@ -9,6 +9,7 @@
 //
 // URL(https://…)で書いた画像は、これまでどおり <img> のまま貼る(ここでは扱わない)。
 import { parseFrontMatter } from "./article.js";
+import { decodeEntities } from "./markdown-safe.js";
 
 /** 1 記事に入れる本文の画像の上限(埋め込みと同じ) */
 export const MAX_BODY_IMAGES = 20;
@@ -67,9 +68,11 @@ export type BodyImageRef = { marker: string; src: string; alt: string };
  */
 export function makeImageRenderer(refs: BodyImageRef[], fallback: (token: { href: string; title?: string | null; text: string }) => string, tag: string) {
   return (token: { href: string; title?: string | null; text: string }): string => {
-    if (!isLocalImageSrc(token.href)) return fallback(token);
-    const marker = imageMarker(refs.length + 1, token.href, tag);
-    refs.push({ marker, src: token.href.trim(), alt: token.text });
+    // marked は href の文字参照(&amp; など)を残すので、ファイル名として使う前に戻す(SAFE_RENDERER.image と同じ)
+    const href = decodeEntities(token.href);
+    if (!isLocalImageSrc(href)) return fallback(token);
+    const marker = imageMarker(refs.length + 1, href, tag);
+    refs.push({ marker, src: href.trim(), alt: token.text });
     // 目印は文字として貼る。HTML の特殊文字はファイル名に入っていても文字のまま出す
     return marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   };

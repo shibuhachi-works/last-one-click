@@ -209,6 +209,7 @@ $("github-load").addEventListener("click", async () => {
     setStatus("GitHub から取得中...");
     const r = await fetchMarkdownFromGitHub(githubUrlEl.value.trim());
     markdownEl.value = r.markdown;
+    forgetSource(); // 手元の md と一緒にドロップした本文の画像は、GitHub の記事には使わない
     baseUrl = r.baseUrl;
     fillFieldsFromMarkdown(r.markdown, { newSource: true });
     setStatus("読み込みました。内容を確認して「組み立てる」を押してください。");
@@ -217,12 +218,18 @@ $("github-load").addEventListener("click", async () => {
   }
 });
 // GitHub から読んだ記事を少し直しても、見出し画像・本文の画像は同じフォルダから取る(baseUrl を残す)。
-// 欄を空にしたときと、全体を貼り替えたとき(別の記事にしたとき)だけ、GitHub の取得元を外す
+// 欄を空にしたときと、全体を貼り替えたとき(別の記事にしたとき)だけ、前の記事の取得元と本文の画像を外す
+function forgetSource() {
+  baseUrl = undefined;
+  bodyImageFiles = [];
+  pickedMdName = "";
+  renderPicked();
+}
 markdownEl.addEventListener("paste", () => {
-  if (markdownEl.selectionStart === 0 && markdownEl.selectionEnd === markdownEl.value.length) baseUrl = undefined;
+  if (markdownEl.selectionStart === 0 && markdownEl.selectionEnd === markdownEl.value.length) forgetSource();
 });
 markdownEl.addEventListener("input", () => {
-  if (!markdownEl.value.trim()) baseUrl = undefined;
+  if (!markdownEl.value.trim()) forgetSource();
 });
 markdownEl.addEventListener("change", () => {
   // 上級者向けの貼り付け・編集後(フォーカスが外れたとき)。ユーザーが直した欄は上書きしない

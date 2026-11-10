@@ -370,7 +370,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await context.route(/^https:\/\/raw\.githubusercontent\.com\/o\/r\/main\/posts\/img-test\//, handler);
     try {
       const { editor, errors } = await draftFromPopup(async (popup) => {
-        await popup.evaluate(() => (document.getElementById("advanced-toggle") as HTMLInputElement).click());
+        await safeClickLike(popup, "details:has(#advanced-toggle) > summary");
+        await safeClickLike(popup, "#advanced-toggle");
         await popup.locator("#github-url").fill("https://github.com/o/r/tree/main/posts/img-test");
         await safeClickLike(popup, "#github-load");
         await popup.waitForFunction(() => (document.getElementById("title") as HTMLInputElement).value === "GitHub の画像のテスト", null, { timeout: 10_000 });
@@ -384,6 +385,11 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       assert.deepEqual(errors, []);
     } finally {
       await context.unroute(/^https:\/\/raw\.githubusercontent\.com\/o\/r\/main\/posts\/img-test\//, handler);
+      // 上級者向けの表示は覚えられるので、ほかのテストに残さない
+      const p = await context.newPage();
+      await p.goto(`chrome-extension://${extensionId}/popup.html`);
+      await p.evaluate(() => (globalThis as unknown as { chrome: { storage: { local: { remove: (k: string) => Promise<void> } } } }).chrome.storage.local.remove("advancedMode"));
+      await p.close();
     }
   });
 

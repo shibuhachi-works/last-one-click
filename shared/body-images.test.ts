@@ -78,6 +78,14 @@ describe("本文の画像(#51)", () => {
     assert.deepEqual([...localImageNames(Marked as never, md, SAFE_RENDERER.image)].sort(), ["fig1.png", "fig2.png"]);
   });
 
+  it("画像の参照先の文字参照(&amp; など)は戻してからファイル名にする", () => {
+    const refs: BodyImageRef[] = [];
+    const md = new Marked({ renderer: { ...SAFE_RENDERER, image: makeImageRenderer(refs, SAFE_RENDERER.image, "t0g0") } as never });
+    md.parse("![x](a&amp;b.png)");
+    assert.equal(refs[0].src, "a&b.png");
+    assert.deepEqual([...localImageNames(Marked as never, "![x](a&amp;b.png)\n", SAFE_RENDERER.image)], ["a&b.png"]);
+  });
+
   it("base64Size: base64 にした大きさで数える(chrome.storage に入れる大きさ)", () => {
     assert.equal(base64Size(3), 4);
     assert.equal(base64Size(4), 8);
