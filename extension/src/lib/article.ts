@@ -5,11 +5,14 @@ import { marked } from "marked";
 import { parse as parseYaml } from "yaml";
 import { renderArticle, resolveArticleUrl } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
+import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
 import { SAFE_RENDERER } from "../../../shared/markdown-safe";
 import { STORAGE, type ArticlePayload } from "./types";
 
 // 記事に書かれた生の HTML は通さず、javascript: などのリンクも落とす
 marked.use({ renderer: SAFE_RENDERER as never });
+// 日本語の **「…」** の形(かぎかっこや句読点に接した強調)も太字にする
+marked.use({ extensions: CJK_EMPHASIS_EXTENSIONS as never });
 
 export type BuildInput = {
   markdown: string;
