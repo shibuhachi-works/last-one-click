@@ -36,6 +36,8 @@ describe("templates/note/article.md(見本)", () => {
     assert.equal(a.title, "記事のタイトル");
     assert.deepEqual(a.hashtags, ["タグ1", "タグ2", "タグ3"]);
     assert.equal(a.thumbnail, "./thumbnail.png");
+    // そのまま読み込んでもマガジンで止まらないよう、magazine はコメントにしてある
+    assert.equal(a.magazine, undefined);
   });
 
   it("拡張でできることを全部見せている", async () => {

@@ -7,7 +7,7 @@ import { validateSelectorsJson } from "../../../shared/selectors-schema";
 import { checkSelectorsUrl } from "../../../shared/selectors-url";
 import { STORAGE, type Selectors } from "./types";
 
-/** リポジトリの selectors/note.json。フォークした場合はここか、ポップアップの「設定」で差し替える */
+/** リポジトリの selectors/note.json。フォークした場合はここか、ポップアップの「拡張機能の設定」で差し替える */
 export const DEFAULT_SELECTORS_URL = "https://raw.githubusercontent.com/shibuhachi-works/last-one-click/main/selectors/note.json";
 
 const CACHE_TTL_MS = 60 * 60 * 1000;

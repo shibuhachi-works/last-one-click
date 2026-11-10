@@ -7,7 +7,7 @@
 
 | 項目 | 値 |
 |---|---|
-| 名前 | Last One Click |
+| 名前 | Last One Click - note の下書きツール(manifest の `name`。ツールバーなど狭い所は `short_name` の「Last One Click」) |
 | 概要(132 字以内) | md ファイルと見出し画像を選ぶだけで、note の下書き(タイトル・本文・ハッシュタグ・マガジンまで)を作ります。公開ボタンは押しません。現在は note に対応しています。 |
 | カテゴリ | 仕事効率化(Productivity) |
 | 言語 | 日本語 |

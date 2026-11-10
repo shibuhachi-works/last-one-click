@@ -45,3 +45,5 @@ button:disabled { opacity: .6; cursor: default; }
 .status.error { background: #fdecea; color: #a12622; }
 details { margin-top: 10px; }
 summary { cursor: pointer; color: #555; }
+/* 「拡張機能の設定」の中の「診断」は、中にあることが分かるよう少し下げる */
+details details { margin-left: 12px; }
