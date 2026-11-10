@@ -67,6 +67,8 @@ async function main() {
   await step("本文", results, () => pasteBody(S, article, tocRef));
   if (article.embedUrls) await step("埋め込み", results, () => embedUrlLines(S));
   const goOn = await step("見出し画像", results, () => setThumbnail(S, article));
+  // 本文を貼ったり見出し画像を入れたりすると、画面が本文の途中や最後まで動く。確かめやすいよう、エディタのいちばん上に戻す
+  scrollToTop(titleEl);
   const proceed = { label: "公開設定を入れる", onClick: () => runPublishSettings(S, article, results, keyRef) };
   if (!goOn) {
     // 見出し画像のアップロードを確認できないまま公開設定へ移ると、アップロードが途中で切れる可能性があるので、ここで止める
@@ -194,6 +196,12 @@ async function getPendingForThisTab(): Promise<ArticlePayload | null> {
   const me = (await chrome.runtime.sendMessage({ type: "whoami" } satisfies Message).catch(() => null)) as WhoAmIResponse | null;
   if (!me || me.tabId === null || me.tabId !== article.tabId) return null;
   return article;
+}
+
+/** エディタのいちばん上(タイトル欄)まで画面を戻す。ページ全体と、エディタを包むスクロールする箱のどちらにも効くようにする */
+function scrollToTop(titleEl: HTMLElement) {
+  titleEl.scrollIntoView({ block: "start", behavior: "auto" });
+  window.scrollTo({ top: 0, behavior: "auto" });
 }
 
 // ---------------------------------------------------------------------------

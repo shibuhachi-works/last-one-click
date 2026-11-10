@@ -21,6 +21,7 @@ const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../exte
 const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>note</title></head><body>
   <textarea id="title" placeholder="記事タイトル"></textarea>
   <div id="body" class="ProseMirror" contenteditable="true"><p><br></p></div>
+  <div id="spacer"></div>
   <button id="open-menu" type="button" aria-label="メニューを開く">+</button>
   <div id="menu" hidden><button id="toc-setting" type="button">目次</button></div>
   <script>
@@ -40,6 +41,9 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
       const b = caretBlock();
       if (b && b.tagName === "P" && b.textContent.trim() === "") b.replaceWith(t.content);
       else body.append(t.content);
+      // 本物のエディタは、長い本文を貼ると画面が本文の最後まで動く
+      document.getElementById("spacer").style.height = "5000px";
+      window.scrollTo(0, document.body.scrollHeight);
       // 本物のエディタは貼り付けで画面の要素を作り直し、目次は作り(要素の種類など)も変わる(2026-11-10 実機)。
       // 拡張が貼ったあとに目次を要素や特徴で探すと、目次が残っていても「消えた」と誤って出るので、それを再現する
       for (const toc of body.querySelectorAll(".toc")) {
@@ -224,6 +228,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("md ファイルを選んで「note の下書きを作成」を押すと、エディタにタイトルと本文が入って止まる", async () => {
     const { editor, errors } = await draftFromPopup();
     assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
+    // 作り終えたら、エディタのいちばん上に戻っている(貼り付けで最後まで動いた画面を戻す)
+    assert.equal(await editor.evaluate(() => window.scrollY), 0);
     const body = await editor.locator("#body").innerHTML();
     assert.match(body, /<h2[^>]*>見出しです<\/h2>/);
     assert.match(body, /<strong>太字<\/strong>/);
