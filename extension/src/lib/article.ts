@@ -5,6 +5,7 @@ import { marked } from "marked";
 import { parse as parseYaml } from "yaml";
 import { renderArticle, resolveArticleUrl } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
+import { appendCredit } from "../../../shared/credit";
 import { SAFE_RENDERER } from "../../../shared/markdown-safe";
 import { STORAGE, type ArticlePayload } from "./types";
 
@@ -19,10 +20,14 @@ export type BuildInput = {
   baseUrl?: string;
   /** popup のフォームで上書きした値(空なら front matter を使う) */
   override?: { title?: string; hashtags?: string; magazine?: string; final?: boolean };
+  /** 本文の最後に「この記事は、Last One Click で下書きしました。」のリンクを入れるか(既定は入れる) */
+  creditLink?: boolean;
 };
 
 export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePayload, "tabId" | "skipBodyReview" | "insertToc" | "embedUrls">> {
-  const a = await renderArticle(input.markdown, { markdown: (body) => marked.parse(body, { gfm: true, breaks: true }), yaml: parseYaml }, input.override);
+  // 「読み込んだ内容」の欄(確認用)には足さず、note に送る本文にだけ足す
+  const markdown = appendCredit(input.markdown, input.creditLink ?? true);
+  const a = await renderArticle(markdown, { markdown: (body) => marked.parse(body, { gfm: true, breaks: true }), yaml: parseYaml }, input.override);
 
   let thumbnail: ArticlePayload["thumbnail"];
   if (input.thumbnailFile) {
