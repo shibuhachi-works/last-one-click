@@ -405,8 +405,14 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
  * 入ったかどうかは、欄の文字で確かめる(入らなければ false)
  */
 async function setImageCaption(body: HTMLElement, img: HTMLImageElement, caption: string): Promise<boolean> {
-  // 画像はアップロードのあとで作り直されることがあるので、同じ src の画像を探し直す
-  const current = Array.from(body.querySelectorAll("img")).find((i) => i === img || i.src === img.src) ?? img;
+  // 入れた画像の要素がまだ本文にあれば、それを使う。作り直されていたときだけ、同じ src の画像のうち
+  // キャプションが空のもの(最後のもの)を探す(同じ画像を 2 回使っても、前の画像のキャプションに入れない)
+  const current = body.contains(img)
+    ? img
+    : Array.from(body.querySelectorAll("img"))
+        .filter((i) => i.src === img.src && !i.closest("figure")?.querySelector("figcaption")?.textContent?.trim())
+        .pop();
+  if (!current) return false;
   const cap = current.closest("figure")?.querySelector<HTMLElement>("figcaption");
   if (!cap) return false;
   body.focus();

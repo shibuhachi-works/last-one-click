@@ -354,6 +354,17 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.deepEqual(errors, []);
   });
 
+  it("同じ画像を 2 回使っても、それぞれのキャプションに入る", async () => {
+    const md = "---\ntitle: キャプションのテスト\n---\n\n## 見出し\n\n![a](fig1.png \"1 つ目\")\n\n間の段落\n\n![b](fig1.png \"2 つ目\")\n";
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      await dropFiles(popup, md, ["fig1.png"]);
+    }, md);
+    await editor.locator("#body figure.image").nth(1).waitFor({ timeout: 10_000 });
+    const caps = await editor.locator("#body figure.image figcaption").allTextContents();
+    assert.deepEqual(caps.map((c) => c.trim()), ["1 つ目", "2 つ目"]);
+    assert.deepEqual(errors, []);
+  });
+
   it("本文の画像が見つからないときは、目印を残してバナーで知らせる", async () => {
     const md = "---\ntitle: 画像が無いテスト\n---\n\n## 見出し\n\n![図](missing.png)\n";
     const { editor, errors } = await draftFromPopup(async () => {}, md, "一部は入力できませんでした");
