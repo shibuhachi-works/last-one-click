@@ -16,14 +16,35 @@ export function touchesCjkPunct(inner: string): boolean {
   return CJK_PUNCT.test(inner[0] ?? "") || CJK_PUNCT.test(inner[inner.length - 1] ?? "");
 }
 
-// 中身は空白で始まらず、空白で終わらない。中身にインラインコードの印(`)があれば受け持たない(コードの中の ** を印と取り違えないため)
-const STRONG = /^\*\*(?![\s*])([^`]+?)(?<![\s*])\*\*(?!\*)/;
-const EM = /^\*(?![\s*])([^`*]+?)(?<![\s*])\*(?!\*)/;
+/** かっこ([] () <>)の開きと閉じの数が合っているか。合っていなければ、印がリンクなどの途中にある */
+function bracketsBalanced(text: string): boolean {
+  const pairs: [string, string][] = [["[", "]"], ["(", ")"], ["<", ">"]];
+  return pairs.every(([o, c]) => text.split(o).length === text.split(c).length);
+}
+
+/**
+ * src の先頭の印(marker: "**" か "*")から始まる強調を探し、中身を返す。見つからなければ null。
+ * - 中身は空白で始まらず、空白で終わらない。印の前後に * が続く形(*** など)は受け持たない
+ * - 中身にインラインコードの印(`)があれば受け持たない(コードの中の ** を印と取り違えないため)
+ * - 閉じる印の候補のうち、中身のかっこの数が合わないもの(リンク先の URL の中の ** など)は飛ばして次を試す
+ */
+export function findEmphasis(src: string, marker: "**" | "*"): string | null {
+  const n = marker.length;
+  if (!src.startsWith(marker) || src[n] === "*" || /\s/.test(src[n] ?? " ")) return null;
+  for (let i = src.indexOf(marker, n + 1); i >= 0; i = src.indexOf(marker, i + 1)) {
+    const inner = src.slice(n, i);
+    if (inner.includes("`")) return null;
+    if (/\s/.test(inner[inner.length - 1]) || inner.endsWith("*") || src[i + n] === "*") continue;
+    if (marker === "*" && inner.includes("*")) return null;
+    if (bracketsBalanced(inner)) return inner;
+  }
+  return null;
+}
 
 type Lexer = { inlineTokens: (src: string) => unknown[] };
 type Token = { type: string; raw: string; text: string; tokens: unknown[] };
 
-function emphasis(name: string, type: "strong" | "em", re: RegExp) {
+function emphasis(name: string, type: "strong" | "em", marker: "**" | "*") {
   return {
     name,
     level: "inline" as const,
@@ -32,12 +53,12 @@ function emphasis(name: string, type: "strong" | "em", re: RegExp) {
       return i < 0 ? undefined : i;
     },
     tokenizer(this: { lexer: Lexer }, src: string): Token | undefined {
-      const m = re.exec(src);
-      if (!m || !touchesCjkPunct(m[1])) return undefined;
-      return { type, raw: m[0], text: m[1], tokens: this.lexer.inlineTokens(m[1]) };
+      const inner = findEmphasis(src, marker);
+      if (inner === null || !touchesCjkPunct(inner)) return undefined;
+      return { type, raw: `${marker}${inner}${marker}`, text: inner, tokens: this.lexer.inlineTokens(inner) };
     },
   };
 }
 
 /** marked.use({ extensions }) に渡す。太字(**)を先に試す */
-export const CJK_EMPHASIS_EXTENSIONS = [emphasis("cjkStrong", "strong", STRONG), emphasis("cjkEm", "em", EM)];
+export const CJK_EMPHASIS_EXTENSIONS = [emphasis("cjkStrong", "strong", "**"), emphasis("cjkEm", "em", "*")];

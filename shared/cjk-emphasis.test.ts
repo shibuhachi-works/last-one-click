@@ -35,6 +35,14 @@ describe("日本語のかぎかっこ・句読点に接した強調", () => {
     assert.ok(out.includes('<strong>「<a href="https://example.com">リンク</a>を見る」</strong>'), out);
   });
 
+  it("リンク先の URL に ** があっても、リンクの途中で太字を閉じない", () => {
+    const out = html(withExt, "これは**「[リンク](https://example.com/a**b)」**です。");
+    assert.ok(out.includes('<strong>「<a href="https://example.com/a**b">リンク</a>」</strong>'), out);
+    // 句読点に接していない形は、これまでどおり marked に任せる
+    const plain = "これは**[リンク](https://example.com/a**b)**です。";
+    assert.equal(html(withExt, plain), html(without, plain));
+  });
+
   it("太字の中にインラインコードがあるときは受け持たず、これまでどおり(コードの中の ** と取り違えないため)", () => {
     const src = "これは**「`code`を使う」**です。";
     assert.equal(html(withExt, src), html(without, src));
