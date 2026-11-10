@@ -236,6 +236,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(body, /<li>箇条書き 1<\/li>/);
     // チェックを入れていなければ、URL だけの行は埋め込みにしない
     assert.doesNotMatch(body, /<figure/);
+    // 既定では、本文の最後に区切り線と「この記事は、Last One Click で下書きしました。」が入る
+    assert.match(body, /<hr>\s*<p>この記事は、<a href="https:\/\/chromewebstore\.google\.com\/detail\/last-one-click\/jomapffkhcdpnodaffobmpfofnnaihnd">Last One Click<\/a> で下書きしました。<\/p>\s*$/);
     // GitHub への取得は止めたので、同梱のセレクタで最後まで通ったことになる
     assert.ok(selectorsFetches >= 1, "セレクタの取得が遮断されていません(GitHub から取っている可能性)");
     assert.deepEqual(errors, []);
@@ -287,6 +289,20 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.equal(await editor.locator("#body figure.embed").count(), 20);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /21 件あり、上限の 20 件を超えた 1 件は埋め込みにしていません/);
+    assert.deepEqual(errors, []);
+  });
+  it("「記事の最後に…リンクを入れる」のチェックを外すと、リンクを入れない。チェックを覚える", async () => {
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      assert.equal(await popup.locator("#credit-link").isChecked(), true, "既定はチェックあり");
+      await safeClickLike(popup, "#credit-link");
+      assert.equal(await popup.locator("#credit-link").isChecked(), false);
+    });
+    const body = await editor.locator("#body").innerHTML();
+    assert.doesNotMatch(body, /下書きしました/);
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.waitForFunction(() => !(document.getElementById("credit-link") as HTMLInputElement).checked, null, { timeout: 5_000 });
+    await popup.close();
     assert.deepEqual(errors, []);
   });
 });
