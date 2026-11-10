@@ -3,6 +3,7 @@
 import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
+import { articleOptionsLabel } from "../../shared/article-options";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
@@ -97,11 +98,18 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
   $<HTMLInputElement>("github-token").value = (s[STORAGE.githubToken] as string | undefined) ?? "";
   applyAdvanced(Boolean(s[STORAGE.advancedMode]));
   skipReviewEl.checked = Boolean(s[STORAGE.skipBodyReview]);
-  insertTocEl.checked = Boolean(s[STORAGE.insertToc]);
-  embedUrlsEl.checked = Boolean(s[STORAGE.embedUrls]);
+  // 目次・埋め込み・最後の 1 行は、一度も触っていなければ(undefined)入れる。外した人は外したまま
+  insertTocEl.checked = s[STORAGE.insertToc] === undefined ? true : Boolean(s[STORAGE.insertToc]);
+  embedUrlsEl.checked = s[STORAGE.embedUrls] === undefined ? true : Boolean(s[STORAGE.embedUrls]);
   // 既定は入れる(まだ一度も変えていなければ値が無い)
   creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
+  showArticleOptions();
 });
+// 「記事の設定」はたたんでおき、見出しの横にオンになっているものを出す
+function showArticleOptions() {
+  $("article-options-on").textContent = articleOptionsLabel({ toc: insertTocEl.checked, embed: embedUrlsEl.checked, credit: creditLinkEl.checked });
+}
+for (const el of [insertTocEl, embedUrlsEl, creditLinkEl]) el.addEventListener("change", showArticleOptions);
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
 // 「記事の先頭に目次を入れる」も次回も同じにする
@@ -112,7 +120,7 @@ embedUrlsEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE
 creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.creditLink]: creditLinkEl.checked }));
 
 // 上級者向け(GitHub から読み込む・貼り付け・selectors の URL・GitHub トークン)は普段は隠す。
-// 「設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
+// 「拡張機能の設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
 $<HTMLParagraphElement>("version").textContent = `Last One Click v${chrome.runtime.getManifest().version}`;
 const advancedToggle = $<HTMLInputElement>("advanced-toggle");
 function applyAdvanced(on: boolean) {

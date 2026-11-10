@@ -68,7 +68,7 @@ AI で生成した投稿を SNS に載せるまでの「コピペ・整形・画
 ### 中期(〜数ヶ月): 配れる状態にする
 
 - [ ] 何人かに使ってもらい、入口(md ファイルを選ぶ・ドロップする)で詰まる点を拾う
-- [ ] 壊れ検知: GitHub Actions で週 1 回、Playwright 版をサンプル記事で公開設定画面まで走らせる(公開はしない)。note の DOM 変更に翌週には気づける
+- [ ] 壊れ検知: GitHub Actions で週 1 回、Playwright 版を見本の記事(templates/note)で公開設定画面まで走らせる(公開はしない)。note の DOM 変更に翌週には気づける
 - [x] Chrome ウェブストアに公開(説明文に「認証情報を扱わない」「公開ボタンは押さない」「非公式ツール」を明記)— 2026-10-30 に公開(v0.1.1): https://chromewebstore.google.com/detail/lastclick-pigeon-for-note/jomapffkhcdpnodaffobmpfofnnaihnd
 - [ ] 入口の追加: 画像のドラッグ&ドロップ、Google Drive / Notion のリンク
 - [ ] README に免責(非公式・DOM 変更で止まる・規約判断は利用者の責任)を明記

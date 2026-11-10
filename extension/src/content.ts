@@ -9,6 +9,7 @@ import { findMagazineRowButton } from "../../shared/magazine-row";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
 import { safeClick, safeKey, safePress } from "./lib/safe-click";
 import { htmlToText } from "../../shared/markdown-safe";
+import { hasTocHeadings } from "../../shared/toc";
 import { installFilePickerGuard, type FilePickerGuard } from "../../shared/file-picker-guard";
 import {
   STORAGE,
@@ -63,7 +64,9 @@ async function main() {
   await step("タイトル", results, () => fillTitle(titleEl, article));
   // 目次は「カーソルのある行の次の行」に入るので、本文を貼る前の空の本文で入れ、本文はその下に貼る
   const tocRef: TocRef = { node: null };
-  if (article.insertToc) await step("目次", results, () => insertToc(S, tocRef));
+  // 見出しが無い記事に目次を入れると中身の無い目次になるので、入れずに知らせる
+  if (article.insertToc && !hasTocHeadings(article.html)) results.push("目次 —(見出しが無いので入れていません)");
+  else if (article.insertToc) await step("目次", results, () => insertToc(S, tocRef));
   await step("本文", results, () => pasteBody(S, article, tocRef));
   if (article.embedUrls) await step("埋め込み", results, () => embedUrlLines(S));
   const goOn = await step("見出し画像", results, () => setThumbnail(S, article));
