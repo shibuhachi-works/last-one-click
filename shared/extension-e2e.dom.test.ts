@@ -306,7 +306,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       // 「記事の設定」は既定でたたんであり、見出しの横にオンのものが出る
       assert.equal(await popup.locator("#article-options").getAttribute("open"), null);
       assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・リンク)");
-      await popup.locator("#article-options > summary").click();
+      await safeClickLike(popup, "#article-options > summary");
       await safeClickLike(popup, "#credit-link");
       assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み)");
       assert.equal(await popup.locator("#credit-link").isChecked(), false);
