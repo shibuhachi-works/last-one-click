@@ -6,6 +6,7 @@ import { parse as parseYaml } from "yaml";
 import { renderArticle, resolveArticleUrl } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
+import { appendCreditHtml } from "../../../shared/credit";
 import { SAFE_RENDERER } from "../../../shared/markdown-safe";
 import { STORAGE, type ArticlePayload } from "./types";
 
@@ -22,6 +23,8 @@ export type BuildInput = {
   baseUrl?: string;
   /** popup のフォームで上書きした値(空なら front matter を使う) */
   override?: { title?: string; hashtags?: string; magazine?: string; final?: boolean };
+  /** 本文の最後に「この記事は、Last One Click で下書きしました。」のリンクを入れるか(既定は入れる) */
+  creditLink?: boolean;
 };
 
 export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePayload, "tabId" | "skipBodyReview" | "insertToc" | "embedUrls">> {
@@ -38,7 +41,10 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
     thumbnail = await fileToPayload(new File([blob], url.slice(url.lastIndexOf("/") + 1), { type: blob.type }));
   }
 
-  return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, html: a.html, thumbnail, createdAt: Date.now() };
+  // 本文の最後に「この記事は、Last One Click で下書きしました。」を足す。md ではなく変換後の HTML に足す
+  // (記事の最後が閉じていないコードブロックや、先頭の --- に左右されないように)。「読み込んだ内容」の欄には足さない
+  const html = appendCreditHtml(a.html, input.creditLink ?? true);
+  return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, html, thumbnail, createdAt: Date.now() };
 }
 
 export async function fileToPayload(file: File): Promise<NonNullable<ArticlePayload["thumbnail"]>> {
