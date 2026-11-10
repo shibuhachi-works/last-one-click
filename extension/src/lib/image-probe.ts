@@ -60,6 +60,26 @@ function describeWrapper(img: Element, body: Element): string {
   return parts.join(" < ") || "(本文の直下)";
 }
 
+/**
+ * ドロップの位置(画面の座標)。ProseMirror はドロップの座標から入れる位置を決め、本文の外の座標なら何もしないので、
+ * カーソルのある行(無ければ本文の最後の行)を画面に出して、その行の中の座標を返す
+ */
+export function dropPoint(body: HTMLElement): { clientX: number; clientY: number } {
+  const sel = window.getSelection();
+  let target: Element | null = null;
+  if (sel?.anchorNode && body.contains(sel.anchorNode)) {
+    target = sel.anchorNode.nodeType === Node.ELEMENT_NODE ? (sel.anchorNode as Element) : sel.anchorNode.parentElement;
+  }
+  if (!target || target === body) target = body.lastElementChild ?? body;
+  target.scrollIntoView({ block: "center" });
+  const r = target.getBoundingClientRect();
+  const b = body.getBoundingClientRect();
+  // 行の高さが 0 のとき(空の行など)でも本文の中に収める
+  const x = Math.min(Math.max(r.left + 4, b.left + 1), b.right - 1);
+  const y = Math.min(Math.max(r.top + Math.max(r.height / 2, 1), b.top + 1), b.bottom - 1);
+  return { clientX: x, clientY: y };
+}
+
 async function tryOnce(body: HTMLElement, file: File, method: "paste" | "drop", waitMs: number): Promise<ImageProbeResult> {
   const before = new Set(Array.from(body.querySelectorAll("img")));
   const dt = new DataTransfer();
@@ -67,7 +87,7 @@ async function tryOnce(body: HTMLElement, file: File, method: "paste" | "drop", 
   const ev =
     method === "paste"
       ? new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })
-      : new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true });
+      : new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true, ...dropPoint(body) });
   body.focus();
   const started = Date.now();
   body.dispatchEvent(ev);

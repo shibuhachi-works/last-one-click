@@ -37,7 +37,7 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
     body.addEventListener("paste", (e) => {
       e.preventDefault();
       // 画像のファイルを貼ると、いったん blob: の画像が入り、アップロードが終わると https の URL に変わる(と仮定した模擬)
-      if (e.clipboardData.files.length) {
+      if (e.clipboardData.files.length && !window.__noFilePaste) {
         const fig = document.createElement("figure");
         const img = document.createElement("img");
         img.src = URL.createObjectURL(e.clipboardData.files[0]);
@@ -62,6 +62,19 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
         nav.textContent = toc.textContent;
         toc.replaceWith(nav);
       }
+    });
+    // ファイルのドロップ。ProseMirror と同じく、ドロップの座標が本文の外なら何もしない
+    body.addEventListener("drop", (e) => {
+      const r = body.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+      if (!e.dataTransfer.files.length) return;
+      e.preventDefault();
+      const fig = document.createElement("figure");
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(e.dataTransfer.files[0]);
+      fig.append(img);
+      body.append(fig);
+      setTimeout(() => (img.src = "https://assets.example.com/dropped.png"), 300);
     });
     // 本物と同じく、URL だけの行の末尾で Enter を押すと埋め込み(カード)に変わる(2026-11-10 実機)。
     // URL 以外の行での Enter は空の行を足し、空の行での Backspace はその行を消す
@@ -320,6 +333,28 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.close();
     await editor.close();
     assert.deepEqual(errors, []);
+  });
+  it("「画像の貼り付けを試す」は、貼り付けで入らなければ、本文の中の座標でドロップを試す", async () => {
+    const editor = await context.newPage();
+    await editor.goto("https://editor.note.com/notes/probe-drop/edit/");
+    await editor.locator("#body").waitFor();
+    // 本文を画面の左上から離し、(0, 0) のドロップでは入らない配置にする。ファイルの貼り付けは受け取らない
+    await editor.evaluate(() => {
+      (window as unknown as { __noFilePaste: boolean }).__noFilePaste = true;
+      document.getElementById("body")!.style.margin = "200px 0 0 200px";
+    });
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.evaluate(() => document.querySelectorAll("details").forEach((d) => (d.open = true)));
+    await editor.bringToFront();
+    await safeClickLike(popup, "#probe-image");
+    await popup.waitForFunction(() => (document.getElementById("diagnose-out") as HTMLTextAreaElement).value.includes("結論"), null, { timeout: 45_000 });
+    const report = await popup.locator("#diagnose-out").inputValue();
+    assert.match(report, /## ドロップ\(drop\)/);
+    assert.match(report, /結論: ドロップで画像が入り/);
+    assert.equal(await editor.locator("#body figure img").count(), 1);
+    await popup.close();
+    await editor.close();
   });
   it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {
     const many = Array.from({ length: 21 }, (_, i) => `https://example.com/many-${i + 1}`).join("\n\n");
