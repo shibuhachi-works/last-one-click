@@ -391,7 +391,8 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
   }
   const problems = [...(a.imageNotes ?? [])];
   if (failed.length) problems.unshift(`入れられなかった画像があります(${failed.join(", ")})`);
-  if (problems.length) throw new Error(`${ok} 枚は入れました。${problems.join("。")}。${IMAGE_MANUAL}`);
+  // 1 枚も入らなかったときは「0 枚は入れました」と出さない
+  if (problems.length) throw new Error(`${ok ? `${ok} 枚は入れました。` : ""}${problems.join("。")}。${IMAGE_MANUAL}`);
   return `${ok} 枚`;
 }
 
