@@ -165,7 +165,11 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   });
 
   /** ポップアップで md を選び、「note の下書きを作成」を押して、本文の確認待ちのバナーが出るまで進める */
-  async function draftFromPopup(prepare: (popup: Page) => Promise<void> = async () => {}): Promise<{ editor: Page; errors: string[] }> {
+  async function draftFromPopup(
+    prepare: (popup: Page) => Promise<void> = async () => {},
+    markdown = ARTICLE,
+    waitBanner = "タイトル・本文・見出し画像を入れました",
+  ): Promise<{ editor: Page; errors: string[] }> {
     const popup = await context.newPage();
     // 拡張が chrome.tabs.create で開いたタブの最初の読み込みは、Playwright の差し替え(route)より先に通ることがある
     // (CI で本物の note.com に出ていった)。テストでは一度 about:blank で開き、差し替えが効いてから note の URL に移す
@@ -188,10 +192,10 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     const errors: string[] = [];
     popup.on("pageerror", (e) => errors.push(e.message));
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
+    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(markdown) });
     await popup.locator("#fields").waitFor({ state: "visible" });
     await prepare(popup);
-    assert.equal(await popup.locator("#title").inputValue(), "起動テストの記事");
+    assert.ok((await popup.locator("#title").inputValue()).length > 0, "タイトルが読み取れていません");
 
     // 新しいタブは about:blank で作られてから note の URL に移るので、作られたあとで URL を待つ
     const editorPromise = context.waitForEvent("page", { timeout: 15_000 });
@@ -207,7 +211,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     // 本文の確認待ちのバナー(✅)が出るまで待つ。出なければ、原因を追えるようにバナーの中身とコンソールを出す
     const banner = editor.locator("#lastclick-pigeon-banner");
     await banner
-      .getByText("タイトル・本文・見出し画像を入れました")
+      .getByText(waitBanner)
       .waitFor({ timeout: 30_000 })
       .catch(async (e) => {
         const text = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "(バナーなし)");
@@ -265,6 +269,18 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
     await popup.waitForFunction(() => (document.getElementById("embed-urls") as HTMLInputElement).checked, null, { timeout: 5_000 });
     await popup.close();
+    assert.deepEqual(errors, []);
+  });
+  it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {
+    const many = Array.from({ length: 21 }, (_, i) => `https://example.com/many-${i + 1}`).join("\n\n");
+    const { editor, errors } = await draftFromPopup(
+      async (popup) => assert.equal(await popup.locator("#embed-urls").isChecked(), true),
+      `---\ntitle: 上限のテスト\n---\n\n## 見出し\n\n${many}\n`,
+      "一部は入力できませんでした",
+    );
+    assert.equal(await editor.locator("#body figure.embed").count(), 20);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /21 件あり、上限の 20 件を超えた 1 件は埋め込みにしていません/);
     assert.deepEqual(errors, []);
   });
 });

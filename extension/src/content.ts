@@ -300,8 +300,11 @@ function urlLines(body: HTMLElement): HTMLElement[] {
  */
 async function embedUrlLines(S: Selectors) {
   const body = await waitFor(S.body, 10_000);
-  const urls = urlLines(body).map((p) => (p.textContent ?? "").trim()).slice(0, MAX_EMBEDS);
-  if (urls.length === 0) return "URL だけの行はなし";
+  const all = urlLines(body).map((p) => (p.textContent ?? "").trim());
+  if (all.length === 0) return "URL だけの行はなし";
+  // 上限を超えた分は触らずに残し、最後にその件数を知らせる(黙って飛ばさない)
+  const urls = all.slice(0, MAX_EMBEDS);
+  const skipped = all.length - urls.length;
   const failed: string[] = [];
   for (const url of urls) {
     const count = () => urlLines(body).filter((p) => (p.textContent ?? "").trim() === url).length;
@@ -323,7 +326,10 @@ async function embedUrlLines(S: Selectors) {
       await sleep(200);
     }
   }
-  if (failed.length > 0) throw new Error(`埋め込みにできなかった URL があります(${failed.join(", ")})。${EMBED_MANUAL}`);
+  const problems: string[] = [];
+  if (failed.length > 0) problems.push(`埋め込みにできなかった URL があります(${failed.join(", ")})`);
+  if (skipped > 0) problems.push(`URL だけの行が ${all.length} 件あり、上限の ${MAX_EMBEDS} 件を超えた ${skipped} 件は埋め込みにしていません`);
+  if (problems.length > 0) throw new Error(`${problems.join("。")}。${EMBED_MANUAL}`);
   return `${urls.length} 件`;
 }
 
