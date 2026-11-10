@@ -46,6 +46,14 @@ describe("本文の画像(#51)", () => {
     );
   });
 
+  it("![説明](a.png \"キャプション\") の \"…\"(title)は caption に入れる。title が無ければ caption は無し", () => {
+    const refs: BodyImageRef[] = [];
+    const md = new Marked({ renderer: { ...SAFE_RENDERER, image: makeImageRenderer(refs, SAFE_RENDERER.image, "t0g0") } as never });
+    md.parse('![図](a.png "A &amp; B のキャプション")\n\n![図](b.png)\n');
+    assert.equal(refs[0].caption, "A & B のキャプション");
+    assert.equal(refs[1].caption, undefined);
+  });
+
   it("目印のファイル名に HTML の特殊文字があっても、文字のまま出す", () => {
     const refs: BodyImageRef[] = [];
     const md = new Marked({ renderer: { ...SAFE_RENDERER, image: makeImageRenderer(refs, SAFE_RENDERER.image, "t0g0") } as never });

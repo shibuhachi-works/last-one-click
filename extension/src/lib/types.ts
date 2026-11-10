@@ -24,7 +24,8 @@ export type ArticlePayload = {
   /** URL だけの行を note の埋め込み(カード)にするか(「URL だけの行を埋め込みにする」のチェック) */
   embedUrls: boolean;
   /** 本文の画像。本文の中の目印(［画像1・ab12: image1.png］。ab12 は変換のたびに変わる印)の位置に、この画像を貼り付ける(#51) */
-  images?: { marker: string; name: string; mimeType: string; base64: string }[];
+  /** caption は md で ![説明](image1.png "キャプション") と書いたときの「キャプション」。note の画像のキャプションに入れる */
+  images?: { marker: string; name: string; mimeType: string; base64: string; caption?: string }[];
   /** 本文の画像で、入れられなかったもの(上限・見つからない・大きすぎる)の知らせ。バナーに出す */
   imageNotes?: string[];
 };

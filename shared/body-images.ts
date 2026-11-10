@@ -60,7 +60,8 @@ export function makeMarkerTag(markdown: string, random: () => number = Math.rand
   }
 }
 
-export type BodyImageRef = { marker: string; src: string; alt: string };
+/** caption は md の ![説明](image1.png "キャプション") の "…"(title)。note の画像のキャプションに入れる(alt は入れない) */
+export type BodyImageRef = { marker: string; src: string; alt: string; caption?: string };
 
 /**
  * md を HTML にするときの image の差し替え。相対パスの画像は目印の文字にして refs に足し、
@@ -72,7 +73,8 @@ export function makeImageRenderer(refs: BodyImageRef[], fallback: (token: { href
     const href = decodeEntities(token.href);
     if (!isLocalImageSrc(href)) return fallback(token);
     const marker = imageMarker(refs.length + 1, href, tag);
-    refs.push({ marker, src: href.trim(), alt: token.text });
+    const caption = token.title ? decodeEntities(token.title).trim() : "";
+    refs.push({ marker, src: href.trim(), alt: token.text, ...(caption ? { caption } : {}) });
     // 目印は文字として貼る。HTML の特殊文字はファイル名に入っていても文字のまま出す
     return marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   };
