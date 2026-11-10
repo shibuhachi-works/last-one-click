@@ -50,9 +50,8 @@ private リポジトリの記事を扱う場合は `.env.example` を `.env` に
 ## 記事の書き方
 
 `posts/<日付-スラッグ>/` に `article.md` と 見出し画像を置きます。
-`posts/example/` がサンプルです。
 
-Chrome 拡張で使う md の見本(書き換えて使う型と説明)は [templates/note/](templates/note/) にあります。
+md の見本(書き換えて使う型と説明)は [templates/note/](templates/note/) にあります。拡張でできることを全部入れてあるので、そのまま読み込んで試すこともできます(Chrome 拡張版・Playwright 版のどちらでも)。
 
 ```markdown
 ---
@@ -138,14 +137,13 @@ shared/             # 拡張と Playwright 版で共通の純粋ロジック(テ
   text-match.ts     # ボタン文言の完全一致
 selectors/note.json      # note の DOM セレクタ(拡張と共有。壊れたらここだけ直す)
 extension/          # Chrome 拡張版
-posts/
-  example/          # サンプル記事
+templates/note/     # md の見本と見出し画像の見本
 ```
 
 ## 今後の拡張候補
 
 - **サムネイル自動生成**:md の push をトリガーに GitHub Actions で画像生成 API を叩いて commit すれば、人間は md ファイルを push するだけになる
-- **壊れ検知**:GitHub Actions で週1回、サンプル記事に対して Playwright 版を公開設定画面まで走らせる(公開はしない)。note が変わった翌週には気づける
+- **壊れ検知**:GitHub Actions で週1回、見本の記事(templates/note)に対して Playwright 版を公開設定画面まで走らせる(公開はしない)。note が変わった翌週には気づける
 - **ダブルクリック起動**:ターミナルを開きたくない場合は、URL をダイアログで聞く `.command` / `.bat` を作って `npm run draft` を呼ぶ
 
 ## ライセンス
