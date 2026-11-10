@@ -64,16 +64,6 @@ magazine: マガジン名
   <p id="status" class="status" hidden></p>
 
   <details>
-    <summary>診断(動かないとき)</summary>
-    <p class="hint">note のエディタを開いたタブでこのボタンを押すと、ページ上の入力欄・ボタン等の一覧をコピーします。<br>それを貼ってもらえれば selectors/note.json を直せます。<br>認証情報や記事本文は含みません。</p>
-    <div class="row">
-      <button id="diagnose" type="button">DOM 情報を取得</button>
-      <button id="diagnose-copy" type="button" disabled>コピー</button>
-    </div>
-    <textarea id="diagnose-out" readonly placeholder="(ここに結果が出ます)" style="min-height:90px"></textarea>
-  </details>
-
-  <details>
     <summary>拡張機能の設定</summary>
     <p id="version" class="hint">Last One Click</p>
     <label class="check tip" title="「GitHub から読み込む」、selectors の URL、GitHub トークンの欄が出ます。読み込んだ内容の欄も編集・貼り付けできるようになります。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
@@ -84,6 +74,15 @@ magazine: マガジン名
       <button id="save-settings" type="button">保存</button>
       <p class="hint">トークンはこの拡張の中(chrome.storage.local)にだけ保存され、GitHub 以外には送られません。</p>
     </div>
+    <details>
+      <summary>診断(動かないとき)</summary>
+      <p class="hint">note のエディタを開いたタブでこのボタンを押すと、ページ上の入力欄・ボタン等の一覧をコピーします。<br>それを貼ってもらえれば selectors/note.json を直せます。<br>認証情報や記事本文は含みません。</p>
+      <div class="row">
+        <button id="diagnose" type="button">DOM 情報を取得</button>
+        <button id="diagnose-copy" type="button" disabled>コピー</button>
+      </div>
+      <textarea id="diagnose-out" readonly placeholder="(ここに結果が出ます)" style="min-height:90px"></textarea>
+    </details>
   </details>
 
   <script src="popup.js"></script>
