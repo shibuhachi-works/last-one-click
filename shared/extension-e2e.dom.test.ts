@@ -40,6 +40,8 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
       const b = caretBlock();
       if (b && b.tagName === "P" && b.textContent.trim() === "") b.replaceWith(t.content);
       else body.append(t.content);
+      // 本物のエディタ(ProseMirror)は貼り付けで画面の要素を作り直す。目次も同じ見た目の別の要素に入れ替わる
+      for (const toc of body.querySelectorAll(".toc")) toc.replaceWith(toc.cloneNode(true));
     });
     // 本物と同じく「+」→「目次」で、カーソルのある行の次の行に目次が入る(その下に空の行ができる)
     document.getElementById("open-menu").addEventListener("click", () => (document.getElementById("menu").hidden = false));

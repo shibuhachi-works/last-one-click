@@ -209,8 +209,25 @@ function fillTitle(el: HTMLElement, a: ArticlePayload) {
   }
 }
 
-/** 目次の工程で入った目次の要素(本文を貼る位置と、貼ったあとに目次が残っているかの確認に使う) */
-type TocRef = { node: Element | null };
+/**
+ * 目次の工程で入った目次。node は入った直後の要素(本文を貼る位置に使う)。
+ * エディタは貼り付けなどで画面の要素を作り直すので、貼ったあとの確認は要素そのものではなく
+ * 特徴(要素の種類・最初のクラス・入った直後の先頭の文字)で探す
+ */
+type TocRef = { node: Element | null; tag?: string; cls?: string; text?: string };
+
+/** 本文の直下で、目次の特徴に合う要素を探す */
+function findToc(body: HTMLElement, ref: TocRef): Element | null {
+  if (!ref.tag) return null;
+  return (
+    Array.from(body.children).find(
+      (c) =>
+        c.tagName === ref.tag &&
+        (!ref.cls || c.classList.contains(ref.cls)) &&
+        (!ref.text || (c.textContent ?? "").trim().startsWith(ref.text)),
+    ) ?? null
+  );
+}
 
 const TOC_MANUAL = "note の画面で、本文の先頭の行にカーソルを置き、左の「+」→「目次」を押してください";
 
@@ -237,6 +254,10 @@ async function insertToc(S: Selectors, ref: TocRef) {
   const added = await waitUntil(() => Array.from(el.children).find((c) => !before.has(c)) ?? null, 3_000);
   if (!added) throw new Error(`目次が入ったか確かめられませんでした。${TOC_MANUAL}`);
   ref.node = added;
+  ref.tag = added.tagName;
+  ref.cls = added.classList[0];
+  // 目次の先頭には「目次」の文字がある。入った直後は見出しが無いので、その後ろの文字は貼ったあとに変わる。照合は「目次」だけで行う
+  ref.text = (added.textContent ?? "").trim().startsWith(S.toc.itemText[0]) ? S.toc.itemText[0] : undefined;
   return "本文の先頭";
 }
 
@@ -256,9 +277,9 @@ async function pasteBody(S: Selectors, a: ArticlePayload, toc: TocRef = { node: 
   dt.setData("text/plain", htmlToText(a.html)); // innerHTML は使わない
   el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   await sleep(500);
-  if (toc.node && !toc.node.isConnected) {
+  if (toc.node && !findToc(el, toc)) {
     // 貼り付けで目次が消えた(目次ごと置き換わった)。本文は入っているので、目次だけ手で入れてもらう
-    throw new Error(`本文は入りましたが、目次が消えました。${TOC_MANUAL}`);
+    throw new Error(`本文は入りましたが、目次が見当たりません。${TOC_MANUAL}`);
   }
 }
 
