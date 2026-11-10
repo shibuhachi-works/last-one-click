@@ -5,6 +5,7 @@ import { marked } from "marked";
 import { parse as parseYaml } from "yaml";
 import { renderArticle } from "../../shared/article.js";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../shared/github-url.js";
+import { CJK_EMPHASIS_EXTENSIONS } from "../../shared/cjk-emphasis.js";
 import { SAFE_RENDERER } from "../../shared/markdown-safe.js";
 
 export { resolveArticleUrl } from "../../shared/article.js";
@@ -12,6 +13,8 @@ import { resolveArticleUrl } from "../../shared/article.js";
 
 // 記事に書かれた生の HTML は通さず、javascript: などのリンクも落とす
 marked.use({ renderer: SAFE_RENDERER as never });
+// 日本語の **「…」** の形(かぎかっこや句読点に接した強調)も太字にする
+marked.use({ extensions: CJK_EMPHASIS_EXTENSIONS as never });
 
 export type Article = {
   title: string;

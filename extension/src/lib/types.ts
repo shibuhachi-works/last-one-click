@@ -51,6 +51,8 @@ export const STORAGE = {
   advancedMode: "advancedMode",
   /** 「本文の確認を飛ばして、公開設定まで進む」のチェック(覚えておく) */
   skipBodyReview: "skipBodyReview",
+  /** 「記事の最後に『Last One Click で下書きしました』のリンクを入れる」のチェック(覚えておく。値が無いときは入れる) */
+  creditLink: "creditLink",
   /** 「記事の先頭に目次を入れる」のチェック(覚えておく) */
   insertToc: "insertToc",
   /** 「URL だけの行を埋め込みにする」のチェック(覚えておく) */

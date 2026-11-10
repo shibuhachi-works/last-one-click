@@ -53,6 +53,7 @@ const submitEl = $<HTMLButtonElement>("submit");
 const skipReviewEl = $<HTMLInputElement>("skip-review");
 const insertTocEl = $<HTMLInputElement>("insert-toc");
 const embedUrlsEl = $<HTMLInputElement>("embed-urls");
+const creditLinkEl = $<HTMLInputElement>("credit-link");
 
 let baseUrl: string | undefined; // GitHub から読んだ場合の、相対 thumbnail の基準
 
@@ -91,13 +92,15 @@ function setStatus(msg: string, isError = false) {
 }
 
 // 設定の読み書き
-chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.advancedMode, STORAGE.skipBodyReview, STORAGE.insertToc, STORAGE.embedUrls]).then((s) => {
+chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.advancedMode, STORAGE.skipBodyReview, STORAGE.insertToc, STORAGE.embedUrls, STORAGE.creditLink]).then((s) => {
   $<HTMLInputElement>("selectors-url").value = (s[STORAGE.selectorsUrl] as string | undefined) ?? "";
   $<HTMLInputElement>("github-token").value = (s[STORAGE.githubToken] as string | undefined) ?? "";
   applyAdvanced(Boolean(s[STORAGE.advancedMode]));
   skipReviewEl.checked = Boolean(s[STORAGE.skipBodyReview]);
   insertTocEl.checked = Boolean(s[STORAGE.insertToc]);
   embedUrlsEl.checked = Boolean(s[STORAGE.embedUrls]);
+  // 既定は入れる(まだ一度も変えていなければ値が無い)
+  creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
 });
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
@@ -105,6 +108,8 @@ skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAG
 insertTocEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.insertToc]: insertTocEl.checked }));
 // 「URL だけの行を埋め込みにする」も次回も同じにする
 embedUrlsEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.embedUrls]: embedUrlsEl.checked }));
+// 「記事の最後に『Last One Click で下書きしました』のリンクを入れる」も次回も同じにする
+creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.creditLink]: creditLinkEl.checked }));
 
 // 上級者向け(GitHub から読み込む・貼り付け・selectors の URL・GitHub トークン)は普段は隠す。
 // 「設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
@@ -343,6 +348,7 @@ submitEl.addEventListener("click", async () => {
       baseUrl,
       // 欄の値が「送る内容」。空にしたら front matter に戻らず「なし」(final)
       override: { title: titleEl.value, hashtags: hashtagsEl.value, magazine: magazineEl.value, final: true },
+      creditLink: creditLinkEl.checked,
     });
 
     const { selectors, source, warning } = await loadSelectors();
