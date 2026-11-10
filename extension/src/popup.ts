@@ -101,8 +101,8 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
   // 目次・埋め込みは、一度も触っていなければ(undefined)入れる。外した人は外したまま
   insertTocEl.checked = s[STORAGE.insertToc] === undefined ? true : Boolean(s[STORAGE.insertToc]);
   embedUrlsEl.checked = s[STORAGE.embedUrls] === undefined ? true : Boolean(s[STORAGE.embedUrls]);
-  // 最後のリンクと #LastOneClick は、入れてくれる人だけが入れる(既定は入れない)
-  creditLinkEl.checked = Boolean(s[STORAGE.creditLink]);
+  // 最後のリンクと #LastOneClick は、既定で入れる(何が入るかはチェックの文言に書いてある)。外した人は外したまま
+  creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
   showArticleOptions();
 });
 // 「記事の設定」はたたんでおき、見出しの横にオンになっているものを出す

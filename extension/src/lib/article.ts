@@ -23,7 +23,7 @@ export type BuildInput = {
   baseUrl?: string;
   /** popup のフォームで上書きした値(空なら front matter を使う) */
   override?: { title?: string; hashtags?: string; magazine?: string; final?: boolean };
-  /** 本文の最後に「この記事は、Last One Click で下書きしました。」のリンクと、ハッシュタグ #LastOneClick を入れるか(既定は入れない) */
+  /** 本文の最後に「この記事は、Last One Click で下書きしました。」のリンクと、ハッシュタグ #LastOneClick を入れるか(既定は入れる) */
   creditLink?: boolean;
 };
 
@@ -43,7 +43,7 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
 
   // 本文の最後に「この記事は、Last One Click で下書きしました。」を足す。md ではなく変換後の HTML に足す
   // (記事の最後が閉じていないコードブロックや、先頭の --- に左右されないように)。「読み込んだ内容」の欄には足さない
-  const credit = input.creditLink ?? false;
+  const credit = input.creditLink ?? true;
   const html = appendCreditHtml(a.html, credit);
   return { title: a.title, hashtags: withCreditHashtag(a.hashtags, credit), magazine: a.magazine, html, thumbnail, createdAt: Date.now() };
 }
