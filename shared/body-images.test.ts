@@ -73,6 +73,11 @@ describe("本文の画像(#51)", () => {
     assert.deepEqual([...localImageNames(Marked as never, md, SAFE_RENDERER.image)].sort(), ["fig1.png", "my figure.png", "ref.jpg"]);
   });
 
+  it("localImageNames: 空の front matter でも、本文の区切り線(---)より前の画像を落とさない", () => {
+    const md = "---\n---\n\n![a](fig1.png)\n\n---\n\n![b](fig2.png)\n";
+    assert.deepEqual([...localImageNames(Marked as never, md, SAFE_RENDERER.image)].sort(), ["fig1.png", "fig2.png"]);
+  });
+
   it("base64Size: base64 にした大きさで数える(chrome.storage に入れる大きさ)", () => {
     assert.equal(base64Size(3), 4);
     assert.equal(base64Size(4), 8);

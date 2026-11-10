@@ -8,6 +8,7 @@
 // 入れられなかった画像は目印が本文に残るので、どこに何を入れればよいかが分かる。
 //
 // URL(https://…)で書いた画像は、これまでどおり <img> のまま貼る(ここでは扱わない)。
+import { parseFrontMatter } from "./article.js";
 
 /** 1 記事に入れる本文の画像の上限(埋め込みと同じ) */
 export const MAX_BODY_IMAGES = 20;
@@ -85,11 +86,13 @@ type MarkedLike = new (options: Record<string, unknown>) => { parse: (src: strin
 /**
  * md の本文に、ファイル名(相対パス)で書いた画像のファイル名(小文字)。ドロップされた画像を、本文の画像と見出し画像に振り分けるため。
  * 本文を変換するときと同じ marked で読むので、<a b.png> の形や参照形式(![図][fig])でも同じ結果になる。
+ * front matter も本文の変換と同じ parseFrontMatter で外す(空の front matter でも、本文の --- を巻き込まない)。
  * marked はここでは import しない(使う側の Marked を渡す)
  */
 export function localImageNames(MarkedClass: MarkedLike, markdown: string, fallback: (token: { href: string; title?: string | null; text: string }) => string): Set<string> {
   const refs: BodyImageRef[] = [];
-  const body = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+  // 中身(YAML)は使わないので読まない
+  const body = parseFrontMatter(markdown, () => null).content;
   new MarkedClass({ gfm: true, breaks: true, renderer: { image: makeImageRenderer(refs, fallback, "0000") } }).parse(body);
   return new Set(refs.map((r) => imageFileName(r.src).toLowerCase()));
 }

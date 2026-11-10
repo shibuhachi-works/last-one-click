@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page, type Route } from "playwright";
 import { collectClickLabels } from "./click-labels.js";
 import { assertClickAllowed } from "./forbidden-click.js";
 
@@ -355,6 +355,36 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /見つからなかった画像があります\(missing\.png\)/);
     assert.deepEqual(errors, []);
+  });
+
+  it("GitHub から読み込んだ記事は、読み込んだ内容を少し直しても、本文の画像を同じフォルダから取る", async () => {
+    const md = "---\ntitle: GitHub の画像のテスト\n---\n\n## 見出し\n\n![図](fig1.png)\n";
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    // この記事のフォルダだけ返す(ほかの raw は、これまでどおり止める)。後から足した route が先に効く
+    const handler = (route: Route) => {
+      const url = route.request().url();
+      if (url.endsWith("/posts/img-test/article.md")) return route.fulfill({ status: 200, contentType: "text/plain; charset=utf-8", body: md });
+      if (url.endsWith("/posts/img-test/fig1.png")) return route.fulfill({ status: 200, contentType: "image/png", body: png });
+      return route.fallback();
+    };
+    await context.route(/^https:\/\/raw\.githubusercontent\.com\/o\/r\/main\/posts\/img-test\//, handler);
+    try {
+      const { editor, errors } = await draftFromPopup(async (popup) => {
+        await popup.evaluate(() => (document.getElementById("advanced-toggle") as HTMLInputElement).click());
+        await popup.locator("#github-url").fill("https://github.com/o/r/tree/main/posts/img-test");
+        await safeClickLike(popup, "#github-load");
+        await popup.waitForFunction(() => (document.getElementById("title") as HTMLInputElement).value === "GitHub の画像のテスト", null, { timeout: 10_000 });
+        // 読み込んだ内容を一文字直す(取得元は残る)
+        await popup.locator("#markdown").focus();
+        await popup.keyboard.press("End");
+        await popup.keyboard.type("追記");
+      }, md);
+      await editor.locator("#body figure.image img[src='https://assets.example.com/fig1.png']").waitFor({ timeout: 10_000 });
+      assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1/);
+      assert.deepEqual(errors, []);
+    } finally {
+      await context.unroute(/^https:\/\/raw\.githubusercontent\.com\/o\/r\/main\/posts\/img-test\//, handler);
+    }
   });
 
   it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {

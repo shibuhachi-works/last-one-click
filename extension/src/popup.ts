@@ -216,7 +216,14 @@ $("github-load").addEventListener("click", async () => {
     setStatus((e as Error).message, true);
   }
 });
-markdownEl.addEventListener("input", () => (baseUrl = undefined));
+// GitHub から読んだ記事を少し直しても、見出し画像・本文の画像は同じフォルダから取る(baseUrl を残す)。
+// 欄を空にしたときと、全体を貼り替えたとき(別の記事にしたとき)だけ、GitHub の取得元を外す
+markdownEl.addEventListener("paste", () => {
+  if (markdownEl.selectionStart === 0 && markdownEl.selectionEnd === markdownEl.value.length) baseUrl = undefined;
+});
+markdownEl.addEventListener("input", () => {
+  if (!markdownEl.value.trim()) baseUrl = undefined;
+});
 markdownEl.addEventListener("change", () => {
   // 上級者向けの貼り付け・編集後(フォーカスが外れたとき)。ユーザーが直した欄は上書きしない
   if (markdownEl.value.trim()) fillFieldsFromMarkdown(markdownEl.value, { newSource: false });
