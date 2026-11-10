@@ -25,10 +25,12 @@ const SKIP = /^(?:!?\[[^\[\]]*\]\([^()]*\)|<[A-Za-z][A-Za-z0-9+.-]{1,31}:[^\s<>]
  * - 中身にインラインコードの印(`)があれば受け持たない(コードの中の ** を印と取り違えないため)
  * - \* のようにエスケープされた印は、閉じる印にしない
  * - リンク・自動リンクの中(URL の中の ** など)は、閉じる印を探さずに読み飛ばす
+ * - 太字の中の入れ子の太字(**「a **b** c」**)は、開きと閉じを数えて、外側の閉じる印を探す
  */
 export function findEmphasis(src: string, marker: "**" | "*"): string | null {
   const n = marker.length;
   if (!src.startsWith(marker) || src[n] === "*" || /\s/.test(src[n] ?? " ")) return null;
+  let depth = 0;
   for (let i = n; i < src.length; ) {
     const c = src[i];
     if (c === "\\") {
@@ -46,7 +48,20 @@ export function findEmphasis(src: string, marker: "**" | "*"): string | null {
     if (c === "*") {
       if (src.startsWith(marker, i)) {
         const inner = src.slice(n, i);
-        if (!/\s/.test(inner[inner.length - 1]) && !inner.endsWith("*") && src[i + n] !== "*") return inner;
+        const canClose = !/\s/.test(inner[inner.length - 1]) && !inner.endsWith("*") && src[i + n] !== "*";
+        const canOpen = src[i + n] !== undefined && !/[\s*]/.test(src[i + n]);
+        if (canClose && depth === 0) return inner;
+        // 中に入れ子の強調(**「a **b** c」** の **b**)があれば、その開きと閉じを数えて飛ばす
+        if (marker === "**" && canClose) {
+          depth--;
+          i += n;
+          continue;
+        }
+        if (marker === "**" && canOpen) {
+          depth++;
+          i += n;
+          continue;
+        }
       }
       // 斜体の中に、閉じる印にならない * があれば受け持たない
       if (marker === "*") return null;

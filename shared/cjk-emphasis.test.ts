@@ -59,6 +59,12 @@ describe("日本語のかぎかっこ・句読点に接した強調", () => {
     }
   });
 
+  it("太字の中の入れ子の太字で、外側の太字を途中で閉じない", () => {
+    const out = html(withExt, "これは**「a **b** c」**です。");
+    assert.ok(out.includes("<strong>「a <strong>b</strong> c」</strong>"), out);
+    assert.ok(!out.includes("**"), out);
+  });
+
   it("自動リンクの中の ** でも太字を閉じない", () => {
     const out = html(withExt, "**「<https://example.com/a**b>」**です。");
     assert.ok(out.includes('<strong>「<a href="https://example.com/a**b">https://example.com/a**b</a>」</strong>'), out);
