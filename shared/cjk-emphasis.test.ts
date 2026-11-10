@@ -43,6 +43,27 @@ describe("日本語のかぎかっこ・句読点に接した強調", () => {
     assert.equal(html(withExt, plain), html(without, plain));
   });
 
+  it("エスケープされた \\* は閉じる印にしない", () => {
+    const em = html(withExt, "これは*「a\\*b」*です。");
+    assert.ok(em.includes("<em>「a*b」</em>"), em);
+    const strong = html(withExt, "これは**「a\\**b」**です。");
+    assert.ok(strong.includes("<strong>「a**b」</strong>"), strong);
+  });
+
+  it("本文の比較記号 < > やかっこで、別々の太字をつなげない", () => {
+    for (const src of ["**「x < 0」** と **「x > 0」**", "**「a (b」** と **「c」**", "**「[注」** と **「d」**"]) {
+      const out = html(withExt, src);
+      assert.equal((out.match(/<strong>/g) ?? []).length, 2, out);
+      assert.ok(out.includes("</strong> と <strong>"), out);
+      assert.ok(!out.includes("**"), out);
+    }
+  });
+
+  it("自動リンクの中の ** でも太字を閉じない", () => {
+    const out = html(withExt, "**「<https://example.com/a**b>」**です。");
+    assert.ok(out.includes('<strong>「<a href="https://example.com/a**b">https://example.com/a**b</a>」</strong>'), out);
+  });
+
   it("太字の中にインラインコードがあるときは受け持たず、これまでどおり(コードの中の ** と取り違えないため)", () => {
     const src = "これは**「`code`を使う」**です。";
     assert.equal(html(withExt, src), html(without, src));

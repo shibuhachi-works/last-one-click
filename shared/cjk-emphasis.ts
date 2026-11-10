@@ -16,27 +16,42 @@ export function touchesCjkPunct(inner: string): boolean {
   return CJK_PUNCT.test(inner[0] ?? "") || CJK_PUNCT.test(inner[inner.length - 1] ?? "");
 }
 
-/** かっこ([] () <>)の開きと閉じの数が合っているか。合っていなければ、印がリンクなどの途中にある */
-function bracketsBalanced(text: string): boolean {
-  const pairs: [string, string][] = [["[", "]"], ["(", ")"], ["<", ">"]];
-  return pairs.every(([o, c]) => text.split(o).length === text.split(c).length);
-}
+/** 閉じる印を探すときに読み飛ばす範囲: リンク・画像 [..](..)、自動リンク <scheme:...>、メールの <a@b> */
+const SKIP = /^(?:!?\[[^\[\]]*\]\([^()]*\)|<[A-Za-z][A-Za-z0-9+.-]{1,31}:[^\s<>]*>|<[^\s<>@]+@[^\s<>]+>)/;
 
 /**
  * src の先頭の印(marker: "**" か "*")から始まる強調を探し、中身を返す。見つからなければ null。
  * - 中身は空白で始まらず、空白で終わらない。印の前後に * が続く形(*** など)は受け持たない
  * - 中身にインラインコードの印(`)があれば受け持たない(コードの中の ** を印と取り違えないため)
- * - 閉じる印の候補のうち、中身のかっこの数が合わないもの(リンク先の URL の中の ** など)は飛ばして次を試す
+ * - \* のようにエスケープされた印は、閉じる印にしない
+ * - リンク・自動リンクの中(URL の中の ** など)は、閉じる印を探さずに読み飛ばす
  */
 export function findEmphasis(src: string, marker: "**" | "*"): string | null {
   const n = marker.length;
   if (!src.startsWith(marker) || src[n] === "*" || /\s/.test(src[n] ?? " ")) return null;
-  for (let i = src.indexOf(marker, n + 1); i >= 0; i = src.indexOf(marker, i + 1)) {
-    const inner = src.slice(n, i);
-    if (inner.includes("`")) return null;
-    if (/\s/.test(inner[inner.length - 1]) || inner.endsWith("*") || src[i + n] === "*") continue;
-    if (marker === "*" && inner.includes("*")) return null;
-    if (bracketsBalanced(inner)) return inner;
+  for (let i = n; i < src.length; ) {
+    const c = src[i];
+    if (c === "\\") {
+      i += 2;
+      continue;
+    }
+    if (c === "`") return null;
+    if (c === "[" || c === "!" || c === "<") {
+      const m = SKIP.exec(src.slice(i));
+      if (m) {
+        i += m[0].length;
+        continue;
+      }
+    }
+    if (c === "*") {
+      if (src.startsWith(marker, i)) {
+        const inner = src.slice(n, i);
+        if (!/\s/.test(inner[inner.length - 1]) && !inner.endsWith("*") && src[i + n] !== "*") return inner;
+      }
+      // 斜体の中に、閉じる印にならない * があれば受け持たない
+      if (marker === "*") return null;
+    }
+    i++;
   }
   return null;
 }
