@@ -6,7 +6,7 @@ import { parse as parseYaml } from "yaml";
 import { renderArticle, resolveArticleUrl } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
-import { appendCreditHtml } from "../../../shared/credit";
+import { appendCreditHtml, withCreditHashtag } from "../../../shared/credit";
 import { MAX_BODY_IMAGES, MAX_PENDING_BYTES, base64Size, findDroppedImage, imageFileName, makeImageRenderer, makeMarkerTag, localImageNames as sharedLocalImageNames, type BodyImageRef } from "../../../shared/body-images";
 import { SAFE_RENDERER } from "../../../shared/markdown-safe";
 import { STORAGE, type ArticlePayload } from "./types";
@@ -24,7 +24,7 @@ export type BuildInput = {
   baseUrl?: string;
   /** popup のフォームで上書きした値(空なら front matter を使う) */
   override?: { title?: string; hashtags?: string; magazine?: string; final?: boolean };
-  /** 本文の最後に「この記事は、Last One Click で下書きしました。」のリンクを入れるか(既定は入れる) */
+  /** 本文の最後に「この記事は、Last One Click で下書きしました。」のリンクと、ハッシュタグ #LastOneClick を入れるか(既定は入れる) */
   creditLink?: boolean;
   /** 本文の相対パスの画像(![説明](image1.png))を、note の本文に入れるか(「本文の画像を入れる」のチェック) */
   insertImages?: boolean;
@@ -66,11 +66,12 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
 
   // 本文の最後に「この記事は、Last One Click で下書きしました。」を足す。md ではなく変換後の HTML に足す
   // (記事の最後が閉じていないコードブロックや、先頭の --- に左右されないように)。「読み込んだ内容」の欄には足さない
-  const html = appendCreditHtml(a.html, input.creditLink ?? true);
+  const credit = input.creditLink ?? true;
+  const html = appendCreditHtml(a.html, credit);
   // 本文の画像は、本文と見出し画像を入れたうえで、保存できる残りの大きさまで入れる
   const used = new TextEncoder().encode(html).length + (thumbnail?.base64.length ?? 0);
   const { images, imageNotes } = await collectBodyImages(refs, input, MAX_PENDING_BYTES - used);
-  return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, html, thumbnail, images, imageNotes, createdAt: Date.now() };
+  return { title: a.title, hashtags: withCreditHashtag(a.hashtags, credit), magazine: a.magazine, html, thumbnail, images, imageNotes, createdAt: Date.now() };
 }
 
 /**

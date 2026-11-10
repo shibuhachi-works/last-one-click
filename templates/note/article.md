@@ -1,6 +1,6 @@
 ---
 title: 記事のタイトル
-hashtags: [タグ1, タグ2, タグ3]   # 省略可。5 個くらいまで
+hashtags: [LastOneClick, 最後のワンクリックは自分で, コピペ卒業, 公開ボタンは押さない派, 貼り直しはもう嫌だ, 下書きは拡張に任せた, 投稿ボタンは自分で押す, AIと一緒に書いて下書きは自動化]   # 省略可。書き換えて使う
 # magazine: マガジンの名前        # 省略可。使うときは先頭の「# 」を消して、note のマガジン名と同じにする
 thumbnail: ./thumbnail.png       # 省略可。GitHub から読み込むときの見出し画像（同じフォルダに置く）
 ---
@@ -54,7 +54,7 @@ https://chromewebstore.google.com/detail/last-one-click/jomapffkhcdpnodaffobmpfo
 
 ### 最後の 1 行
 
-記事の最後に「この記事は、Last One Click で下書きしました。」の 1 行が入ります。入れたくないときは、「記事の設定」でチェックを外します。
+「記事の最後に『Last One Click で下書きしました』のリンクと、ハッシュタグ #LastOneClick を入れる」にチェックが入っていると(最初はチェックあり)、記事の最後に「この記事は、Last One Click で下書きしました。」の 1 行が入り、ハッシュタグに #LastOneClick が足されます。入れたくないときは、チェックを外します。
 
 ---
 
