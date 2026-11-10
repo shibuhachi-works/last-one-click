@@ -97,8 +97,9 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
   $<HTMLInputElement>("github-token").value = (s[STORAGE.githubToken] as string | undefined) ?? "";
   applyAdvanced(Boolean(s[STORAGE.advancedMode]));
   skipReviewEl.checked = Boolean(s[STORAGE.skipBodyReview]);
-  insertTocEl.checked = Boolean(s[STORAGE.insertToc]);
-  embedUrlsEl.checked = Boolean(s[STORAGE.embedUrls]);
+  // 目次・埋め込み・最後の 1 行は、一度も触っていなければ(undefined)入れる。外した人は外したまま
+  insertTocEl.checked = s[STORAGE.insertToc] === undefined ? true : Boolean(s[STORAGE.insertToc]);
+  embedUrlsEl.checked = s[STORAGE.embedUrls] === undefined ? true : Boolean(s[STORAGE.embedUrls]);
   // 既定は入れる(まだ一度も変えていなければ値が無い)
   creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
 });

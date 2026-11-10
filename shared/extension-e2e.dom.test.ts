@@ -234,18 +234,18 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(body, /<h2[^>]*>見出しです<\/h2>/);
     assert.match(body, /<strong>太字<\/strong>/);
     assert.match(body, /<li>箇条書き 1<\/li>/);
-    // チェックを入れていなければ、URL だけの行は埋め込みにしない
-    assert.doesNotMatch(body, /<figure/);
+    // 既定で、URL だけの行は埋め込みになり、記事の先頭に目次が入る
+    assert.match(body, /<figure/);
+    assert.match(body, /class="toc"/);
     // 既定では、本文の最後に区切り線と「この記事は、Last One Click で下書きしました。」が入る
     assert.match(body, /<hr>\s*<p>この記事は、<a href="https:\/\/chromewebstore\.google\.com\/detail\/last-one-click\/jomapffkhcdpnodaffobmpfofnnaihnd">Last One Click<\/a> で下書きしました。<\/p>\s*$/);
     // GitHub への取得は止めたので、同梱のセレクタで最後まで通ったことになる
     assert.ok(selectorsFetches >= 1, "セレクタの取得が遮断されていません(GitHub から取っている可能性)");
     assert.deepEqual(errors, []);
   });
-  it("「記事の先頭に目次を入れる」にチェックを入れると、本文の先頭(本文より前)に目次が入る", async () => {
+  it("「記事の先頭に目次を入れる」は既定でチェックありで、本文の先頭(本文より前)に目次が入る", async () => {
     const { editor, errors } = await draftFromPopup(async (popup) => {
-      await safeClickLike(popup, "#insert-toc");
-      assert.equal(await popup.locator("#insert-toc").isChecked(), true);
+      assert.equal(await popup.locator("#insert-toc").isChecked(), true, "既定はチェックあり");
     });
     const order = await editor.locator("#body").evaluate((b) => Array.from(b.children).map((c) => c.className || c.tagName));
     const toc = order.indexOf("toc");
@@ -260,10 +260,9 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.close();
     assert.deepEqual(errors, []);
   });
-  it("「URL だけの行を埋め込みにする」にチェックを入れると、URL だけの行が埋め込みになり、文の中のリンクはそのまま", async () => {
+  it("「URL だけの行を埋め込みにする」は既定でチェックありで、URL だけの行が埋め込みになり、文の中のリンクはそのまま", async () => {
     const { editor, errors } = await draftFromPopup(async (popup) => {
-      await safeClickLike(popup, "#embed-urls");
-      assert.equal(await popup.locator("#embed-urls").isChecked(), true);
+      assert.equal(await popup.locator("#embed-urls").isChecked(), true, "既定はチェックあり");
     });
     const cards = await editor.locator("#body figure.embed").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.url));
     assert.deepEqual(cards, ["https://example.com/embed-me"]);
@@ -277,6 +276,16 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
     await popup.waitForFunction(() => (document.getElementById("embed-urls") as HTMLInputElement).checked, null, { timeout: 5_000 });
     await popup.close();
+    assert.deepEqual(errors, []);
+  });
+  it("見出しの無い記事には、目次を入れずにバナーで知らせる", async () => {
+    const { editor, errors } = await draftFromPopup(
+      async (popup) => assert.equal(await popup.locator("#insert-toc").isChecked(), true),
+      "---\ntitle: 見出しの無い記事\n---\n\n本文だけの記事です。\n",
+    );
+    assert.equal(await editor.locator("#body .toc").count(), 0);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /目次 —\(見出しが無いので入れていません\)/);
     assert.deepEqual(errors, []);
   });
   it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {
