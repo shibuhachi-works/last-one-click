@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page, type Route } from "playwright";
 import { collectClickLabels } from "./click-labels.js";
 import { assertClickAllowed } from "./forbidden-click.js";
 
@@ -36,6 +36,26 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
     // 貼り付けは、カーソルのある空の行に text/html を入れる(カーソルが無ければ最後に足す)
     body.addEventListener("paste", (e) => {
       e.preventDefault();
+      // 画像のファイルを貼ると、選んでいた文字を消して、その行の後ろに画像を入れる。
+      // いったん blob: の画像が入り、アップロードが終わると https の URL に変わる(2026-11-10 実機: figure.image、assets.st-note.com)
+      if (e.clipboardData.files.length) {
+        const sel = getSelection();
+        const b = caretBlock();
+        if (sel && sel.rangeCount && !sel.isCollapsed) sel.getRangeAt(0).deleteContents();
+        const fig = document.createElement("figure");
+        fig.className = "image";
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(e.clipboardData.files[0]);
+        // 画像の下にキャプションの欄が付く(実機: figcaption。空のあいだは「キャプションを入力」)
+        // ProseMirror の空の行と同じく、空の欄には <br> が入っている
+        const cap = document.createElement("figcaption");
+        cap.append(document.createElement("br"));
+        fig.append(img, cap);
+        if (b && b.tagName === "P" && b.textContent.trim() === "") b.replaceWith(fig);
+        else (b ?? body.lastElementChild).after(fig);
+        setTimeout(() => (img.src = "https://assets.example.com/" + e.clipboardData.files[0].name), 300);
+        return;
+      }
       const t = document.createElement("template");
       t.innerHTML = e.clipboardData.getData("text/html");
       const b = caretBlock();
@@ -288,6 +308,109 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(banner, /目次 —\(見出しが無いので入れていません\)/);
     assert.deepEqual(errors, []);
   });
+  /** ポップアップに、md と画像のファイルをまとめてドロップする(人がファインダーから落としたのと同じ drop イベント) */
+  async function dropFiles(popup: Page, markdown: string, images: string[]) {
+    await popup.evaluate(
+      async ({ markdown, images }) => {
+        const dt = new DataTransfer();
+        dt.items.add(new File([markdown], "article.md", { type: "text/markdown" }));
+        for (const name of images) {
+          const c = document.createElement("canvas");
+          c.width = 8;
+          c.height = 8;
+          const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/png"));
+          dt.items.add(new File([blob!], name, { type: "image/png" }));
+        }
+        document.body.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+      },
+      { markdown, images },
+    );
+    await popup.waitForFunction(() => /本文の画像|見出し画像|md ファイル/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 5_000 });
+  }
+
+  it("md と一緒にドロップした画像を、本文の ![説明](ファイル名) の位置に入れる。md に無い画像は見出し画像になる", async () => {
+    const md = "---\ntitle: 画像のテスト\n---\n\n## 見出し\n\n前の段落\n\n![図1](fig1.png \"図1 のキャプション\")\n\n後ろの段落\n";
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      assert.equal(await popup.locator("#insert-images").isChecked(), true, "既定はチェックあり");
+      await dropFiles(popup, md, ["fig1.png", "cover.png"]);
+      const picked = (await popup.locator("#picked").textContent()) ?? "";
+      assert.match(picked, /見出し画像: cover\.png/);
+      assert.match(picked, /本文の画像: 1 枚/);
+      // 模擬のエディタには見出し画像のボタンが無いので、見出し画像は外しておく(振り分けは上で確かめた)
+      await popup.evaluate(() => {
+        const input = document.getElementById("thumbnail") as HTMLInputElement;
+        input.files = new DataTransfer().files;
+      });
+    }, md);
+    await editor.locator("#body figure.image img[src='https://assets.example.com/fig1.png']").waitFor({ timeout: 10_000 });
+    const order = await editor.locator("#body").evaluate((b) => Array.from(b.children).map((c) => c.tagName + ":" + (c.textContent ?? "").trim()));
+    const fig = order.findIndex((x) => x.startsWith("FIGURE"));
+    assert.ok(fig > order.findIndex((x) => x.includes("前の段落")) && fig < order.findIndex((x) => x.includes("後ろの段落")), order.join(" | "));
+    assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1/, "目印は消える");
+    // md の "…"(title)は、画像のキャプションに入る(alt の「図1」は入れない)
+    assert.equal((await editor.locator("#body figure.image figcaption").textContent())?.trim(), "図1 のキャプション");
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /本文の画像 ✓\(1 枚\)/);
+    assert.deepEqual(errors, []);
+  });
+
+  it("同じ画像を 2 回使っても、それぞれのキャプションに入る", async () => {
+    const md = "---\ntitle: キャプションのテスト\n---\n\n## 見出し\n\n![a](fig1.png \"1 つ目\")\n\n間の段落\n\n![b](fig1.png \"2 つ目\")\n";
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      await dropFiles(popup, md, ["fig1.png"]);
+    }, md);
+    await editor.locator("#body figure.image").nth(1).waitFor({ timeout: 10_000 });
+    const caps = await editor.locator("#body figure.image figcaption").allTextContents();
+    assert.deepEqual(caps.map((c) => c.trim()), ["1 つ目", "2 つ目"]);
+    assert.deepEqual(errors, []);
+  });
+
+  it("本文の画像が見つからないときは、目印を残してバナーで知らせる", async () => {
+    const md = "---\ntitle: 画像が無いテスト\n---\n\n## 見出し\n\n![図](missing.png)\n";
+    const { editor, errors } = await draftFromPopup(async () => {}, md, "一部は入力できませんでした");
+    assert.match(await editor.locator("#body").innerText(), /［画像1・[0-9a-z]{4}: missing\.png］/);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /見つからなかった画像があります\(missing\.png\)/);
+    assert.doesNotMatch(banner, /0 枚は入れました/, "1 枚も入らなかったときは枚数を出さない");
+    assert.deepEqual(errors, []);
+  });
+
+  it("GitHub から読み込んだ記事は、読み込んだ内容を少し直しても、本文の画像を同じフォルダから取る", async () => {
+    const md = "---\ntitle: GitHub の画像のテスト\n---\n\n## 見出し\n\n![図](fig1.png)\n";
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    // この記事のフォルダだけ返す(ほかの raw は、これまでどおり止める)。後から足した route が先に効く
+    const handler = (route: Route) => {
+      const url = route.request().url();
+      if (url.endsWith("/posts/img-test/article.md")) return route.fulfill({ status: 200, contentType: "text/plain; charset=utf-8", body: md });
+      if (url.endsWith("/posts/img-test/fig1.png")) return route.fulfill({ status: 200, contentType: "image/png", body: png });
+      return route.fallback();
+    };
+    await context.route(/^https:\/\/raw\.githubusercontent\.com\/o\/r\/main\/posts\/img-test\//, handler);
+    try {
+      const { editor, errors } = await draftFromPopup(async (popup) => {
+        await safeClickLike(popup, "details:has(#advanced-toggle) > summary");
+        await safeClickLike(popup, "#advanced-toggle");
+        await popup.locator("#github-url").fill("https://github.com/o/r/tree/main/posts/img-test");
+        await safeClickLike(popup, "#github-load");
+        await popup.waitForFunction(() => (document.getElementById("title") as HTMLInputElement).value === "GitHub の画像のテスト", null, { timeout: 10_000 });
+        // 読み込んだ内容を一文字直す(取得元は残る)
+        await popup.locator("#markdown").focus();
+        await popup.keyboard.press("End");
+        await popup.keyboard.type("追記");
+      }, md);
+      await editor.locator("#body figure.image img[src='https://assets.example.com/fig1.png']").waitFor({ timeout: 10_000 });
+      assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1/);
+      assert.deepEqual(errors, []);
+    } finally {
+      await context.unroute(/^https:\/\/raw\.githubusercontent\.com\/o\/r\/main\/posts\/img-test\//, handler);
+      // 上級者向けの表示は覚えられるので、ほかのテストに残さない
+      const p = await context.newPage();
+      await p.goto(`chrome-extension://${extensionId}/popup.html`);
+      await p.evaluate(() => (globalThis as unknown as { chrome: { storage: { local: { remove: (k: string) => Promise<void> } } } }).chrome.storage.local.remove("advancedMode"));
+      await p.close();
+    }
+  });
+
   it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {
     const many = Array.from({ length: 21 }, (_, i) => `https://example.com/many-${i + 1}`).join("\n\n");
     const { editor, errors } = await draftFromPopup(
@@ -320,7 +443,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       assert.ok(await credit.isVisible());
       assert.match((await popup.locator("label:has(#credit-link)").textContent()) ?? "", /リンクと、ハッシュタグ #LastOneClick を入れる/);
       // 「記事の設定」の見出しの横には、リンクは出ない
-      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み)");
+      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・画像)");
     });
     const body = await editor.locator("#body").innerHTML();
     assert.match(body, /<hr>\s*<p>この記事は、<a href="https:\/\/chromewebstore\.google\.com\/detail\/last-one-click\/jomapffkhcdpnodaffobmpfofnnaihnd">Last One Click<\/a> で下書きしました。<\/p>\s*$/);
