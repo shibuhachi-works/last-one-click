@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { collectFolderFiles, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "./bundle.js";
+import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "./bundle.js";
 import { isBundleFile } from "./zip.js";
 
 const items = (...paths: string[]) => paths.map((path) => ({ path }));
@@ -22,6 +22,15 @@ describe("記事のフォルダ・ZIP の振り分け", () => {
     assert.equal(findThumbnail(all, "post/article.md", "https://x/thumbnail.png"), undefined);
     assert.equal(findThumbnail(all, "post/article.md", undefined), undefined);
     assert.equal(findThumbnail(all, "post/article.md", "missing.png"), undefined);
+  });
+
+  it("findRelative: 本文の画像は、別のフォルダにある同じ名前の画像より、書いたパスのものを選ぶ", () => {
+    const all = items("post/article.md", "post/other/fig.png", "post/img/fig.png", "post/img/a b.png");
+    assert.equal(findRelative(all, "post/article.md", "img/fig.png")?.path, "post/img/fig.png");
+    assert.equal(findRelative(all, "post/article.md", "./other/fig.png")?.path, "post/other/fig.png");
+    assert.equal(findRelative(all, "post/article.md", "img/a%20b.png")?.path, "post/img/a b.png");
+    // パスで見つからなければファイル名で
+    assert.equal(findRelative(all, "post/article.md", "fig.png")?.path, "post/other/fig.png");
   });
 
   it("mimeTypeOf", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isBundleFile, readZip } from "./zip.js";
+import { crc32, isBundleFile, readZip } from "./zip.js";
 import { makeZip } from "./zip-fixture.test.js";
 
 const text = (d: Uint8Array) => new TextDecoder().decode(d);
@@ -32,6 +32,13 @@ describe("readZip(記事の ZIP)", () => {
     await assert.rejects(readZip(new Uint8Array([1, 2, 3])), /ZIP ファイルとして読めません/);
     const lie = makeZip([{ name: "a.md", data: "a".repeat(10_000), sizeOverride: 10 }]);
     await assert.rejects(readZip(lie), /壊れています/);
+    // 長さは同じで中身だけ違う(CRC-32 が合わない)
+    const bad = makeZip([{ name: "a.md", data: "abcd", store: true, crcOverride: 1 }]);
+    await assert.rejects(readZip(bad), /壊れています\(a\.md\)/);
+  });
+
+  it("crc32: ZIP と同じ値", () => {
+    assert.equal(crc32(new TextEncoder().encode("123456789")), 0xcbf43926);
   });
 
   it("isBundleFile: md と画像だけ", () => {

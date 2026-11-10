@@ -27,8 +27,22 @@ export function pickArticleMarkdown<T extends BundleItem>(items: T[]): T {
  * md の場所からの相対パスで探し、無ければファイル名で探す(大文字・小文字は区別しない)
  */
 export function findThumbnail<T extends BundleItem>(items: T[], mdPath: string, thumbnail: string | undefined): T | undefined {
-  if (!thumbnail || /^[a-z][a-z0-9+.-]*:/i.test(thumbnail) || thumbnail.startsWith("/")) return undefined;
-  const want = joinPath(dirName(mdPath), thumbnail.split(/[?#]/)[0]).toLowerCase();
+  return findRelative(items, mdPath, thumbnail);
+}
+
+/**
+ * md の場所からの相対パス(本文の画像・thumbnail)に当たるファイルを探す。パスで見つからなければファイル名で探す
+ * (別のフォルダに同じ名前の画像があっても、書いたパスのものを先に選ぶ)
+ */
+export function findRelative<T extends BundleItem>(items: T[], mdPath: string, rel: string | undefined): T | undefined {
+  if (!rel || /^[a-z][a-z0-9+.-]*:/i.test(rel) || rel.startsWith("/")) return undefined;
+  let path = rel.trim().split(/[?#]/)[0];
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // %xx が壊れていれば書いたまま
+  }
+  const want = joinPath(dirName(mdPath), path).toLowerCase();
   const byPath = items.find((i) => i.path.toLowerCase() === want);
   if (byPath) return byPath;
   const name = baseName(want);

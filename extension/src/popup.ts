@@ -4,9 +4,9 @@ import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
-import { collectFolderFiles, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
+import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
-import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, payloadToFile } from "./lib/article";
+import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
 import { STORAGE, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
@@ -61,6 +61,8 @@ const creditLinkEl = $<HTMLInputElement>("credit-link");
 
 /** 手元の md と一緒にドロップされた、本文の画像(md に ![説明](ファイル名) で書いてあるもの) */
 let bodyImageFiles: File[] = [];
+/** 記事のフォルダ・ZIP のとき、本文に書いた参照先(相対パス)ごとの画像 */
+let bodyImagesBySrc = new Map<string, File>();
 let baseUrl: string | undefined; // GitHub から読んだ場合の、相対 thumbnail の基準
 
 // 「ウィンドウで開く」から来た場合は、元のポップアップの入力状態を復元する(受け取ったら消す)
@@ -224,6 +226,7 @@ $("github-load").addEventListener("click", async () => {
 function forgetSource() {
   baseUrl = undefined;
   bodyImageFiles = [];
+  bodyImagesBySrc = new Map();
   pickedMdName = "";
   renderPicked();
 }
@@ -248,6 +251,7 @@ async function loadMarkdownFile(file: File) {
   markdownEl.value = text;
   markdownBoxEl.hidden = false;
   baseUrl = undefined;
+  bodyImagesBySrc = new Map();
   bodyImageFiles = []; // 本文の画像は、この md と一緒に(またはあとから)ドロップしたものだけを使う
   pickedMdName = file.name;
   renderPicked();
@@ -327,6 +331,8 @@ async function loadLooseFiles(files: File[]) {
   if (body.length) {
     // 同じ名前の画像をもう一度ドロップしたら、新しいほうに置き換える
     bodyImageFiles = [...bodyImageFiles.filter((f) => !body.some((b) => b.name.toLowerCase() === f.name.toLowerCase())), ...body];
+    // フォルダ・ZIP で見つけた同じ名前の画像より、あとからドロップしたほうを使う
+    for (const [src, f] of bodyImagesBySrc) if (body.some((b) => b.name.toLowerCase() === f.name.toLowerCase())) bodyImagesBySrc.delete(src);
     renderPicked();
     got.push(`本文の画像: ${body.length} 枚`);
   }
@@ -356,12 +362,14 @@ async function loadBundle(items: Array<{ path: string; file: File }>, label: str
   await loadMarkdownFile(md.file);
   pickedMdName = md.path;
   const imgs = items.filter((i) => i !== md && i.file.type.startsWith("image/"));
-  const names = localImageNames(markdownEl.value);
-  const body: File[] = [];
-  for (const i of imgs) {
-    const n = i.file.name.toLowerCase();
-    if (names.has(n) && !body.some((b) => b.name.toLowerCase() === n)) body.push(i.file);
+  // 本文に書いた参照先ごとに、md の場所からの相対パスで探す(別のフォルダの同じ名前の画像と取り違えない)
+  const bySrc = new Map<string, File>();
+  for (const src of localImageSrcs(markdownEl.value)) {
+    const hit = findRelative(imgs, md.path, src);
+    if (hit) bySrc.set(src, hit.file);
   }
+  const body = [...new Set(bySrc.values())];
+  bodyImagesBySrc = bySrc;
   bodyImageFiles = body;
   const got = [`md ファイル: ${md.path}`];
   let thumbName: string | undefined;
@@ -459,6 +467,7 @@ submitEl.addEventListener("click", async () => {
       creditLink: creditLinkEl.checked,
       insertImages: insertImagesEl.checked,
       bodyImageFiles,
+      bodyImagesBySrc,
     });
 
     const { selectors, source, warning } = await loadSelectors();
