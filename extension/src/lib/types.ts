@@ -23,6 +23,10 @@ export type ArticlePayload = {
   insertToc: boolean;
   /** URL だけの行を note の埋め込み(カード)にするか(「URL だけの行を埋め込みにする」のチェック) */
   embedUrls: boolean;
+  /** 本文の画像。本文の中の目印(［画像1: image1.png］)の位置に、この画像を貼り付ける(#51) */
+  images?: { marker: string; name: string; mimeType: string; base64: string }[];
+  /** 本文の画像で、入れられなかったもの(上限・見つからない・大きすぎる)の知らせ。バナーに出す */
+  imageNotes?: string[];
 };
 
 /** selectors/note.json の形(検査は shared/selectors-schema.ts) */
@@ -57,6 +61,8 @@ export const STORAGE = {
   insertToc: "insertToc",
   /** 「URL だけの行を埋め込みにする」のチェック(覚えておく) */
   embedUrls: "embedUrls",
+  /** 「本文の画像を入れる」のチェック(覚えておく。値が無いときは入れる) */
+  insertImages: "insertImages",
   /** 「ウィンドウで開く」で入力途中の状態を新しいウィンドウへ渡す(chrome.storage.session。受け取ったら消す) */
   windowHandoff: "windowHandoff",
 } as const;

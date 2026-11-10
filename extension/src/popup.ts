@@ -4,6 +4,7 @@ import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
+import { localImageNamesInMarkdown } from "../../shared/body-images";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
@@ -54,8 +55,11 @@ const submitEl = $<HTMLButtonElement>("submit");
 const skipReviewEl = $<HTMLInputElement>("skip-review");
 const insertTocEl = $<HTMLInputElement>("insert-toc");
 const embedUrlsEl = $<HTMLInputElement>("embed-urls");
+const insertImagesEl = $<HTMLInputElement>("insert-images");
 const creditLinkEl = $<HTMLInputElement>("credit-link");
 
+/** 手元の md と一緒にドロップされた、本文の画像(md に ![説明](ファイル名) で書いてあるもの) */
+let bodyImageFiles: File[] = [];
 let baseUrl: string | undefined; // GitHub から読んだ場合の、相対 thumbnail の基準
 
 // 「ウィンドウで開く」から来た場合は、元のポップアップの入力状態を復元する(受け取ったら消す)
@@ -93,7 +97,7 @@ function setStatus(msg: string, isError = false) {
 }
 
 // 設定の読み書き
-chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.advancedMode, STORAGE.skipBodyReview, STORAGE.insertToc, STORAGE.embedUrls, STORAGE.creditLink]).then((s) => {
+chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.advancedMode, STORAGE.skipBodyReview, STORAGE.insertToc, STORAGE.embedUrls, STORAGE.insertImages, STORAGE.creditLink]).then((s) => {
   $<HTMLInputElement>("selectors-url").value = (s[STORAGE.selectorsUrl] as string | undefined) ?? "";
   $<HTMLInputElement>("github-token").value = (s[STORAGE.githubToken] as string | undefined) ?? "";
   applyAdvanced(Boolean(s[STORAGE.advancedMode]));
@@ -101,21 +105,24 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
   // 目次・埋め込み・最後の 1 行は、一度も触っていなければ(undefined)入れる。外した人は外したまま
   insertTocEl.checked = s[STORAGE.insertToc] === undefined ? true : Boolean(s[STORAGE.insertToc]);
   embedUrlsEl.checked = s[STORAGE.embedUrls] === undefined ? true : Boolean(s[STORAGE.embedUrls]);
+  insertImagesEl.checked = s[STORAGE.insertImages] === undefined ? true : Boolean(s[STORAGE.insertImages]);
   // 既定は入れる(まだ一度も変えていなければ値が無い)
   creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
   showArticleOptions();
 });
 // 「記事の設定」はたたんでおき、見出しの横にオンになっているものを出す
 function showArticleOptions() {
-  $("article-options-on").textContent = articleOptionsLabel({ toc: insertTocEl.checked, embed: embedUrlsEl.checked, credit: creditLinkEl.checked });
+  $("article-options-on").textContent = articleOptionsLabel({ toc: insertTocEl.checked, embed: embedUrlsEl.checked, images: insertImagesEl.checked, credit: creditLinkEl.checked });
 }
-for (const el of [insertTocEl, embedUrlsEl, creditLinkEl]) el.addEventListener("change", showArticleOptions);
+for (const el of [insertTocEl, embedUrlsEl, insertImagesEl, creditLinkEl]) el.addEventListener("change", showArticleOptions);
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
 // 「記事の先頭に目次を入れる」も次回も同じにする
 insertTocEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.insertToc]: insertTocEl.checked }));
 // 「URL だけの行を埋め込みにする」も次回も同じにする
 embedUrlsEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.embedUrls]: embedUrlsEl.checked }));
+// 「本文の画像を入れる」も次回も同じにする
+insertImagesEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.insertImages]: insertImagesEl.checked }));
 // 「記事の最後に『Last One Click で下書きしました』のリンクを入れる」も次回も同じにする
 creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.creditLink]: creditLinkEl.checked }));
 
@@ -226,6 +233,7 @@ async function loadMarkdownFile(file: File) {
   markdownEl.value = text;
   markdownBoxEl.hidden = false;
   baseUrl = undefined;
+  bodyImageFiles = []; // 本文の画像は、この md と一緒に(またはあとから)ドロップしたものだけを使う
   pickedMdName = file.name;
   renderPicked();
   markdownFileEl.value = ""; // 同じファイルをもう一度選んでも change が出るように
@@ -263,19 +271,30 @@ document.body.addEventListener("drop", async (e) => {
   const files = Array.from(e.dataTransfer?.files ?? []);
   if (files.length === 0) return;
   e.preventDefault();
-  const image = files.find((f) => f.type.startsWith("image/"));
+  const imgs = files.filter((f) => f.type.startsWith("image/"));
   const md = files.find((f) => !f.type.startsWith("image/"));
   const got: string[] = [];
   try {
-    if (image) {
-      setThumbnailFile(image);
-      got.push(`見出し画像: ${image.name}`);
-    }
+    // md を先に読む。md の本文に ![説明](ファイル名) で書いてある画像は本文の画像、それ以外の 1 枚は見出し画像にする
     if (md) {
       await loadMarkdownFile(md);
       got.push(`md ファイル: ${md.name}`);
     }
-    if (files.length > 2 || (!image && files.length > 1)) got.push("(3 つ目以降は無視)");
+    const names = localImageNamesInMarkdown(markdownEl.value);
+    const body = imgs.filter((f) => names.has(f.name.toLowerCase()));
+    const thumb = imgs.find((f) => !names.has(f.name.toLowerCase()));
+    if (thumb) {
+      setThumbnailFile(thumb);
+      got.push(`見出し画像: ${thumb.name}`);
+    }
+    if (body.length) {
+      // 同じ名前の画像をもう一度ドロップしたら、新しいほうに置き換える
+      bodyImageFiles = [...bodyImageFiles.filter((f) => !body.some((b) => b.name.toLowerCase() === f.name.toLowerCase())), ...body];
+      renderPicked();
+      got.push(`本文の画像: ${body.length} 枚`);
+    }
+    const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
+    if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
     setStatus(`${got.join(" / ")} を受け取りました。「note の下書きを作成」を押してください。`);
   } catch (err) {
     setStatus((err as Error).message, true);
@@ -339,6 +358,7 @@ function renderPicked() {
   if (pickedMdName) parts.push(`md ファイル: ${pickedMdName}`);
   const img = thumbnailEl.files?.[0];
   if (img) parts.push(`見出し画像: ${img.name}`);
+  if (bodyImageFiles.length) parts.push(`本文の画像: ${bodyImageFiles.length} 枚`);
   el.hidden = parts.length === 0;
   el.textContent = parts.length ? `受け取り済み: ${parts.join(" / ")}` : "";
 }
@@ -357,6 +377,8 @@ submitEl.addEventListener("click", async () => {
       // 欄の値が「送る内容」。空にしたら front matter に戻らず「なし」(final)
       override: { title: titleEl.value, hashtags: hashtagsEl.value, magazine: magazineEl.value, final: true },
       creditLink: creditLinkEl.checked,
+      insertImages: insertImagesEl.checked,
+      bodyImageFiles,
     });
 
     const { selectors, source, warning } = await loadSelectors();

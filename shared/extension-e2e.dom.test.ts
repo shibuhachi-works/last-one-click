@@ -36,6 +36,22 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
     // 貼り付けは、カーソルのある空の行に text/html を入れる(カーソルが無ければ最後に足す)
     body.addEventListener("paste", (e) => {
       e.preventDefault();
+      // 画像のファイルを貼ると、選んでいた文字を消して、その行の後ろに画像を入れる。
+      // いったん blob: の画像が入り、アップロードが終わると https の URL に変わる(2026-11-10 実機: figure.image、assets.st-note.com)
+      if (e.clipboardData.files.length) {
+        const sel = getSelection();
+        const b = caretBlock();
+        if (sel && sel.rangeCount && !sel.isCollapsed) sel.getRangeAt(0).deleteContents();
+        const fig = document.createElement("figure");
+        fig.className = "image";
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(e.clipboardData.files[0]);
+        fig.append(img);
+        if (b && b.tagName === "P" && b.textContent.trim() === "") b.replaceWith(fig);
+        else (b ?? body.lastElementChild).after(fig);
+        setTimeout(() => (img.src = "https://assets.example.com/" + e.clipboardData.files[0].name), 300);
+        return;
+      }
       const t = document.createElement("template");
       t.innerHTML = e.clipboardData.getData("text/html");
       const b = caretBlock();
@@ -288,6 +304,59 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(banner, /目次 —\(見出しが無いので入れていません\)/);
     assert.deepEqual(errors, []);
   });
+  /** ポップアップに、md と画像のファイルをまとめてドロップする(人がファインダーから落としたのと同じ drop イベント) */
+  async function dropFiles(popup: Page, markdown: string, images: string[]) {
+    await popup.evaluate(
+      async ({ markdown, images }) => {
+        const dt = new DataTransfer();
+        dt.items.add(new File([markdown], "article.md", { type: "text/markdown" }));
+        for (const name of images) {
+          const c = document.createElement("canvas");
+          c.width = 8;
+          c.height = 8;
+          const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/png"));
+          dt.items.add(new File([blob!], name, { type: "image/png" }));
+        }
+        document.body.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+      },
+      { markdown, images },
+    );
+    await popup.waitForFunction(() => /本文の画像|見出し画像|md ファイル/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 5_000 });
+  }
+
+  it("md と一緒にドロップした画像を、本文の ![説明](ファイル名) の位置に入れる。md に無い画像は見出し画像になる", async () => {
+    const md = "---\ntitle: 画像のテスト\n---\n\n## 見出し\n\n前の段落\n\n![図1](fig1.png)\n\n後ろの段落\n";
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      assert.equal(await popup.locator("#insert-images").isChecked(), true, "既定はチェックあり");
+      await dropFiles(popup, md, ["fig1.png", "cover.png"]);
+      const picked = (await popup.locator("#picked").textContent()) ?? "";
+      assert.match(picked, /見出し画像: cover\.png/);
+      assert.match(picked, /本文の画像: 1 枚/);
+      // 模擬のエディタには見出し画像のボタンが無いので、見出し画像は外しておく(振り分けは上で確かめた)
+      await popup.evaluate(() => {
+        const input = document.getElementById("thumbnail") as HTMLInputElement;
+        input.files = new DataTransfer().files;
+      });
+    }, md);
+    await editor.locator("#body figure.image img[src='https://assets.example.com/fig1.png']").waitFor({ timeout: 10_000 });
+    const order = await editor.locator("#body").evaluate((b) => Array.from(b.children).map((c) => c.tagName + ":" + (c.textContent ?? "").trim()));
+    const fig = order.findIndex((x) => x.startsWith("FIGURE"));
+    assert.ok(fig > order.findIndex((x) => x.includes("前の段落")) && fig < order.findIndex((x) => x.includes("後ろの段落")), order.join(" | "));
+    assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1/, "目印は消える");
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /本文の画像 ✓\(1 枚\)/);
+    assert.deepEqual(errors, []);
+  });
+
+  it("本文の画像が見つからないときは、目印を残してバナーで知らせる", async () => {
+    const md = "---\ntitle: 画像が無いテスト\n---\n\n## 見出し\n\n![図](missing.png)\n";
+    const { editor, errors } = await draftFromPopup(async () => {}, md, "一部は入力できませんでした");
+    assert.match(await editor.locator("#body").innerText(), /［画像1: missing\.png］/);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /見つからなかった画像があります\(missing\.png\)/);
+    assert.deepEqual(errors, []);
+  });
+
   it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {
     const many = Array.from({ length: 21 }, (_, i) => `https://example.com/many-${i + 1}`).join("\n\n");
     const { editor, errors } = await draftFromPopup(
@@ -305,10 +374,10 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       assert.equal(await popup.locator("#credit-link").isChecked(), true, "既定はチェックあり");
       // 「記事の設定」は既定でたたんであり、見出しの横にオンのものが出る
       assert.equal(await popup.locator("#article-options").getAttribute("open"), null);
-      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・リンク)");
+      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・画像・リンク)");
       await safeClickLike(popup, "#article-options > summary");
       await safeClickLike(popup, "#credit-link");
-      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み)");
+      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・画像)");
       assert.equal(await popup.locator("#credit-link").isChecked(), false);
     });
     const body = await editor.locator("#body").innerHTML();

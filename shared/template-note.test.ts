@@ -1,7 +1,7 @@
 // templates/note/article.md(見本)が、拡張でできることを全部見せているかを確かめる。
 // 機能を足したら、見本の md とこのテストの FEATURES の両方に足す(AGENTS.md の決まり)。
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { Marked } from "marked";
 import { parse as parseYaml } from "yaml";
@@ -26,6 +26,7 @@ const FEATURES: [string, RegExp, RegExp][] = [
   ["コードのかたまり", /^```/m, /<pre>/],
   ["区切り線", /^---$/m, /<hr>/],
   ["埋め込みにする URL だけの行", /^https?:\/\/\S+$/m, /<p><a href="https:[^"]+">https:[^<]+<\/a><\/p>/],
+  ["本文の画像(ファイル名で書いた画像)", /!\[[^\]]*\]\((?!https?:)[^)\s]+\)/, /<img src="(?!https?:)[^"]+"/],
   ["目次の説明", /目次/, /目次/],
   ["最後の 1 行(下書きしました)の説明", /下書きしました/, /下書きしました/],
 ];
@@ -46,6 +47,12 @@ describe("templates/note/article.md(見本)", () => {
       assert.match(src, inMd, `見本の md に「${name}」が無い`);
       assert.match(html, inHtml, `見本の HTML に「${name}」が無い`);
     }
+  });
+
+  it("ファイル名で書いた本文の画像は、見本と同じフォルダに置いてある(GitHub から読み込んで試せるように)", () => {
+    const names = [...src.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)].map((m) => m[1]).filter((s) => !/^https?:/.test(s));
+    assert.ok(names.length > 0);
+    for (const n of names) assert.ok(existsSync(new URL(`../templates/note/${n}`, import.meta.url)), `${n} がありません`);
   });
 
   it("note に入らない表は使っていない", () => {

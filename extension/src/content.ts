@@ -68,6 +68,7 @@ async function main() {
   if (article.insertToc && !hasTocHeadings(article.html)) results.push("目次 —(見出しが無いので入れていません)");
   else if (article.insertToc) await step("目次", results, () => insertToc(S, tocRef));
   await step("本文", results, () => pasteBody(S, article, tocRef));
+  if (article.images?.length || article.imageNotes?.length) await step("本文の画像", results, () => insertBodyImages(S, article));
   if (article.embedUrls) await step("埋め込み", results, () => embedUrlLines(S));
   const goOn = await step("見出し画像", results, () => setThumbnail(S, article));
   // 本文を貼ったり見出し画像を入れたりすると、画面が本文の途中や最後まで動く。確かめやすいよう、エディタのいちばん上に戻す
@@ -342,6 +343,77 @@ async function embedUrlLines(S: Selectors) {
   if (skipped > 0) problems.push(`URL だけの行が ${all.length} 件あり、上限の ${MAX_EMBEDS} 件を超えた ${skipped} 件は埋め込みにしていません`);
   if (problems.length > 0) throw new Error(`${problems.join("。")}。${EMBED_MANUAL}`);
   return `${urls.length} 件`;
+}
+
+const IMAGE_MANUAL = "本文に残っている目印(［画像1: …］)の位置に、note の画面で画像を入れてください";
+
+/**
+ * 本文の目印(［画像1: image1.png］)を 1 つずつ選び、その画像のファイルを貼り付ける(#51)。
+ * 2026-11-10 の実機で、貼り付けのイベントに画像のファイルを載せると、note がアップロードして本文に入れることを確かめた。
+ * 入ったかは、新しい <img> が増えて、その src がアップロード後の https の URL になったかで確かめる
+ */
+async function insertBodyImages(S: Selectors, a: ArticlePayload) {
+  const body = await waitFor(S.body, 10_000);
+  const images = a.images ?? [];
+  const failed: string[] = [];
+  let ok = 0;
+  for (const img of images) {
+    const range = findTextRange(body, img.marker);
+    if (!range) {
+      failed.push(img.name);
+      continue;
+    }
+    body.focus();
+    selectRange(range);
+    await sleep(200);
+    const before = new Set(Array.from(body.querySelectorAll("img")));
+    const dt = new DataTransfer();
+    dt.items.add(base64ToFile(img));
+    body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    const done = await waitUntil(() => {
+      const added = Array.from(body.querySelectorAll("img")).filter((i) => !before.has(i));
+      return added.length > 0 && added.every((i) => /^https?:/.test(i.src)) ? true : null;
+    }, 30_000);
+    if (!done) {
+      failed.push(img.name);
+      continue;
+    }
+    ok++;
+    // 貼り付けで目印が置き換わらずに残ったときは、目印だけ消す
+    const rest = findTextRange(body, img.marker);
+    const holder = rest?.startContainer.parentElement;
+    if (rest && holder) {
+      selectRange(rest);
+      await sleep(100);
+      safeKey(holder, "本文の画像: 目印を消す", "Backspace");
+      await sleep(200);
+    }
+  }
+  const problems = [...(a.imageNotes ?? [])];
+  if (failed.length) problems.unshift(`入れられなかった画像があります(${failed.join(", ")})`);
+  if (problems.length) throw new Error(`${ok} 枚は入れました。${problems.join("。")}。${IMAGE_MANUAL}`);
+  return `${ok} 枚`;
+}
+
+/** 本文の中で、text がそのまま入っている所(1 つのテキストの中)を探す */
+function findTextRange(root: HTMLElement, text: string): Range | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const i = (n.nodeValue ?? "").indexOf(text);
+    if (i < 0) continue;
+    const range = document.createRange();
+    range.setStart(n, i);
+    range.setEnd(n, i + text.length);
+    return range;
+  }
+  return null;
+}
+
+function selectRange(range: Range) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 /** contenteditable の中の target の末尾にカーソルを置く。エディタは selectionchange で自分の選択範囲に取り込む */
@@ -735,7 +807,7 @@ function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: strin
   el.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-function base64ToFile(t: NonNullable<ArticlePayload["thumbnail"]>): File {
+function base64ToFile(t: { name: string; mimeType: string; base64: string }): File {
   const bin = atob(t.base64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
