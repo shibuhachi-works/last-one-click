@@ -386,6 +386,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(await editor.locator("#body").innerText(), /［画像1・[0-9a-z]{4}: missing\.png］/);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /見つからなかった画像があります\(missing\.png\)/);
+    assert.doesNotMatch(banner, /0 枚は入れました/, "1 枚も入らなかったときは枚数を出さない");
     assert.deepEqual(errors, []);
   });
 
