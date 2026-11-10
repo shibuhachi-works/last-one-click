@@ -4,6 +4,7 @@
 import { normalizeLabel } from "../../shared/forbidden-click";
 import { matchesAnyText } from "../../shared/text-match";
 import { buildDiagnosticReport, describe, rect } from "./lib/diagnose";
+import { formatImageProbe, makeTestImage, probeImagePaste } from "./lib/image-probe";
 import { findEyecatchButton } from "../../shared/eyecatch-button";
 import { findMagazineRowButton } from "../../shared/magazine-row";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
@@ -32,6 +33,27 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: D
     .then(({ selectors }) => sendResponse({ ok: true, report: buildDiagnosticReport(selectors) }))
     .catch((e) => sendResponse({ ok: false, error: (e as Error).message }));
   return true; // 非同期で sendResponse する
+});
+
+// ポップアップからの「画像の貼り付けを試す」。本文にテスト用の画像を 1 枚渡して、入ったかを報告する(ボタンは押さない)
+chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: DiagnoseResponse) => void) => {
+  if (msg?.type !== "probeImage") return;
+  (async () => {
+    const { selectors: S } = await requestSelectors();
+    const body = document.querySelector<HTMLElement>(S.body);
+    if (!body) throw new Error("note の記事の編集画面(本文の欄がある画面)で押してください。");
+    // カーソルが本文の中に無ければ、本文の最後に置く
+    const sel = window.getSelection();
+    const inBody = !!sel?.anchorNode && body.contains(sel.anchorNode);
+    body.focus();
+    if (!inBody) placeCaret(body, body, "end");
+    await sleep(200);
+    const results = await probeImagePaste(body, await makeTestImage());
+    return formatImageProbe(results, [`カーソル: ${inBody ? "本文の中(押す前の位置)" : "本文の最後"}`]);
+  })()
+    .then((report) => sendResponse({ ok: true, report }))
+    .catch((e) => sendResponse({ ok: false, error: (e as Error).message }));
+  return true;
 });
 
 main().catch((e) => banner(`エラー: ${(e as Error).message}`, "error"));

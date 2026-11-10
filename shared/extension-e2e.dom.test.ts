@@ -36,6 +36,16 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
     // 貼り付けは、カーソルのある空の行に text/html を入れる(カーソルが無ければ最後に足す)
     body.addEventListener("paste", (e) => {
       e.preventDefault();
+      // 画像のファイルを貼ると、いったん blob: の画像が入り、アップロードが終わると https の URL に変わる(と仮定した模擬)
+      if (e.clipboardData.files.length) {
+        const fig = document.createElement("figure");
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(e.clipboardData.files[0]);
+        fig.append(img);
+        (caretBlock() ?? body.lastElementChild).after(fig);
+        setTimeout(() => (img.src = "https://assets.example.com/uploaded.png"), 300);
+        return;
+      }
       const t = document.createElement("template");
       t.innerHTML = e.clipboardData.getData("text/html");
       const b = caretBlock();
@@ -286,6 +296,29 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.equal(await editor.locator("#body .toc").count(), 0);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /目次 —\(見出しが無いので入れていません\)/);
+    assert.deepEqual(errors, []);
+  });
+  it("診断の「画像の貼り付けを試す」で、本文にテスト画像を貼り付け、入り方を報告する", async () => {
+    const editor = await context.newPage();
+    await editor.goto("https://editor.note.com/notes/probe/edit/");
+    await editor.locator("#body").waitFor();
+    const popup = await context.newPage();
+    const errors: string[] = [];
+    popup.on("pageerror", (e) => errors.push(e.message));
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.evaluate(() => document.querySelectorAll("details").forEach((d) => (d.open = true)));
+    await editor.bringToFront();
+    await safeClickLike(popup, "#probe-image");
+    await popup.waitForFunction(() => (document.getElementById("diagnose-out") as HTMLTextAreaElement).value.includes("結論"), null, { timeout: 30_000 });
+    const report = await popup.locator("#diagnose-out").inputValue();
+    assert.match(report, /## 貼り付け\(paste\)/);
+    assert.match(report, /本文に入った画像: 1 枚/);
+    assert.match(report, /https:\/\/assets\.example\.com/);
+    assert.match(report, /結論: 貼り付けで画像が入り/);
+    assert.doesNotMatch(report, /ドロップ/, "貼り付けで入ったら、ドロップは試さない");
+    assert.equal(await editor.locator("#body figure img").count(), 1);
+    await popup.close();
+    await editor.close();
     assert.deepEqual(errors, []);
   });
   it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {

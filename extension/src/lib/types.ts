@@ -30,7 +30,7 @@ import type { SelectorsJson } from "../../../shared/selectors-schema";
 export type Selectors = SelectorsJson;
 
 /** popup ⇄ content script ⇄ service worker のメッセージ */
-export type Message = { type: "diagnose" } | { type: "whoami" } | { type: "selectors" };
+export type Message = { type: "diagnose" } | { type: "probeImage" } | { type: "whoami" } | { type: "selectors" };
 export type WhoAmIResponse = { tabId: number | null };
 /**
  * content script → service worker。content script は note.com の origin で動くので、

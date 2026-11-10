@@ -175,6 +175,26 @@ $("diagnose").addEventListener("click", async () => {
     setStatus((e as Error).message, true);
   }
 });
+// 画像の貼り付けを試す:本文にテスト用の画像を 1 枚渡して、入り方を報告させる(本文に画像を入れる機能の準備)
+$("probe-image").addEventListener("click", async () => {
+  const out = $<HTMLTextAreaElement>("diagnose-out");
+  try {
+    const tab = await findNoteTab();
+    if (!tab?.id) throw new Error("note のタブが見つかりません。note の記事の下書きを開いてから押してください。");
+    setStatus("テスト用の画像を本文に入れています(最大 30 秒ほど)...");
+    const res = (await chrome.tabs.sendMessage(tab.id, { type: "probeImage" } satisfies Message).catch(() => null)) as
+      | DiagnoseResponse
+      | null;
+    if (!res) throw new Error("note のタブで実行してください(開いたままなら、タブを再読み込みしてから)。");
+    if (!res.ok) throw new Error(res.error);
+    out.value = res.report;
+    $<HTMLButtonElement>("diagnose-copy").disabled = false;
+    const copied = await navigator.clipboard.writeText(res.report).then(() => true, () => false);
+    setStatus(copied ? "結果をコピーしました。そのまま貼り付けて共有してください。" : "結果を下の欄に出しました。「コピー」を押してください。");
+  } catch (e) {
+    setStatus((e as Error).message, true);
+  }
+});
 $("diagnose-copy").addEventListener("click", async () => {
   const out = $<HTMLTextAreaElement>("diagnose-out");
   if (!out.value) return;
