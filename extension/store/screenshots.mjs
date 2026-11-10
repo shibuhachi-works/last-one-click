@@ -59,7 +59,7 @@ mkdirSync(dir, { recursive: true });
 // 2) 文字なしの SVG に掲載用の文言を重ねる。SVG 自体には文字を入れない。
 for (const [name, width, height, copy] of [
   ["promo-small", 440, 280, '<h1>Last One Click</h1><p>Markdown を選ぶだけで、<br>note の下書きが完成</p><small>公開ボタンは押しません</small>'],
-  ["marquee", 1400, 560, '<small class="eyebrow">The last one click is yours.</small><h1>Markdown の記事を、<br>そのまま note の下書きに</h1><p>タイトル・本文・見出し画像・ハッシュタグまで入力して止まる</p><small>公開ボタンは、あなたが押す。</small>'],
+  ["marquee", 1400, 560, '<small class="eyebrow">The last one click is yours.</small><h1>Markdown の記事を、<br>そのまま note の下書きに</h1><p>タイトル・本文・見出し画像・ハッシュタグまで<br>入力して止まります。</p><small>最後のワンクリックは、あなたの手で。</small>'],
 ]) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   const artwork = readFileSync(path.join(dir, name + ".svg"), "utf8");
@@ -100,7 +100,7 @@ async function slide(name, cls, body, css = "", preCss = "") {
 const bannerHtml = (kind, text) =>
   `<div class="banner" style="background:${kind === "ok" ? "#1f9d7a" : "#c27c0e"}"><b>Last One Click</b>${text}<span class="x">閉じる</span></div>`;
 
-// screenshot-2: 公開ボタンは、あなたが押す(マーキーの素材を背景なしで使い、本物のバナーを重ねる)
+// screenshot-2: 最後のワンクリックは、あなたの手で(マーキーの素材を背景なしで使い、本物のバナーを重ねる)
 {
   const art = readFileSync(path.join(dir, "marquee.svg"), "utf8")
     .replace(/<rect width="1400" height="560" rx="0" fill="url\(#bg\)"\/>/, "")
@@ -109,7 +109,7 @@ const bannerHtml = (kind, text) =>
     "screenshot-2",
     "teal",
     `<div style="position:absolute;left:72px;top:64px;width:600px"><span class="tag">The last one click is yours.</span>
-       <h1>公開ボタンは、<br>あなたが押す。</h1>
+       <h1>最後のワンクリックは、<br>あなたの手で。</h1>
        <p class="sub" style="font-size:19px">下書きまでを組み立てます。<br>投稿・公開のボタンは、設計上いっさい押しません。<br>内容を確かめて、最後の 1 クリックだけ自分で。</p></div>
      <div style="position:absolute;left:520px;top:220px;width:760px;height:580px;overflow:hidden">
        <div style="position:absolute;left:-160px;top:-10px;width:1150px;height:460px">${art.replace('width="1400" height="560"', 'width="1150" height="460"')}</div>
