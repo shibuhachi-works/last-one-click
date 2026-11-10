@@ -95,9 +95,14 @@ type MarkedLike = new (options: Record<string, unknown>) => { parse: (src: strin
  * marked はここでは import しない(使う側の Marked を渡す)
  */
 export function localImageNames(MarkedClass: MarkedLike, markdown: string, fallback: (token: { href: string; title?: string | null; text: string }) => string): Set<string> {
+  return new Set(localImageSrcs(MarkedClass, markdown, fallback).map((s) => imageFileName(s).toLowerCase()));
+}
+
+/** md の本文に、ファイル名(相対パス)で書いた画像の参照先(書いたとおりの相対パス。文字参照は戻したもの)。記事のフォルダ・ZIP の中から相対パスで探すため */
+export function localImageSrcs(MarkedClass: MarkedLike, markdown: string, fallback: (token: { href: string; title?: string | null; text: string }) => string): string[] {
   const refs: BodyImageRef[] = [];
   // 中身(YAML)は使わないので読まない
   const body = parseFrontMatter(markdown, () => null).content;
   new MarkedClass({ gfm: true, breaks: true, renderer: { image: makeImageRenderer(refs, fallback, "0000") } }).parse(body);
-  return new Set(refs.map((r) => imageFileName(r.src).toLowerCase()));
+  return [...new Set(refs.map((r) => r.src))];
 }

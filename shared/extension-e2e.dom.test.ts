@@ -13,6 +13,7 @@ import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { chromium, type BrowserContext, type Page, type Route } from "playwright";
 import { collectClickLabels } from "./click-labels.js";
+import { makeZip } from "./zip-fixture.test.js";
 import { assertClickAllowed } from "./forbidden-click.js";
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../extension/dist");
@@ -353,6 +354,37 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(banner, /本文の画像 ✓\(1 枚\)/);
     assert.deepEqual(errors, []);
   });
+
+  it("記事の ZIP をドロップすると、中の md を読み、本文の画像と front matter の thumbnail を振り分ける", async () => {
+    const md = "---\ntitle: ZIP のテスト\nthumbnail: ./thumbnail.png\n---\n\n## 見出し\n\n![図1](img/fig1.png)\n";
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    const zip = makeZip([
+      { name: "post/article.md", data: md },
+      { name: "post/README.md", data: "# 説明" },
+      { name: "post/img/fig1.png", data: png, store: true },
+      { name: "post/thumbnail.png", data: png },
+      { name: "post/unused.png", data: png },
+    ]);
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      await popup.evaluate(async (bytes) => {
+        const dt = new DataTransfer();
+        dt.items.add(new File([new Uint8Array(bytes)], "post.zip", { type: "application/zip" }));
+        document.body.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+      }, [...zip]);
+      await popup.waitForFunction(() => /post\.zip から/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 5_000 });
+      const status = (await popup.locator("#status").textContent()) ?? "";
+      assert.match(status, /md ファイル: post\/article\.md/);
+      assert.match(status, /見出し画像: thumbnail\.png/);
+      assert.match(status, /本文の画像: 1 枚/);
+      assert.equal(await popup.locator("#title").inputValue(), "ZIP のテスト");
+      // 模擬のエディタには見出し画像のボタンが無いので、見出し画像は外しておく(振り分けは上で確かめた)
+      await popup.evaluate(() => {
+        (document.getElementById("thumbnail") as HTMLInputElement).files = new DataTransfer().files;
+      });
+    }, md);
+    await editor.locator("#body figure.image img[src='https://assets.example.com/fig1.png']").waitFor({ timeout: 10_000 });
+      assert.deepEqual(errors, []);
+    });
 
   it("同じ画像を 2 回使っても、それぞれのキャプションに入る", async () => {
     const md = "---\ntitle: キャプションのテスト\n---\n\n## 見出し\n\n![a](fig1.png \"1 つ目\")\n\n間の段落\n\n![b](fig1.png \"2 つ目\")\n";

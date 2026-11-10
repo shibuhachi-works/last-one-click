@@ -12,14 +12,14 @@
   </div>
   <div id="dropzone" class="dropzone">
     <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-    <p class="dz-title">md ファイルと見出し画像をここにドロップ</p>
+    <p class="dz-title">md ファイルと画像(または記事のフォルダ・ZIP)をここにドロップ</p>
     <p class="dz-sub">または
       <button id="pick-md" type="button" class="pick">md ファイルを選ぶ</button>
       <button id="pick-image" type="button" class="pick">画像を選ぶ</button>
     </p>
     <p id="picked" class="dz-picked" hidden></p>
   </div>
-  <input id="markdown-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+  <input id="markdown-file" type="file" accept=".md,.markdown,.txt,.zip,text/markdown,text/plain,application/zip" hidden>
   <input id="thumbnail" type="file" accept="image/*" hidden>
 
   <div id="markdown-box" hidden>
@@ -60,7 +60,7 @@ magazine: マガジン名
     <summary>記事の設定 <small id="article-options-on" class="hint-inline"></small></summary>
     <label class="check hint-check tip" title="入れると、本文の先頭に note の目次を入れます。目次は本文の見出し(## と ###)から note が作ります。見出しが無い記事には入れません。"><input id="insert-toc" type="checkbox" checked>記事の先頭に目次を入れる</label>
     <label class="check hint-check tip" title="入れると、本文の中で URL だけが書かれた行を、note の埋め込み(カード)にします。文の中のリンクはそのままです。"><input id="embed-urls" type="checkbox" checked>URL だけの行を埋め込みにする</label>
-    <label class="check hint-check tip" title="入れると、md の ![説明](image1.png) のようにファイル名で書いた画像を、本文のその位置に入れます。GitHub から読み込んだときは記事と同じフォルダから、手元の md なら一緒にドロップした画像から取ります。1 記事 20 枚まで。"><input id="insert-images" type="checkbox" checked>本文の画像を入れる</label>
+    <label class="check hint-check tip" title="入れると、md の ![説明](image1.png) のようにファイル名で書いた画像を、本文のその位置に入れます。GitHub から読み込んだときは記事と同じフォルダから、手元の md なら一緒にドロップした画像(記事のフォルダ・ZIP の中の画像)から取ります。1 記事 20 枚まで。"><input id="insert-images" type="checkbox" checked>本文の画像を入れる</label>
   </details>
   <p id="status" class="status" hidden></p>
 

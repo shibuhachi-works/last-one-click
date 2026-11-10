@@ -7,7 +7,7 @@ import { renderArticle, resolveArticleUrl } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
 import { appendCreditHtml, withCreditHashtag } from "../../../shared/credit";
-import { MAX_BODY_IMAGES, MAX_PENDING_BYTES, base64Size, findDroppedImage, imageFileName, makeImageRenderer, makeMarkerTag, localImageNames as sharedLocalImageNames, type BodyImageRef } from "../../../shared/body-images";
+import { MAX_BODY_IMAGES, MAX_PENDING_BYTES, base64Size, findDroppedImage, imageFileName, makeImageRenderer, makeMarkerTag, localImageNames as sharedLocalImageNames, localImageSrcs as sharedLocalImageSrcs, type BodyImageRef } from "../../../shared/body-images";
 import { SAFE_RENDERER } from "../../../shared/markdown-safe";
 import { STORAGE, type ArticlePayload } from "./types";
 
@@ -30,6 +30,8 @@ export type BuildInput = {
   insertImages?: boolean;
   /** 手元の md のときに一緒にドロップされた画像(本文の画像の候補)。GitHub から読んだときは使わない */
   bodyImageFiles?: File[];
+  /** 記事のフォルダ・ZIP から、本文に書いた参照先(相対パス)ごとに見つけた画像。bodyImageFiles より先に使う */
+  bodyImagesBySrc?: Map<string, File>;
 };
 
 /** 本文の画像を目印にする変換。refs に、どの画像をどこに入れるかが集まる */
@@ -45,6 +47,11 @@ function imageParser(refs: BodyImageRef[], markdown: string): Marked {
 /** md の本文に、ファイル名で書いた画像のファイル名(小文字)。ドロップされた画像の振り分けに使う(shared/body-images.ts) */
 export function localImageNames(markdown: string): Set<string> {
   return sharedLocalImageNames(Marked as never, markdown, SAFE_RENDERER.image);
+}
+
+/** md の本文に、ファイル名(相対パス)で書いた画像の参照先。記事のフォルダ・ZIP の中から相対パスで探すのに使う */
+export function localImageSrcs(markdown: string): string[] {
+  return sharedLocalImageSrcs(Marked as never, markdown, SAFE_RENDERER.image);
 }
 
 export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePayload, "tabId" | "skipBodyReview" | "insertToc" | "embedUrls">> {
@@ -117,7 +124,7 @@ async function loadBodyImage(src: string, input: BuildInput): Promise<File | nul
     const blob = await res.blob();
     return new File([blob], imageFileName(src), { type: blob.type || guessImageType(src) });
   }
-  return findDroppedImage(input.bodyImageFiles ?? [], src) ?? null;
+  return input.bodyImagesBySrc?.get(src) ?? findDroppedImage(input.bodyImageFiles ?? [], src) ?? null;
 }
 
 function guessImageType(name: string): string {
