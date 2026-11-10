@@ -73,6 +73,7 @@ magazine: マガジン名
     <label class="check tip" title="「GitHub から読み込む」、selectors の URL、GitHub トークンの欄が出ます。読み込んだ内容の欄も編集・貼り付けできるようになります。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
     <div id="advanced-settings" hidden>
       <label>selectors/note.json の URL<input id="selectors-url" type="url" placeholder="(既定値を使う)"></label>
+      <p class="hint">note の画面の定義ファイルの場所です。記事の URL ではありません(記事は上の「GitHub から読み込む」に貼ります)。普段は空のままにしてください。</p>
       <label>GitHub トークン(private リポジトリのみ)<input id="github-token" type="password" autocomplete="off"></label>
       <button id="save-settings" type="button">保存</button>
       <p class="hint">トークンはこの拡張の中(chrome.storage.local)にだけ保存され、GitHub 以外には送られません。</p>

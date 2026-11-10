@@ -2,6 +2,7 @@
 // note のエディタを新しいタブで開く。実際の入力は content.ts が行う。
 import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
+import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
@@ -104,6 +105,8 @@ const advancedToggle = $<HTMLInputElement>("advanced-toggle");
 function applyAdvanced(on: boolean) {
   advancedToggle.checked = on;
   $("advanced-github").hidden = !on;
+  // 閉じたままだと見落とすので、上級者向けを表示しているときは「GitHub から読み込む」を開いておく
+  $<HTMLDetailsElement>("github-fold").open = on;
   $("advanced-settings").hidden = !on;
   // 上級者向けでは textarea を編集(貼り付け)できる。普段はファイルの中身の確認用
   markdownEl.readOnly = !on;
@@ -117,6 +120,12 @@ advancedToggle.addEventListener("change", async () => {
   setStatus(next ? "GitHub 連携と上級者向けの設定を表示しました。" : "GitHub 連携と上級者向けの設定を隠しました。");
 });
 $("save-settings").addEventListener("click", async () => {
+  // 記事の URL をこの欄に入れる間違いがあったので、保存する前に確かめる(保存はしない)
+  const selectorsUrlProblem = checkSelectorsUrl($<HTMLInputElement>("selectors-url").value);
+  if (selectorsUrlProblem) {
+    setStatus(selectorsUrlProblem, true);
+    return;
+  }
   await chrome.storage.local.set({
     [STORAGE.selectorsUrl]: $<HTMLInputElement>("selectors-url").value.trim(),
     [STORAGE.githubToken]: $<HTMLInputElement>("github-token").value.trim(),

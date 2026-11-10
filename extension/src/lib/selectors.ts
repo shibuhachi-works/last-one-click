@@ -4,6 +4,7 @@
 //   3. それも無ければ拡張に同梱した selectors/note.json
 // note の DOM が変わっても、GitHub 上の JSON を直せば拡張の再配布なしで復旧できる。
 import { validateSelectorsJson } from "../../../shared/selectors-schema";
+import { checkSelectorsUrl } from "../../../shared/selectors-url";
 import { STORAGE, type Selectors } from "./types";
 
 /** リポジトリの selectors/note.json。フォークした場合はここか、ポップアップの「設定」で差し替える */
@@ -25,7 +26,9 @@ export type LoadedSelectors = {
 export async function loadSelectors(): Promise<LoadedSelectors> {
   const stored = await chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.selectorsCache, STORAGE.githubToken]);
   // @types/chrome 0.3 から、読んだ値は unknown 扱いになったので型を明示する
-  const url: string = (stored[STORAGE.selectorsUrl] as string | undefined) || DEFAULT_SELECTORS_URL;
+  // 保存済みの値が selectors の URL として正しくなければ(記事の URL を入れてしまった等)、既定値を使う
+  const storedUrl = (stored[STORAGE.selectorsUrl] as string | undefined) ?? "";
+  const url: string = storedUrl && checkSelectorsUrl(storedUrl) === null ? storedUrl : DEFAULT_SELECTORS_URL;
   const cache = stored[STORAGE.selectorsCache] as { url: string; fetchedAt: number; data: Selectors } | undefined;
 
   if (cache && cache.url === url && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
