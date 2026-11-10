@@ -120,7 +120,7 @@ embedUrlsEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE
 creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.creditLink]: creditLinkEl.checked }));
 
 // 上級者向け(GitHub から読み込む・貼り付け・selectors の URL・GitHub トークン)は普段は隠す。
-// 「設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
+// 「拡張機能の設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
 $<HTMLParagraphElement>("version").textContent = `Last One Click v${chrome.runtime.getManifest().version}`;
 const advancedToggle = $<HTMLInputElement>("advanced-toggle");
 function applyAdvanced(on: boolean) {

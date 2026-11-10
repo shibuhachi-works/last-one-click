@@ -47,7 +47,7 @@ export const STORAGE = {
   selectorsUrl: "selectorsUrl",
   selectorsCache: "selectorsCache",
   githubToken: "githubToken",
-  /** GitHub 連携と上級者向けの設定を表示するか(「設定」のチェックで切り替わる) */
+  /** GitHub 連携と上級者向けの設定を表示するか(「拡張機能の設定」のチェックで切り替わる) */
   advancedMode: "advancedMode",
   /** 「本文の確認を飛ばして、公開設定まで進む」のチェック(覚えておく) */
   skipBodyReview: "skipBodyReview",

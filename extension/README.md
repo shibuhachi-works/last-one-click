@@ -77,7 +77,7 @@ front matter の `thumbnail: ./xxx.png` のような相対パスは、手元の�
 
 ### GitHub から読む場合(上級者向け。普段は隠れている)
 
-「設定」を開いて「上級者向けの設定を表示する」にチェックを入れると、「GitHub から読み込む」と、selectors の URL・GitHub トークンの設定が出て、読み込んだ内容の欄が編集(貼り付け)できるようになります(チェックを外すと隠れる。状態は覚える)。
+「拡張機能の設定」を開いて「上級者向けの設定を表示する」にチェックを入れると、「GitHub から読み込む」と、selectors の URL・GitHub トークンの設定が出て、読み込んだ内容の欄が編集(貼り付け)できるようになります(チェックを外すと隠れる。状態は覚える)。
 「GitHub から読み込む」に記事ディレクトリの URL(`.../tree/main/posts/xxx`)を貼ると md ファイルを取得して textarea に入れます。
 front matter の `thumbnail: ./thumbnail.png` も同じディレクトリから自動で取ります。private リポジトリは GitHub トークンを入れてください(`Contents: Read` だけで十分)。
 
@@ -91,8 +91,8 @@ note の DOM が変わる
   → 全ユーザーの拡張が次回起動時に新しいセレクタを使う(ストア再申請なし)
 ```
 
-既定ではこのリポジトリの `main` の `selectors/note.json` を読みます。フォークした場合は `src/lib/selectors.ts` の `DEFAULT_SELECTORS_URL` を変えるか、ポップアップの「設定」で URL を指定してください。
-リポジトリが private の間は、「設定」(上級者向けを表示した状態)に GitHub トークン(`Contents: Read`)を入れておくと取得できます。入れていなければ同梱コピーにフォールバックします。
+既定ではこのリポジトリの `main` の `selectors/note.json` を読みます。フォークした場合は `src/lib/selectors.ts` の `DEFAULT_SELECTORS_URL` を変えるか、ポップアップの「拡張機能の設定」で URL を指定してください。
+リポジトリが private の間は、「拡張機能の設定」(上級者向けを表示した状態)に GitHub トークン(`Contents: Read`)を入れておくと取得できます。入れていなければ同梱コピーにフォールバックします。
 
 セレクタの差し替えで済まない変更(工程が増えた、入力方式が変わった等)は `src/content.ts` の修正と再ビルド・再配布が必要です。
 壊れた箇所の調査は、同じ `selectors/note.json` を読む Playwright 版(`../tools/draft.ts`)のほうが楽です。
