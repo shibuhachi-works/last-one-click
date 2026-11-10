@@ -19,5 +19,10 @@
     "magazineItem": "label, [role=\"option\"]",
     "magazineAddButtonText": ["追加"],
     "publishButtonText": ["投稿する", "公開する"]
+  },
+  "toc": {
+    "openMenuButton": "button[aria-label=\"メニューを開く\"]",
+    "itemSelector": "#toc-setting",
+    "itemText": ["目次"]
   }
 }

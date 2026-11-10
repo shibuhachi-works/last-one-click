@@ -34,6 +34,25 @@ export type SelectorsJson = {
     magazineAddButtonText: string[];
     publishButtonText: string[];
   };
+  /**
+   * 本文の先頭に目次を入れるときに押すもの(note のエディタの「+」→「目次」)。
+   * 省略時は下の DEFAULT_TOC。目次はカーソルのある行の次の行に入る(2026-11-10 実機)
+   */
+  toc: {
+    /** 本文の行の左に出る「+」(メニューを開く)のボタン */
+    openMenuButton: string;
+    /** メニューの中の「目次」のボタン */
+    itemSelector: string;
+    /** itemSelector で見つからないときに文字で探す */
+    itemText: string[];
+  };
+};
+
+/** selectors の toc を省略したときの値(2026-11-10 に note のエディタの診断レポートで確認) */
+export const DEFAULT_TOC: SelectorsJson["toc"] = {
+  openMenuButton: 'button[aria-label="メニューを開く"]',
+  itemSelector: "#toc-setting",
+  itemText: ["目次"],
 };
 
 export class SelectorsValidationError extends Error {
@@ -93,6 +112,7 @@ export function validateSelectorsJson(input: unknown): SelectorsJson {
 
   const t = obj(o.thumbnail, "thumbnail");
   const p = obj(o.publishSettings, "publishSettings");
+  const toc = o.toc === undefined ? undefined : obj(o.toc, "toc");
 
   return {
     version: o.version,
@@ -116,5 +136,12 @@ export function validateSelectorsJson(input: unknown): SelectorsJson {
         p.magazineAddButtonText === undefined ? ["追加"] : strList(p.magazineAddButtonText, "publishSettings.magazineAddButtonText"),
       publishButtonText: strList(p.publishButtonText, "publishSettings.publishButtonText"),
     },
+    toc: toc
+      ? {
+          openMenuButton: str(toc.openMenuButton, "toc.openMenuButton"),
+          itemSelector: str(toc.itemSelector, "toc.itemSelector"),
+          itemText: strList(toc.itemText, "toc.itemText"),
+        }
+      : { ...DEFAULT_TOC, itemText: [...DEFAULT_TOC.itemText] },
   };
 }
