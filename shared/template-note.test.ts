@@ -26,7 +26,8 @@ const FEATURES: [string, RegExp, RegExp][] = [
   ["コードのかたまり", /^```/m, /<pre>/],
   ["区切り線", /^---$/m, /<hr>/],
   ["埋め込みにする URL だけの行", /^https?:\/\/\S+$/m, /<p><a href="https:[^"]+">https:[^<]+<\/a><\/p>/],
-  ["本文の画像(ファイル名で書いた画像)", /!\[[^\]]*\]\((?!https?:)[^)\s]+\)/, /<img src="(?!https?:)[^"]+"/],
+  ["本文の画像(ファイル名で書いた画像)", /!\[[^\]]*\]\((?!https?:)[^)\s]+(?:\s+"[^"]*")?\)/, /<img src="(?!https?:)[^"]+"/],
+  ["本文の画像のキャプション(\"…\" で書いた title)", /!\[[^\]]*\]\([^)\s]+\s+"[^"]+"\)/, /<img [^>]*title="[^"]+"/],
   ["目次の説明", /目次/, /目次/],
   ["最後の 1 行(下書きしました)の説明", /下書きしました/, /下書きしました/],
   ["チェックで入るハッシュタグ #LastOneClick の説明", /ハッシュタグ #LastOneClick/, /ハッシュタグ #LastOneClick/],
@@ -51,7 +52,7 @@ describe("templates/note/article.md(見本)", () => {
   });
 
   it("ファイル名で書いた本文の画像は、見本と同じフォルダに置いてある(GitHub から読み込んで試せるように)", () => {
-    const names = [...src.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)].map((m) => m[1]).filter((s) => !/^https?:/.test(s));
+    const names = [...src.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)].map((m) => m[1]).filter((s) => !/^https?:/.test(s));
     assert.ok(names.length > 0);
     for (const n of names) assert.ok(existsSync(new URL(`../templates/note/${n}`, import.meta.url)), `${n} がありません`);
   });

@@ -102,7 +102,7 @@ async function collectBodyImages(refs: BodyImageRef[], input: BuildInput, budget
       continue;
     }
     total += base64Size(file.size);
-    images.push({ marker: ref.marker, ...(await fileToPayload(file)) });
+    images.push({ marker: ref.marker, ...(await fileToPayload(file)), ...(ref.caption ? { caption: ref.caption } : {}) });
   }
   if (missing.length) notes.push(`見つからなかった画像があります(${missing.join(", ")})`);
   if (tooBig.length) notes.push(`画像の合計が大きすぎるため入れていない画像があります(${tooBig.join(", ")}。本文・見出し画像と合わせて約 ${Math.floor(MAX_PENDING_BYTES / 1024 / 1024 / (4 / 3))}MB まで)`);

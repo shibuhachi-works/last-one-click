@@ -356,6 +356,7 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
   const body = await waitFor(S.body, 10_000);
   const images = a.images ?? [];
   const failed: string[] = [];
+  const captionFailed: string[] = [];
   let ok = 0;
   for (const img of images) {
     const range = findTextRange(body, img.marker);
@@ -372,7 +373,7 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
     body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
     const done = await waitUntil(() => {
       const added = Array.from(body.querySelectorAll("img")).filter((i) => !before.has(i));
-      return added.length > 0 && added.every((i) => /^https?:/.test(i.src)) ? true : null;
+      return added.length > 0 && added.every((i) => /^https?:/.test(i.src)) ? added[0] : null;
     }, 30_000);
     if (!done) {
       failed.push(img.name);
@@ -388,12 +389,44 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
       safeKey(holder, "本文の画像: 目印を消す", "Backspace");
       await sleep(200);
     }
+    // md で ![説明](image1.png "キャプション") と書いたときは、画像のキャプションの欄に入れる
+    if (img.caption && !(await setImageCaption(body, done, img.caption))) captionFailed.push(img.name);
   }
   const problems = [...(a.imageNotes ?? [])];
+  if (captionFailed.length) problems.unshift(`キャプションを入れられなかった画像があります(${captionFailed.join(", ")}。note の画面で、画像の下の「キャプションを入力」に入れてください)`);
   if (failed.length) problems.unshift(`入れられなかった画像があります(${failed.join(", ")})`);
   // 1 枚も入らなかったときは「0 枚は入れました」と出さない
   if (problems.length) throw new Error(`${ok ? `${ok} 枚は入れました。` : ""}${problems.join("。")}。${IMAGE_MANUAL}`);
   return `${ok} 枚`;
+}
+
+/**
+ * 入れた画像の下のキャプションの欄(figcaption)にカーソルを置き、文字を入れる。
+ * 入ったかどうかは、欄の文字で確かめる(入らなければ false)
+ */
+async function setImageCaption(body: HTMLElement, img: HTMLImageElement, caption: string): Promise<boolean> {
+  // 入れた画像の要素がまだ本文にあれば、それを使う。作り直されていたときだけ、同じ src の画像のうち
+  // キャプションが空のもの(最後のもの)を探す(同じ画像を 2 回使っても、前の画像のキャプションに入れない)
+  const current = body.contains(img)
+    ? img
+    : Array.from(body.querySelectorAll("img"))
+        .filter((i) => i.src === img.src && !i.closest("figure")?.querySelector("figcaption")?.textContent?.trim())
+        .pop();
+  if (!current) return false;
+  const cap = current.closest("figure")?.querySelector<HTMLElement>("figcaption");
+  if (!cap) return false;
+  body.focus();
+  // 空の欄(ProseMirror では <br> だけが入っている)の先頭にカーソルを置く
+  const sel = window.getSelection();
+  if (!sel) return false;
+  const range = document.createRange();
+  range.setStart(cap, 0);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  await sleep(100);
+  document.execCommand("insertText", false, caption);
+  return Boolean(await waitUntil(() => (cap.isConnected ? cap : current.closest("figure")?.querySelector("figcaption"))?.textContent?.includes(caption) || null, 3_000));
 }
 
 /** 本文の中で、text がそのまま入っている所(1 つのテキストの中)を探す */

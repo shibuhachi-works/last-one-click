@@ -46,7 +46,11 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
         fig.className = "image";
         const img = document.createElement("img");
         img.src = URL.createObjectURL(e.clipboardData.files[0]);
-        fig.append(img);
+        // 画像の下にキャプションの欄が付く(実機: figcaption。空のあいだは「キャプションを入力」)
+        // ProseMirror の空の行と同じく、空の欄には <br> が入っている
+        const cap = document.createElement("figcaption");
+        cap.append(document.createElement("br"));
+        fig.append(img, cap);
         if (b && b.tagName === "P" && b.textContent.trim() === "") b.replaceWith(fig);
         else (b ?? body.lastElementChild).after(fig);
         setTimeout(() => (img.src = "https://assets.example.com/" + e.clipboardData.files[0].name), 300);
@@ -325,7 +329,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   }
 
   it("md と一緒にドロップした画像を、本文の ![説明](ファイル名) の位置に入れる。md に無い画像は見出し画像になる", async () => {
-    const md = "---\ntitle: 画像のテスト\n---\n\n## 見出し\n\n前の段落\n\n![図1](fig1.png)\n\n後ろの段落\n";
+    const md = "---\ntitle: 画像のテスト\n---\n\n## 見出し\n\n前の段落\n\n![図1](fig1.png \"図1 のキャプション\")\n\n後ろの段落\n";
     const { editor, errors } = await draftFromPopup(async (popup) => {
       assert.equal(await popup.locator("#insert-images").isChecked(), true, "既定はチェックあり");
       await dropFiles(popup, md, ["fig1.png", "cover.png"]);
@@ -343,8 +347,21 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     const fig = order.findIndex((x) => x.startsWith("FIGURE"));
     assert.ok(fig > order.findIndex((x) => x.includes("前の段落")) && fig < order.findIndex((x) => x.includes("後ろの段落")), order.join(" | "));
     assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1/, "目印は消える");
+    // md の "…"(title)は、画像のキャプションに入る(alt の「図1」は入れない)
+    assert.equal((await editor.locator("#body figure.image figcaption").textContent())?.trim(), "図1 のキャプション");
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /本文の画像 ✓\(1 枚\)/);
+    assert.deepEqual(errors, []);
+  });
+
+  it("同じ画像を 2 回使っても、それぞれのキャプションに入る", async () => {
+    const md = "---\ntitle: キャプションのテスト\n---\n\n## 見出し\n\n![a](fig1.png \"1 つ目\")\n\n間の段落\n\n![b](fig1.png \"2 つ目\")\n";
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      await dropFiles(popup, md, ["fig1.png"]);
+    }, md);
+    await editor.locator("#body figure.image").nth(1).waitFor({ timeout: 10_000 });
+    const caps = await editor.locator("#body figure.image figcaption").allTextContents();
+    assert.deepEqual(caps.map((c) => c.trim()), ["1 つ目", "2 つ目"]);
     assert.deepEqual(errors, []);
   });
 
