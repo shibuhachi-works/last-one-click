@@ -53,6 +53,30 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
         toc.replaceWith(nav);
       }
     });
+    // 本物と同じく、URL だけの行の末尾で Enter を押すと埋め込み(カード)に変わる(2026-11-10 実機)。
+    // URL 以外の行での Enter は空の行を足し、空の行での Backspace はその行を消す
+    body.addEventListener("keydown", (e) => {
+      const b = caretBlock();
+      if (!b) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const text = b.textContent.trim();
+        if (b.tagName === "P" && /^https?:\\/\\/\\S+$/.test(text)) {
+          const card = document.createElement("figure");
+          card.className = "embed";
+          card.dataset.url = text;
+          b.replaceWith(card);
+          return;
+        }
+        const p = document.createElement("p");
+        p.innerHTML = "<br>";
+        b.after(p);
+        getSelection().collapse(p, 0);
+      } else if (e.key === "Backspace" && b.tagName === "P" && b.textContent.trim() === "") {
+        e.preventDefault();
+        b.remove();
+      }
+    });
     // 本物と同じく「+」→「目次」で、カーソルのある行の次の行に目次が入る(その下に空の行ができる)
     document.getElementById("open-menu").addEventListener("click", () => (document.getElementById("menu").hidden = false));
     document.getElementById("toc-setting").addEventListener("click", () => {
@@ -79,6 +103,10 @@ hashtags: [テスト]
 
 - 箇条書き 1
 - 箇条書き 2
+
+https://example.com/embed-me
+
+文の中のリンク https://example.com/in-text はそのまま。
 `;
 
 /** 拡張の safeClick と同じ手順(禁止文字の判定 → クリック)。テストのクリックもここを通す(AGENTS.md) */
@@ -141,7 +169,11 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   });
 
   /** ポップアップで md を選び、「note の下書きを作成」を押して、本文の確認待ちのバナーが出るまで進める */
-  async function draftFromPopup(prepare: (popup: Page) => Promise<void> = async () => {}): Promise<{ editor: Page; errors: string[] }> {
+  async function draftFromPopup(
+    prepare: (popup: Page) => Promise<void> = async () => {},
+    markdown = ARTICLE,
+    waitBanner = "タイトル・本文・見出し画像を入れました",
+  ): Promise<{ editor: Page; errors: string[] }> {
     const popup = await context.newPage();
     // 拡張が chrome.tabs.create で開いたタブの最初の読み込みは、Playwright の差し替え(route)より先に通ることがある
     // (CI で本物の note.com に出ていった)。テストでは一度 about:blank で開き、差し替えが効いてから note の URL に移す
@@ -164,10 +196,10 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     const errors: string[] = [];
     popup.on("pageerror", (e) => errors.push(e.message));
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
+    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(markdown) });
     await popup.locator("#fields").waitFor({ state: "visible" });
     await prepare(popup);
-    assert.equal(await popup.locator("#title").inputValue(), "起動テストの記事");
+    assert.ok((await popup.locator("#title").inputValue()).length > 0, "タイトルが読み取れていません");
 
     // 新しいタブは about:blank で作られてから note の URL に移るので、作られたあとで URL を待つ
     const editorPromise = context.waitForEvent("page", { timeout: 15_000 });
@@ -183,7 +215,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     // 本文の確認待ちのバナー(✅)が出るまで待つ。出なければ、原因を追えるようにバナーの中身とコンソールを出す
     const banner = editor.locator("#lastclick-pigeon-banner");
     await banner
-      .getByText("タイトル・本文・見出し画像を入れました")
+      .getByText(waitBanner)
       .waitFor({ timeout: 30_000 })
       .catch(async (e) => {
         const text = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "(バナーなし)");
@@ -202,6 +234,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.match(body, /<h2[^>]*>見出しです<\/h2>/);
     assert.match(body, /<strong>太字<\/strong>/);
     assert.match(body, /<li>箇条書き 1<\/li>/);
+    // チェックを入れていなければ、URL だけの行は埋め込みにしない
+    assert.doesNotMatch(body, /<figure/);
     // GitHub への取得は止めたので、同梱のセレクタで最後まで通ったことになる
     assert.ok(selectorsFetches >= 1, "セレクタの取得が遮断されていません(GitHub から取っている可能性)");
     assert.deepEqual(errors, []);
@@ -222,6 +256,37 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
     await popup.waitForFunction(() => (document.getElementById("insert-toc") as HTMLInputElement).checked, null, { timeout: 5_000 });
     await popup.close();
+    assert.deepEqual(errors, []);
+  });
+  it("「URL だけの行を埋め込みにする」にチェックを入れると、URL だけの行が埋め込みになり、文の中のリンクはそのまま", async () => {
+    const { editor, errors } = await draftFromPopup(async (popup) => {
+      await safeClickLike(popup, "#embed-urls");
+      assert.equal(await popup.locator("#embed-urls").isChecked(), true);
+    });
+    const cards = await editor.locator("#body figure.embed").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.url));
+    assert.deepEqual(cards, ["https://example.com/embed-me"]);
+    const lines = await editor.locator("#body > p").evaluateAll((els) => els.map((e) => e.textContent?.trim()));
+    assert.ok(!lines.includes("https://example.com/embed-me"), `URL の行が残っています: ${lines.join(" / ")}`);
+    assert.ok(lines.some((t) => t?.includes("https://example.com/in-text")), "文の中のリンクが消えました");
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /埋め込み ✓\(1 件\)/);
+    // チェックは次回も覚えている
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.waitForFunction(() => (document.getElementById("embed-urls") as HTMLInputElement).checked, null, { timeout: 5_000 });
+    await popup.close();
+    assert.deepEqual(errors, []);
+  });
+  it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {
+    const many = Array.from({ length: 21 }, (_, i) => `https://example.com/many-${i + 1}`).join("\n\n");
+    const { editor, errors } = await draftFromPopup(
+      async (popup) => assert.equal(await popup.locator("#embed-urls").isChecked(), true),
+      `---\ntitle: 上限のテスト\n---\n\n## 見出し\n\n${many}\n`,
+      "一部は入力できませんでした",
+    );
+    assert.equal(await editor.locator("#body figure.embed").count(), 20);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /21 件あり、上限の 20 件を超えた 1 件は埋め込みにしていません/);
     assert.deepEqual(errors, []);
   });
 });

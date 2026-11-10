@@ -65,6 +65,7 @@ async function main() {
   const tocRef: TocRef = { node: null };
   if (article.insertToc) await step("目次", results, () => insertToc(S, tocRef));
   await step("本文", results, () => pasteBody(S, article, tocRef));
+  if (article.embedUrls) await step("埋め込み", results, () => embedUrlLines(S));
   const goOn = await step("見出し画像", results, () => setThumbnail(S, article));
   // 本文を貼ったり見出し画像を入れたりすると、画面が本文の途中や最後まで動く。確かめやすいよう、エディタのいちばん上に戻す
   scrollToTop(titleEl);
@@ -284,6 +285,71 @@ function visibleMatch(selector: string): HTMLElement | null {
   return (
     Array.from(document.querySelectorAll<HTMLElement>(selector)).find((e) => e.offsetParent !== null || e.getClientRects().length > 0) ?? null
   );
+}
+
+/** URL だけの行(段落)の文字。前後の空白は無視する */
+const URL_LINE = /^https?:\/\/\S+$/;
+/** 1 記事で埋め込みにする URL の行の上限(多すぎる記事で止まらないように) */
+const MAX_EMBEDS = 20;
+const EMBED_MANUAL = "note の画面で、その URL の行の末尾にカーソルを置いて Enter を押すと埋め込みになります";
+
+/** 本文の直下にある、URL だけが書かれた段落 */
+function urlLines(body: HTMLElement): HTMLElement[] {
+  return Array.from(body.children).filter(
+    (c): c is HTMLElement => c instanceof HTMLElement && c.tagName === "P" && URL_LINE.test((c.textContent ?? "").trim()),
+  );
+}
+
+/**
+ * URL だけの行の末尾にカーソルを置いて Enter を送り、note の埋め込み(カード)に変える。
+ * note は「URL の行の末尾で Enter」で埋め込みにする(2026-11-10 実機)。変わったかは、同じ URL の行が減ったかで確かめる
+ * (エディタは画面の要素を作り直すので、要素そのものでは確かめない)。変わらなければ Enter で増えた空の行を消して残す。
+ * キーは本文全体ではなく URL の行に送る(safeKey は送り先の文字を見るので、記事の中の言葉で止まらないように)
+ */
+async function embedUrlLines(S: Selectors) {
+  const body = await waitFor(S.body, 10_000);
+  const all = urlLines(body).map((p) => (p.textContent ?? "").trim());
+  if (all.length === 0) return "URL だけの行はなし";
+  // 上限を超えた分は触らずに残し、最後にその件数を知らせる(黙って飛ばさない)
+  const urls = all.slice(0, MAX_EMBEDS);
+  const skipped = all.length - urls.length;
+  const failed: string[] = [];
+  for (const url of urls) {
+    const count = () => urlLines(body).filter((p) => (p.textContent ?? "").trim() === url).length;
+    const before = count();
+    const line = urlLines(body).find((p) => (p.textContent ?? "").trim() === url);
+    if (!line) continue;
+    body.focus();
+    caretToEnd(body, line);
+    await sleep(200);
+    safeKey(line, "埋め込み: URL の行で Enter", "Enter");
+    const done = await waitUntil(() => (count() < before ? true : null), 5_000);
+    if (!done) {
+      failed.push(url);
+      // Enter で増えた空の行を消す(カーソルは新しい空の行にある)
+      const sel = window.getSelection();
+      let n: Node | null = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
+      while (n && n.parentNode !== body) n = n.parentNode;
+      if (n instanceof HTMLElement && n.tagName === "P" && (n.textContent ?? "").trim() === "") safeKey(n, "埋め込み: 空の行を消す", "Backspace");
+      await sleep(200);
+    }
+  }
+  const problems: string[] = [];
+  if (failed.length > 0) problems.push(`埋め込みにできなかった URL があります(${failed.join(", ")})`);
+  if (skipped > 0) problems.push(`URL だけの行が ${all.length} 件あり、上限の ${MAX_EMBEDS} 件を超えた ${skipped} 件は埋め込みにしていません`);
+  if (problems.length > 0) throw new Error(`${problems.join("。")}。${EMBED_MANUAL}`);
+  return `${urls.length} 件`;
+}
+
+/** contenteditable の中の target の末尾にカーソルを置く。エディタは selectionchange で自分の選択範囲に取り込む */
+function caretToEnd(root: HTMLElement, target: Node) {
+  const sel = window.getSelection();
+  if (!sel || !root.contains(target)) return;
+  const range = document.createRange();
+  range.selectNodeContents(target);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 async function setThumbnail(S: Selectors, a: ArticlePayload) {

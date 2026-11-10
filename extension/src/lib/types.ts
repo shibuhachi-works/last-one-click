@@ -21,6 +21,8 @@ export type ArticlePayload = {
   skipBodyReview: boolean;
   /** 本文の先頭に note の目次を入れるか(「記事の先頭に目次を入れる」のチェック) */
   insertToc: boolean;
+  /** URL だけの行を note の埋め込み(カード)にするか(「URL だけの行を埋め込みにする」のチェック) */
+  embedUrls: boolean;
 };
 
 /** selectors/note.json の形(検査は shared/selectors-schema.ts) */
@@ -51,6 +53,8 @@ export const STORAGE = {
   skipBodyReview: "skipBodyReview",
   /** 「記事の先頭に目次を入れる」のチェック(覚えておく) */
   insertToc: "insertToc",
+  /** 「URL だけの行を埋め込みにする」のチェック(覚えておく) */
+  embedUrls: "embedUrls",
   /** 「ウィンドウで開く」で入力途中の状態を新しいウィンドウへ渡す(chrome.storage.session。受け取ったら消す) */
   windowHandoff: "windowHandoff",
 } as const;
