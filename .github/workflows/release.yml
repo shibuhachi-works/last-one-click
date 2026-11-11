@@ -17,6 +17,7 @@ name: リリースを作る
 # - ZIP は、指定したコミットを別の場所に取り出して作る(本文を読む main とは分ける)。manifest.json の version がタグと同じことを確かめる
 # - ZIP を作る手順(npm ci・build)は、リリースを作る token を持たない手順で行う(npm ci は --ignore-scripts)
 # - 本文の末尾に、ZIP の SHA-256 と「通常はストアから入れる」の注意を足す
+# - ストアの画像(extension/store/*.png)が今のポップアップ・素材から作ったものか確かめ、古ければ止める(check-screenshots.mjs)
 # - ストアには、リリースに添えた ZIP をそのまま上げる(手元で作り直さない。ZIP は作るたびに中身の時刻が変わる)
 on:
   workflow_dispatch:
@@ -62,6 +63,12 @@ jobs:
           git worktree add --detach "$SRC" "$SHA"
           VERSION=$(node -p "JSON.parse(require('fs').readFileSync('$SRC/extension/manifest.json','utf8')).version")
           [[ "v$VERSION" == "$TAG" ]] || { echo "manifest.json の version（$VERSION）がタグ（$TAG）と違います"; exit 1; }
+          # ストアの画像が、今のポップアップ・素材から作ったものかを確かめる(古ければ止める)
+          if [[ -f "$SRC/extension/store/check-screenshots.mjs" ]]; then
+            ( cd "$SRC/extension" && node store/check-screenshots.mjs )
+          else
+            echo "このコミットには画像の確認が無いので、飛ばします"
+          fi
           # 取り出した先の依存を入れる。インストール時のスクリプトは動かさない
           ( cd "$SRC" && npm ci --ignore-scripts )
           ( cd "$SRC/extension" && npm ci --ignore-scripts && node package.mjs )

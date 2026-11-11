@@ -1,0 +1,10 @@
+{
+  "hash": "5306ccd4ea8e17aa41d0a064f51568bf3a666020f47563076f8016b17d5298f5",
+  "inputs": [
+    "src/popup.html",
+    "src/popup.css",
+    "store/marquee.svg",
+    "store/promo-small.svg",
+    "store/screenshots.mjs"
+  ]
+}

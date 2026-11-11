@@ -48,3 +48,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      # ストアの画像が古ければ注意を出す(止めない。リリースの workflow では止める)
+      - run: node store/check-screenshots.mjs --warn

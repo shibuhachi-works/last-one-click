@@ -7,6 +7,7 @@
 // note の画面そのものは、実機でしか撮れない(人の作業)。
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { LOCK_FILE, SCREENSHOT_INPUTS, inputsHash } from "./screenshot-inputs.mjs";
 import path from "node:path";
 
 const dir = path.dirname(new URL(import.meta.url).pathname);
@@ -198,3 +199,7 @@ const bannerHtml = (kind, text) =>
 }
 
 await browser.close();
+
+// 画像を作ったときの元のファイルの指紋を残す(check-screenshots.mjs が、リリースの前に今の指紋と比べる)
+writeFileSync(LOCK_FILE, JSON.stringify({ hash: inputsHash(), inputs: SCREENSHOT_INPUTS }, null, 2) + "\n");
+console.log("store/screenshots.lock");
