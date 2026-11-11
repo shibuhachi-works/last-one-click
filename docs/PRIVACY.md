@@ -12,7 +12,7 @@
 
 ### 拡張の中で扱うデータ
 
-- **記事の内容**(タイトル・本文・見出し画像・ハッシュタグ・マガジン名): ポップアップから note のタブへ渡すため、Chrome の拡張用ストレージ(`chrome.storage.local`)に一時的に保存します。note.com 以外には送りません。
+- **記事の内容**(タイトル・本文・見出し画像・本文の画像・ハッシュタグ・マガジン名): ポップアップから note のタブへ渡すため、Chrome の拡張用ストレージ(`chrome.storage.local`)に一時的に保存します。note.com 以外には送りません。
 - **GitHub トークン**(任意): private リポジトリの記事を読むときだけユーザーが設定します。拡張のストレージにのみ保存し、`raw.githubusercontent.com` 以外には送りません。
 - **設定**(セレクタ定義の URL など): 拡張のストレージにのみ保存します。
 
@@ -42,7 +42,7 @@ https://shibuhachi.works/about/ のお問い合わせ先、または Chrome ウ�
 **Last One Click** is a Chrome extension that fills a note.com draft (title, body, header image, hashtags, magazine) from Markdown you paste.
 
 - **No data collection.** The extension does not collect, transmit, or sell any data, has no server, and runs no analytics.
-- **Data handled locally.** The article you paste is stored temporarily in `chrome.storage.local` to hand it from the popup to the note.com tab, and is sent nowhere except note.com. An optional GitHub token (for private repositories) is stored only in the extension's storage and sent only to `raw.githubusercontent.com`.
+- **Data handled locally.** The article you paste (including its images) is stored temporarily in `chrome.storage.local` to hand it from the popup to the note.com tab, and is sent nowhere except note.com. An optional GitHub token (for private repositories) is stored only in the extension's storage and sent only to `raw.githubusercontent.com`.
 - **No credentials.** The extension never accesses note.com cookies, passwords, or sessions (it has no `cookies` permission). It works inside the note.com tab you are already logged into.
 - **Network.** `note.com` / `editor.note.com` (filling the draft in your tab) and `raw.githubusercontent.com` (reading the Markdown/images you point to, and a selector definition JSON).
 - **It never clicks Publish.** Publishing is always your own click.
