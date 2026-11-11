@@ -136,6 +136,14 @@ URL は合い言葉と同じです(知られると、誰でもそのチャンネ
 secret-tool store --label="Last One Click webhook" service last-one-click-webhook
 ```
 
+待つモード(hold)の「公開の手前で待っています」には、リモートデスクトップを開くリンクも付けられます。`.watch.env` に書きます(`rdp://` か `https://` だけ)。
+
+```bash
+LOC_WATCH_REMOTE_URL=rdp://full%20address=s:<Tailscale での PC の名前>:3389
+```
+
+`rdp://` のリンクを押してアプリが開くかは、受け手のアプリ(Slack など)とリモートデスクトップのアプリしだいです。開かないときは、リモートデスクトップのアプリから PC を選んでつなぎます。
+
 Slack なら、api.slack.com/apps でアプリを作り、「Incoming Webhooks」をオンにして、通知用のチャンネル(自分だけのプライベートチャンネルで十分)の URL を発行します。
 
 ## 8. 待つモード(hold)で、リモートから公開する
