@@ -104,7 +104,7 @@ for (const dir of dirs) {
   if (r.status === 0) {
     markDone(dir);
     // hold は、人が窓を閉じたあとに戻ってくる(待っている間の通知は draft.ts が出す)
-    if (MODE === "save") await notify("note の下書きを保存しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
+    if (MODE === "save") await notify("下書きが完了しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
     continue;
   }
   if (existsSync(marker)) {
