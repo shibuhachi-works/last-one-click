@@ -163,10 +163,18 @@ async function fillPublishSettings(page: Page, a: Article) {
 async function saveDraft(page: Page) {
   const button = page.locator(NOTE.saveDraft).first();
   await button.waitFor({ timeout: 15_000 });
+  // 押したあとに note の API へ送られる保存の通信(GET 以外)を待ち、成功したことを確かめる。
+  // 確かめられなければ失敗にする(見張り役が「保存できた」と記録して、やり直さなくなるのを防ぐ)
+  const saved = page.waitForResponse((r) => r.request().method() !== "GET" && /^https:\/\/([a-z0-9-]+\.)?note\.com\/api\//.test(r.url()), {
+    timeout: 15_000,
+  });
   await safeClick(button, "saveDraft");
-  // 保存の通信が落ち着くまで待つ(note は保存後もしばらく通信するので、上限を付ける)
-  await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
-  await page.waitForTimeout(2_000);
+  const res = await saved.catch(() => {
+    throw new Error("下書き保存の通信が 15 秒以内に返ってきませんでした。");
+  });
+  if (!res.ok()) throw new Error(`下書き保存に失敗しました(HTTP ${res.status()})。`);
+  // 続く通信(画像など)が落ち着くのを少し待ってから閉じる
+  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
 }
 
 /**

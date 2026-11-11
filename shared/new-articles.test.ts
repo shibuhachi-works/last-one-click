@@ -14,7 +14,8 @@ describe("pickNewArticleDirs", () => {
       { filename: "posts/health/2026-11-12-c/Article.md", status: "added" },
       { filename: "posts/README.md", status: "added" },
     ];
-    assert.deepEqual(pickNewArticleDirs(files, "posts/"), ["posts/dev/2026-11-12-a", "posts/health/2026-11-12-c"]);
+    // Article.md(大文字)は、取得側が article.md しか読まないので選ばない
+    assert.deepEqual(pickNewArticleDirs(files, "posts/"), ["posts/dev/2026-11-12-a"]);
   });
   it("prefix の書き方の揺れ(先頭の ./ や末尾の / なし)を許す", () => {
     const files = [{ filename: "posts/x/article.md", status: "added" }];

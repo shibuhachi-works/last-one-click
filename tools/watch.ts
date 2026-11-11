@@ -8,7 +8,7 @@
 //   LOC_WATCH_PREFIX  見張るフォルダ(例 posts/)。必須。この下に足された article.md だけを下書きにする
 //   LOC_WATCH_BRANCH  見張るブランチ。既定 main
 //   GITHUB_TOKEN      private リポジトリを読むときだけ(読み取り専用のものを使う)
-//   LOC_WATCH_DRY_RUN 1 にすると、選んだ記事を表示するだけで、下書きは作らず、位置も進めない(設定の確認用)
+//   LOC_WATCH_DRY_RUN 1 にすると、選んだ記事を表示するだけ。下書きは作らず、.watch-state.json も書き換えない(設定の確認用)
 //
 // 動き:
 // - 1 回目は、いまの main の位置を覚えるだけ(過去の記事をまとめて下書きにしない)
@@ -38,10 +38,15 @@ try {
   fail(`LOC_WATCH_PREFIX: ${(e as Error).message}`);
 }
 
+const DRY_RUN = process.env.LOC_WATCH_DRY_RUN === "1";
 const head = await headSha();
 const state = readState();
 
 if (!state || state.repo !== repo || state.branch !== branch) {
+  if (DRY_RUN) {
+    log(`まだ見張りを始めていません。DRY_RUN なので位置は覚えずに終わります(いまの位置 ${head.slice(0, 7)})。`);
+    process.exit(0);
+  }
   writeState({ repo, branch, lastSha: head, done: [] });
   log(`見張りを始めました(${repo} の ${branch}、${prefix} の下)。いまの位置 ${head.slice(0, 7)} から後に足された記事を下書きにします。`);
   process.exit(0);
@@ -54,13 +59,14 @@ if (state.lastSha === head) {
 const files = await compareFiles(state.lastSha, head);
 const dirs = pickNewArticleDirs(files, prefix).filter((d) => !state.done.includes(d));
 if (dirs.length === 0) {
-  writeState({ ...state, lastSha: head, done: [] });
+  // DRY_RUN(設定の確認)では位置を進めない。違う prefix で試したときに、記事を取りこぼさないように
+  if (!DRY_RUN) writeState({ ...state, lastSha: head, done: [] });
   log(`新しい記事はありません(${state.lastSha.slice(0, 7)}..${head.slice(0, 7)})。`);
   process.exit(0);
 }
 
 log(`新しい記事 ${dirs.length} 本: ${dirs.join(", ")}`);
-if (process.env.LOC_WATCH_DRY_RUN === "1") {
+if (DRY_RUN) {
   log("LOC_WATCH_DRY_RUN=1 なので、下書きは作らずに終わります。");
   process.exit(0);
 }

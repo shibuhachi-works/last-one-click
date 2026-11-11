@@ -26,7 +26,8 @@ export function normalizePrefix(prefix: string): string {
 
 /**
  * 新しく「足された」記事のフォルダを選ぶ(手直し・名前の変更・削除は選ばない)。
- * 記事は `<prefix>…/article.md`(大文字・小文字は区別しない)。返すのはフォルダのパス(重複なし・出てきた順)
+ * 記事は `<prefix>…/article.md`(小文字だけ。tools/draft.ts はフォルダの URL に article.md を付けて読むため、
+ * Article.md などを選ぶと読めずに毎回失敗する)。返すのはフォルダのパス(重複なし・出てきた順)
  */
 export function pickNewArticleDirs(files: readonly ChangedFile[], prefix: string): string[] {
   const p = normalizePrefix(prefix);
@@ -34,7 +35,7 @@ export function pickNewArticleDirs(files: readonly ChangedFile[], prefix: string
   for (const f of files) {
     if (f.status !== "added") continue;
     if (!f.filename.startsWith(p)) continue;
-    if (!/(^|\/)article\.md$/i.test(f.filename)) continue;
+    if (!/(^|\/)article\.md$/.test(f.filename)) continue;
     const dir = f.filename.slice(0, f.filename.lastIndexOf("/"));
     if (dir && !out.includes(dir)) out.push(dir);
   }
