@@ -42,7 +42,13 @@ npx playwright install --with-deps chromium   # ブラウザと、動かすの�
 npm run login      # 開いたブラウザで note にログインして、窓を閉じる
 ```
 
-`npm run login` は、デスクトップの画面の前で(または画面共有で)行います。SSH だけで入っているときは、窓が手元に出ません。
+`npm run login` は、デスクトップの画面の前で(または画面共有で)行います。SSH から実行するときは、デスクトップにログインしている状態で、窓を Debian の画面に出すように指定します(GNOME の場合)。
+
+```bash
+DISPLAY=:0 XAUTHORITY=$(ls /run/user/$(id -u)/.mutter-Xwaylandauth.* | head -1) npm run login
+```
+
+`tools/linux/watch.sh` は、この指定を自動で付けます。
 
 ## 2. 記事のリポジトリが private なら、読み取り専用のトークンを入れる
 
@@ -92,7 +98,7 @@ tools/linux/watch.sh
 ```bash
 mkdir -p ~/.config/systemd/user
 cp tools/linux/last-one-click-watch.service tools/linux/last-one-click-watch.timer ~/.config/systemd/user/
-# リポジトリを ~/last-one-click 以外に置いたときは、.service の ExecStart を書き換える
+# リポジトリを ~/last-one-click 以外に置いたときは、.service の ExecStart を書き換える(例 ~/dev/last-one-click なら %h/dev/last-one-click/tools/linux/watch.sh)
 systemctl --user daemon-reload
 systemctl --user enable --now last-one-click-watch.timer
 ```

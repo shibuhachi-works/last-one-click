@@ -28,9 +28,18 @@ elif [[ -f "$TOKEN_FILE" ]]; then
   export GITHUB_TOKEN
 fi
 
-# ブラウザの窓を出す画面。systemd のユーザーサービスに画面の情報が渡っていないときだけ、:0 にする
+# ブラウザの窓を出す画面。SSH から動かしたときなど、画面の情報が無いときだけ、デスクトップの :0 にする。
+# GNOME(Wayland)では、Xwayland の認証ファイルも要るので、見つかれば付ける
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   export DISPLAY=:0
+fi
+if [[ -z "${XAUTHORITY:-}" ]]; then
+  for f in "/run/user/$(id -u)"/.mutter-Xwaylandauth.*; do
+    if [[ -f "$f" ]]; then
+      export XAUTHORITY="$f"
+      break
+    fi
+  done
 fi
 
 exec npx tsx tools/watch.ts
