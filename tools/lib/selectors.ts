@@ -24,6 +24,8 @@ export const NOTE = {
     addButton: `${json.thumbnail.addButton}, ${byText("button", json.thumbnail.addButtonText)}`,
     fileInput: json.thumbnail.fileInput,
     confirm: byText("button", json.thumbnail.confirmText),
+    /** 見出し画像のボタンを押すと出るメニューの「画像をアップロード」(ボタンとは限らないので要素の種類は問わない) */
+    uploadMenuTexts: json.thumbnail.uploadMenuText,
   },
   openPublishSettings: byText("button", json.openPublishSettingsText),
   /** 「下書き保存」(draft.ts の --save だけが押す)。完全一致なので「公開」系の文字は拾わない */

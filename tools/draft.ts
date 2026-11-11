@@ -151,22 +151,43 @@ async function pasteBody(page: Page, a: Article) {
 async function setThumbnail(page: Page, a: Article) {
   if (!a.thumbnail) return;
   const file = { name: a.thumbnail.name, mimeType: a.thumbnail.mimeType, buffer: a.thumbnail.buffer };
+  const input = page.locator(NOTE.thumbnail.fileInput).first();
 
-  const direct = page.locator(NOTE.thumbnail.fileInput).first();
-  if (await direct.count()) {
-    await direct.setInputFiles(file);
+  if (await input.count()) {
+    await input.setInputFiles(file);
   } else {
-    const [chooser] = await Promise.all([
-      page.waitForEvent("filechooser", { timeout: 10_000 }),
-      safeClick(page.locator(NOTE.thumbnail.addButton).first(), "setThumbnail.addButton"),
-    ]);
-    await chooser.setFiles(file);
+    // 見出し画像のボタンを押すと、メニュー(「画像をアップロード」)が開く。画像の入力欄はメニューを開いたときだけ
+    // DOM に現れる(拡張の content.ts と同じ実機の観察)。入力欄が出ればそこへ直接入れ、出なければメニューを押して
+    // 開いたファイル選択へ渡す
+    await safeClick(page.locator(NOTE.thumbnail.addButton).first(), "setThumbnail.addButton");
+    const menu = page.locator(NOTE.thumbnail.uploadMenuTexts.map((t) => `text=${JSON.stringify(t)}`).join(", ")).first();
+    const appeared = await Promise.race([
+      input.waitFor({ state: "attached", timeout: 10_000 }).then(() => "input" as const),
+      menu.waitFor({ state: "visible", timeout: 10_000 }).then(() => "menu" as const),
+    ]).catch(() => null);
+    if (appeared === "input") {
+      await input.setInputFiles(file);
+    } else if (appeared === "menu") {
+      const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 10_000 }), safeClick(menu, "setThumbnail.uploadMenu")]);
+      await chooser.setFiles(file);
+    } else {
+      throw new Error("見出し画像のボタンを押しましたが、メニューも画像の入力欄も出ませんでした。");
+    }
   }
 
-  // トリミング確認(ダイアログ)が出るなら、その中の確定ボタンだけを押す。
-  // 画面全体から「保存」を探すと「下書き保存」を押しかねないので、ダイアログが無ければ何もしない
-  const confirm = page.locator(NOTE.dialog).locator(NOTE.thumbnail.confirm).first();
-  if (await confirm.isVisible({ timeout: 3_000 }).catch(() => false)) await safeClick(confirm, "setThumbnail.confirm");
+  // トリミング確認(ダイアログ)の確定ボタンだけを押す。画面全体から「保存」を探すと「下書き保存」を押しかねないので、
+  // ダイアログの中だけを探す。画像の読み込みに時間がかかるので、出るまで待ち、少し置いてから押す
+  const dialog = page.locator(NOTE.dialog).first();
+  const confirm = dialog.locator(NOTE.thumbnail.confirm).first();
+  // isVisible は待たないので、waitFor で出るまで待つ
+  if (await confirm.waitFor({ state: "visible", timeout: 20_000 }).then(() => true, () => false)) {
+    await dialog.locator("img, canvas").first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(1_000);
+    await safeClick(confirm, "setThumbnail.confirm");
+    // 保存のあとはアップロードが走る。ダイアログが閉じるまで待ってから次へ進む
+    await dialog.waitFor({ state: "hidden", timeout: 60_000 });
+    await page.waitForTimeout(1_500);
+  }
 }
 
 async function fillPublishSettings(page: Page, a: Article) {
