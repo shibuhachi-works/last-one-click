@@ -172,7 +172,15 @@ async function setThumbnail(page: Page, a: Article) {
     // DOM に現れる(拡張の content.ts と同じ実機の観察)。入力欄が出ればそこへ直接入れ、出なければメニューを押して
     // 開いたファイル選択へ渡す
     await safeClick(page.locator(NOTE.thumbnail.addButton).first(), "setThumbnail.addButton");
-    const menu = page.locator(NOTE.thumbnail.uploadMenuTexts.map((t) => `text=${JSON.stringify(t)}`).join(", ")).first();
+    // 実機のメニュー項目は「画像をアップロード」と「推奨サイズ: …」が 1 つの要素に入っていて、完全一致では見つからない
+    // (拡張の content.ts の findSmallestByText と同じ観察)。文字を含む要素を探す(getByText は含む中でいちばん内側を返す)。
+    // 記事本文(入力欄)に同じ文字があっても押さないよう、入力欄の中は除く
+    const outsideEditor = page.locator('body *:not([contenteditable="true"] *):not([contenteditable="true"]):not(textarea)');
+    const menu = NOTE.thumbnail.uploadMenuTexts
+      .map((t) => page.getByText(t))
+      .reduce((a, b) => a.or(b))
+      .and(outsideEditor)
+      .first();
     const appeared = await Promise.race([
       input.waitFor({ state: "attached", timeout: 10_000 }).then(() => "input" as const),
       menu.waitFor({ state: "visible", timeout: 10_000 }).then(() => "menu" as const),
