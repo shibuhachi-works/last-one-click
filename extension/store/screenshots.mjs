@@ -35,9 +35,10 @@ mkdirSync(dir, { recursive: true });
   // md ファイルを読み込んだ直後の状態を作る(textarea は確認用の readonly なので value を直接入れる)
   await page.evaluate(() => {
     document.querySelectorAll("details").forEach((d) => (d.open = false));
-    // 1280x800 に収めるため、確認用の欄を少し低くし、ポップアップ専用の注意書きは出さない
+    // 1280x800 に収めるため、確認用の欄を低くし、ポップアップ専用の注意書きと読み込みの案内は出さない
     const ta = document.querySelector("#markdown");
-    ta.style.minHeight = "120px";
+    ta.style.minHeight = "72px";
+    ta.style.height = "72px";
     ta.value = "---\ntitle: 週 1 本、note を書き続けるためにやったこと\nhashtags: [個人開発, note, 習慣]\nmagazine: 開発日記\n---\n\n## なぜ下書きまでを自動にしたのか\n\n書くのは自分、整えるのは拡張、押すのも自分。\n\n- md ファイルを選ぶ → 下書き完成\n- 公開ボタンは自分で";
     document.querySelector("#markdown-box").hidden = false;
     document.querySelector("#fields").hidden = false;
@@ -46,11 +47,17 @@ mkdirSync(dir, { recursive: true });
     document.querySelector("#magazine").value = "開発日記";
     const picked = document.querySelector("#picked");
     picked.hidden = false;
-    picked.textContent = "受け取り済み: md ファイル: 2026-10-28-weekly-note.md / 見出し画像: thumbnail.png";
-    const st = document.querySelector("#status");
-    st.hidden = false;
-    st.textContent = "2026-10-28-weekly-note.md を読み込みました。\n「note の下書きを作成」を押してください。";
+    picked.textContent = "受け取り済み: md ファイル: 2026-10-28-weekly-note.md / 見出し画像: thumbnail.png / 本文の画像: 2 枚";
+    const opts = document.querySelector("#article-options-on");
+    if (opts) opts.textContent = "(目次・埋め込み・画像)";
+    // 記事の最後のリンクとハッシュタグのチェックは、既定でチェックあり
+    const credit = document.querySelector("#credit-link");
+    if (credit) credit.checked = true;
+    document.querySelector("#status").hidden = true;
   });
+  // ポップアップが画面の高さを超えたら、撮る前に気づけるようにする
+  const h = await page.evaluate(() => document.querySelector(".popup").getBoundingClientRect().height);
+  if (h > 780) throw new Error(`screenshot-1: ポップアップの高さ ${Math.round(h)}px が 1280x800 に収まりません`);
   writeFileSync(path.join(dir, "screenshot-1.png"), await page.screenshot({ type: "png" }));
   console.log("store/screenshot-1.png (1280x800)");
   await page.close();
