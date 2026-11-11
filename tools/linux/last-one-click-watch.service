@@ -1,0 +1,13 @@
+# 見張り役を 1 回動かす(timer から呼ばれる)。手順は docs/auto-draft-linux.md の 4.
+# ~/.config/systemd/user/ に置く。%h はホームディレクトリ。リポジトリを ~/last-one-click 以外に置いたときは書き換える
+[Unit]
+Description=Last One Click: マージした記事を note の下書きにする見張り役
+# デスクトップにログインしてから動かす(ブラウザの窓を画面に出すため)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/last-one-click/tools/linux/watch.sh
+# 下書きを作るのに時間がかかっても途中で止めない上限(1 記事 1〜2 分 × 数本)
+TimeoutStartSec=20min

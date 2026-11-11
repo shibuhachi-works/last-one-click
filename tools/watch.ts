@@ -1,5 +1,5 @@
 // 見張り役。記事のリポジトリに「新しく足された記事」があれば、note の下書きを作って保存する。
-// 手元の Mac で数分おきに動かす前提(docs/auto-draft-mac.md)。公開はしない。
+// 手元の PC(Debian などの Linux のデスクトップ)で数分おきに動かす前提(docs/auto-draft-linux.md)。公開はしない。
 //
 //   LOC_WATCH_REPO=owner/repo LOC_WATCH_PREFIX=posts/ npm run watch
 //
@@ -82,7 +82,7 @@ for (const dir of dirs) {
     continue;
   }
   if (r.status === 2) {
-    notify("note にログインしていません", "Mac で `npm run login` を実行してから、もう一度動かしてください。");
+    notify("note にログインしていません", "`npm run login` を実行してから、もう一度動かしてください。");
     fail("note にログインしていないので止めます。");
   }
   notify("下書きを作れませんでした", `${baseName(dir)}。ログを確かめてください。次の回でやり直します。`);
@@ -126,11 +126,17 @@ function writeState(s: State) {
   writeFileSync(STATE_FILE, JSON.stringify(s, null, 2) + "\n");
 }
 
-/** Mac の通知センターに出す(Mac 以外では何もしない)。文字は AppleScript の文字列として安全な形にする */
+/**
+ * デスクトップの通知に出す。Linux は notify-send(libnotify-bin)、Mac は通知センター。
+ * どちらも無ければ何もしない(ログには出ている)。引数はシェルを通さずに渡す
+ */
 function notify(title: string, body: string) {
-  if (process.platform !== "darwin") return;
-  const q = (t: string) => `"${t.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
-  spawnSync("osascript", ["-e", `display notification ${q(body)} with title ${q("Last One Click")} subtitle ${q(title)}`]);
+  if (process.platform === "linux") {
+    spawnSync("notify-send", ["--app-name=Last One Click", `Last One Click: ${title}`, body]);
+  } else if (process.platform === "darwin") {
+    const q = (t: string) => `"${t.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+    spawnSync("osascript", ["-e", `display notification ${q(body)} with title ${q("Last One Click")} subtitle ${q(title)}`]);
+  }
 }
 
 function baseName(dir: string): string {
