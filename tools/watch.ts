@@ -98,13 +98,13 @@ for (const dir of dirs) {
   if (r.status === 0) {
     markDone(dir);
     // hold は、人が窓を閉じたあとに戻ってくる(待っている間の通知は draft.ts が出す)
-    if (MODE === "save") notify("note の下書きを保存しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
+    if (MODE === "save") await notify("note の下書きを保存しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
     continue;
   }
   if (existsSync(marker)) {
     // 下書き保存のあとで失敗した(hold の公開設定など)。下書きはあるので、作り直さずに次へ進む
     markDone(dir);
-    notify("下書きは保存しましたが、途中で止まりました", `${baseName(dir)}。note の「下書き」から開いて、公開設定を入れてください。`);
+    await notify("下書きは保存しましたが、途中で止まりました", `${baseName(dir)}。note の「下書き」から開いて、公開設定を入れてください。`);
     continue;
   }
   if (r.status === 3) {
@@ -113,10 +113,10 @@ for (const dir of dirs) {
     process.exit(0);
   }
   if (r.status === 2) {
-    notify("note にログインしていません", "`npm run login` を実行してから、もう一度動かしてください。");
+    await notify("note にログインしていません", "`npm run login` を実行してから、もう一度動かしてください。");
     fail("note にログインしていないので止めます。");
   }
-  notify("下書きを作れませんでした", `${baseName(dir)}。ログを確かめてください。次の回でやり直します。`);
+  await notify("下書きを作れませんでした", `${baseName(dir)}。ログを確かめてください。次の回でやり直します。`);
   fail(`下書きを作れませんでした: ${dir}`);
 }
 writeState({ ...state, lastSha: head, done: [] });

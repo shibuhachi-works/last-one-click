@@ -28,6 +28,11 @@ elif [[ -f "$TOKEN_FILE" ]]; then
   export GITHUB_TOKEN
 fi
 
+# 通知を送る Webhook の URL(任意。Slack・Discord など)。URL は合い言葉と同じなので、キーリングから読む
+if command -v secret-tool >/dev/null && WEBHOOK="$(secret-tool lookup service last-one-click-webhook 2>/dev/null)" && [[ -n "$WEBHOOK" ]]; then
+  export LOC_WATCH_WEBHOOK_URL="$WEBHOOK"
+fi
+
 # ブラウザの窓を出す画面。SSH から動かしたときなど、画面の情報が無いときだけ、デスクトップの :0 にする。
 # GNOME(Wayland)では、Xwayland の認証ファイルも要るので、見つかれば付ける
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
