@@ -4,7 +4,7 @@
 //     本文は {"text": ..., "content": ...}(同じ文)。text は Slack の Incoming Webhook、content は Discord の Webhook が読む。
 //     URL は合い言葉と同じ(知られると誰でも送れる)なので、ファイルに書かず、キーリングから渡す(tools/linux/watch.sh)
 // (3) リモートデスクトップのリンク: 環境変数 LOC_WATCH_REMOTE_URL(rdp:// か https://)があれば、
-//     「公開の手前で待っています」の Webhook の文の最後に付ける(スマホからそのまま開けるように)
+//     待つモードの「下書きが完了しました」の Webhook の文の最後に付ける(スマホからそのまま開けるように)
 import { spawnSync } from "node:child_process";
 
 export async function notify(title: string, body: string, opts: { remote?: boolean } = {}): Promise<void> {

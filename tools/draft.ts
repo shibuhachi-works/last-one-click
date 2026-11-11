@@ -98,7 +98,7 @@ if (HOLD) {
     page.once("close", () => resolve());
     ctx.once("close", () => resolve());
   });
-  await notify("公開の手前で待っています", `${article.title}。確かめて「投稿する」を押し、窓を閉じてください。`, { remote: true });
+  await notify("下書きが完了しました", `${article.title}。確かめて「投稿する」を押し、窓を閉じてください。`, { remote: true });
   await closed;
   await ctx.close().catch(() => {});
   console.log("窓が閉じられたので終わります。");

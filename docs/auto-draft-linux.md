@@ -126,7 +126,7 @@ SSH や画面共有の入り口を、インターネットにそのまま開け�
 
 デスクトップの通知に加えて、決めた URL(Webhook)に JSON を POST できます。外出中でも、スマホの Slack などで気づけます。
 
-- 送る中身: `{"text": "Last One Click: 公開の手前で待っています\n(記事のタイトルなど)", "content": "(同じ文)"}`。`text` は Slack の Incoming Webhook、`content` は Discord の Webhook がそのまま表示します。ほかの受け手でも、この JSON を読めば使えます
+- 送る中身: `{"text": "Last One Click: 下書きが完了しました\n(記事のタイトルなど)", "content": "(同じ文)"}`。`text` は Slack の Incoming Webhook、`content` は Discord の Webhook がそのまま表示します。ほかの受け手でも、この JSON を読めば使えます
 - 送る場面はデスクトップの通知と同じです(下書きを保存した・公開の手前で待っている・ログインしていない・作れなかった)。メンテナンス中は送りません
 - URL は `https://` だけを受け付けます。送れなくても、下書きの処理は止まりません(ログに残ります)
 
@@ -136,7 +136,7 @@ URL は合い言葉と同じです(知られると、誰でもそのチャンネ
 secret-tool store --label="Last One Click webhook" service last-one-click-webhook
 ```
 
-待つモード(hold)の「公開の手前で待っています」には、リモートデスクトップを開くリンクも付けられます。`.watch.env` に書きます(`rdp://` か `https://` だけ)。
+待つモード(hold)の「下書きが完了しました」には、リモートデスクトップを開くリンクも付けられます。`.watch.env` に書きます(`rdp://` か `https://` だけ)。
 
 ```bash
 LOC_WATCH_REMOTE_URL=rdp://full%20address=s:<Tailscale での PC の名前>:3389
@@ -151,7 +151,7 @@ Slack なら、api.slack.com/apps でアプリを作り、「Incoming Webhooks�
 1. 設定 →「システム」→「リモートデスクトップ」で「デスクトップ共有」と「リモートコントロール」をオンにし、接続用のユーザー名とパスワードを決める(GNOME の場合。RDP で接続できるようになる)
 2. PC と手元の端末の両方に Tailscale などを入れて、自分専用のネットワークでつなぐ。RDP の入り口(3389 番)をインターネットにそのまま開けない
 3. 手元の端末から接続する(iPhone・iPad・Mac・Windows は Microsoft の「Windows App」、Linux は Remmina)。接続先は Tailscale の PC の名前か IP
-4. 通知「公開の手前で待っています」が出たら接続し、本文と公開設定を確かめて、自分で「投稿する」を押す。終わったら、その窓を閉じる
+4. 通知「下書きが完了しました」が出たら接続し、本文と公開設定を確かめて、自分で「投稿する」を押す。終わったら、その窓を閉じる
 5. 窓を閉じると、見張り役は次の記事に進む(2 本以上あるときは、1 本ずつ開く)
 
 - 待っている間に時間の上限はありません。窓を閉じるまで、次の見張りは始まりません
