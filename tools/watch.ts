@@ -20,6 +20,7 @@
 // - 全部うまくいったら位置を進める。途中で失敗したら位置は進めず、うまくいった記事だけ覚えておく
 //   (次の回で、失敗した記事からやり直す。同じ記事の下書きを二度は作らない)
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { notify } from "./lib/notify.js";
@@ -152,8 +153,13 @@ function writeState(s: State) {
   writeFileSync(STATE_FILE, JSON.stringify(s, null, 2) + "\n");
 }
 
+/**
+ * 記事ごとの印のファイル。名前はリポジトリ・ブランチ・フォルダのハッシュ(長さが決まっている)。
+ * 見張る先を変えても前の印を取り違えず、日本語の長いフォルダ名でもファイル名の上限を超えない
+ */
 function savedMarker(dir: string): string {
-  return path.join(SAVED_DIR, encodeURIComponent(dir));
+  const key = createHash("sha256").update(`${repo}\n${branch}\n${dir}`).digest("hex");
+  return path.join(SAVED_DIR, key);
 }
 
 function markDone(dir: string) {
