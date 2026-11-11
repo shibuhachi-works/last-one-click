@@ -138,6 +138,7 @@ SSH や画面共有の入り口を、インターネットにそのまま開け�
 
 | 通知・ログ | すること |
 |---|---|
+| (通知なし)ログに「note がメンテナンス中なので、この回は止めます」 | note のメンテナンス中は、通知を出さずに 5 分ごとにやり直します。明けたら自動で下書きを作るので、何もしなくてよい |
 | note にログインしていません | デスクトップで `npm run login` をやり直す。次の回で、その記事から続きます |
 | 下書きを作れませんでした | `journalctl --user -u last-one-click-watch` を見る。note の画面が変わったときは `selectors/note.json` を直す。直れば、次の回でその記事からやり直します |
 | ブラウザが起動しない(画面が無い) | `systemctl --user show-environment` に `DISPLAY` か `WAYLAND_DISPLAY` があるか見る。無ければ、デスクトップの端末で `systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY` を実行する |

@@ -63,6 +63,18 @@ if (NOTE.loginUrlPattern.test(page.url())) {
   process.exit(2);
 }
 
+// note のメンテナンス中は、エディタの代わりにお知らせのページが出て、タイトル欄が見つからない。
+// セレクタのずれと見分けるため、タイトル欄が出ないときだけページの文字を見て、メンテナンスなら分けて終わる
+// (見張り役は終了コード 3 を見て、通知を出さずに次の回でやり直す)。
+// 普段のエディタにもメンテナンスの予告が出ることがあるので、タイトル欄が出たときは見ない
+if (!(await page.locator(NOTE.title).first().waitFor({ timeout: 15_000 }).then(() => true, () => false))) {
+  if (await isMaintenance(page)) {
+    console.error("note はメンテナンス中のようです(エディタが開かず、ページに「メンテナンス」と出ています)。終わってからやり直してください。");
+    await ctx.close();
+    process.exit(3);
+  }
+}
+
 await step("タイトル入力", () => fillTitle(page, article));
 await step("本文貼り付け", () => pasteBody(page, article));
 await step("サムネイル設定", () => setThumbnail(page, article));
@@ -208,6 +220,12 @@ async function fillPublishSettings(page: Page, a: Article) {
 
   // 公開ボタンは「存在することの確認」だけ。絶対にクリックしない。
   await page.locator(NOTE.publishSettings.publishButton).first().waitFor({ timeout: 10_000 });
+}
+
+/** ページにメンテナンスのお知らせが出ているか(タイトル欄が見つからないときだけ呼ぶ) */
+async function isMaintenance(page: Page): Promise<boolean> {
+  const text = await page.locator("body").innerText({ timeout: 5_000 }).catch(() => "");
+  return /メンテナンス|maintenance/i.test(text);
 }
 
 /** 「下書き保存」を押して、保存が終わるのを待つ。押すのはこのボタンだけ(公開ボタンには触らない) */

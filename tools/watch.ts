@@ -19,6 +19,7 @@
 //   `tools/draft.ts --save` で下書きにする。記事の手直し(変更)・削除・名前の変更では作らない
 // - 全部うまくいったら位置を進める。途中で失敗したら位置は進めず、うまくいった記事だけ覚えておく
 //   (次の回で、失敗した記事からやり直す。同じ記事の下書きを二度は作らない)
+// - note のメンテナンス中(draft.ts の終了コード 3)は、通知を出さずに、位置も進めずに終わる(次の回でやり直す)
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -105,6 +106,11 @@ for (const dir of dirs) {
     markDone(dir);
     notify("下書きは保存しましたが、途中で止まりました", `${baseName(dir)}。note の「下書き」から開いて、公開設定を入れてください。`);
     continue;
+  }
+  if (r.status === 3) {
+    // note のメンテナンス中。通知は出さず(終わるまで 5 分ごとに鳴るのを避ける)、位置も進めずに、次の回でやり直す
+    log(`note がメンテナンス中なので、この回は止めます。次の回でやり直します: ${dir}`);
+    process.exit(0);
   }
   if (r.status === 2) {
     notify("note にログインしていません", "`npm run login` を実行してから、もう一度動かしてください。");
