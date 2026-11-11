@@ -7,6 +7,8 @@
 
 ![記事のフォルダをドロップすると、note の下書きにタイトル・本文・画像・ハッシュタグまで入り、公開ボタンの手前で止まる様子](docs/images/demo.gif)
 
+使い方の動画(74 秒、音声あり): [YouTube で見る](https://www.youtube.com/watch?v=gB_9mtI3LsU)
+
 **入れ方**:[Chrome ウェブストアで入手](https://chromewebstore.google.com/detail/last-one-click/jomapffkhcdpnodaffobmpfofnnaihnd)(Chrome と Edge などの Chromium 系ブラウザで使えます)。通常はストアから入れてください。ZIP から手で入れる方法は [extension/README.md](extension/README.md) にあります。
 
 対象は「AI を使って投稿する人」。入力は AI の出力そのもの(Markdown)で、人が手で整形する前提にしません。

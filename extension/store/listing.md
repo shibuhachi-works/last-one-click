@@ -131,4 +131,5 @@ note.com のエディタに、ユーザーが選んだ Markdown ファイルの�
 
 - スクリーンショット: `store/screenshot-1〜5.png`(1280x800、アルファなし PNG。構成は `ASSETS.md`)。note の画面そのものは写さない(記事本文・アカウント名が写らないようにする)
 - 小さなプロモタイル(任意): `store/promo-small.png`(440x280)
+- YouTube 動画(任意。掲載情報の「グラフィック アセット」の動画の欄): https://www.youtube.com/watch?v=gB_9mtI3LsU (使い方の動画、74 秒。チャンネル「シブハチワークス」)
 - アイコン: `icons/icon128.png`(元は `icons/icon.svg`。`npm run icons` で作り直す。画像生成はリポジトリ直下の Playwright を使うので、先に直下で `npm ci && npx playwright install chromium`)
