@@ -6,5 +6,6 @@ node_modules/
 .env
 # 見張り役(tools/watch.ts)が覚えている位置・ログ・設定(記事のリポジトリ名などを書くのでコミットしない)
 .watch-state.json
+.watch-saved/
 .watch.log
 .watch.env

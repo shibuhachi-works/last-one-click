@@ -20,12 +20,14 @@
 // - 全部うまくいったら位置を進める。途中で失敗したら位置は進めず、うまくいった記事だけ覚えておく
 //   (次の回で、失敗した記事からやり直す。同じ記事の下書きを二度は作らない)
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { notify } from "./lib/notify.js";
 import { articleTreeUrl, isBranchName, isRepoName, normalizePrefix, pickNewArticleDirs, type ChangedFile } from "../shared/new-articles.js";
 
 const STATE_FILE = path.resolve(process.cwd(), ".watch-state.json");
+/** 下書き保存が済んだ記事の印(draft.ts が作る)。待っている間に止まっても、同じ記事を作り直さないため */
+const SAVED_DIR = path.resolve(process.cwd(), ".watch-saved");
 
 type State = { repo: string; branch: string; lastSha: string; done: string[] };
 
@@ -78,14 +80,29 @@ if (DRY_RUN) {
 }
 for (const dir of dirs) {
   const url = articleTreeUrl(repo, head, dir);
+  const marker = savedMarker(dir);
+  // 前の回で下書き保存まで済んでいた記事(待っている間に PC が止まった、など)は、作り直さない
+  if (existsSync(marker)) {
+    log(`前の回で下書き保存まで済んでいるので、作り直しません: ${dir}`);
+    markDone(dir);
+    continue;
+  }
   log(`下書きを作ります: ${dir}`);
-  // シェルは通さない(引数はそのまま渡す)
-  const r = spawnSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "tools/draft.ts", `--${MODE}`, url], { stdio: "inherit", env: process.env });
+  // シェルは通さない(引数はそのまま渡す)。下書き保存が済んだら draft.ts が marker のファイルを作る
+  const r = spawnSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "tools/draft.ts", `--${MODE}`, url], {
+    stdio: "inherit",
+    env: { ...process.env, LOC_SAVED_MARKER: marker },
+  });
   if (r.status === 0) {
-    state.done.push(dir);
-    writeState(state);
+    markDone(dir);
     // hold は、人が窓を閉じたあとに戻ってくる(待っている間の通知は draft.ts が出す)
     if (MODE === "save") notify("note の下書きを保存しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
+    continue;
+  }
+  if (existsSync(marker)) {
+    // 下書き保存のあとで失敗した(hold の公開設定など)。下書きはあるので、作り直さずに次へ進む
+    markDone(dir);
+    notify("下書きは保存しましたが、途中で止まりました", `${baseName(dir)}。note の「下書き」から開いて、公開設定を入れてください。`);
     continue;
   }
   if (r.status === 2) {
@@ -96,6 +113,8 @@ for (const dir of dirs) {
   fail(`下書きを作れませんでした: ${dir}`);
 }
 writeState({ ...state, lastSha: head, done: [] });
+// 位置を進めたので、この範囲の記事の marker はもう要らない
+for (const dir of dirs) rmSync(savedMarker(dir), { force: true });
 log("全部の記事を下書きにしました。");
 
 // ---------------------------------------------------------------------------
@@ -131,6 +150,16 @@ function readState(): State | undefined {
 
 function writeState(s: State) {
   writeFileSync(STATE_FILE, JSON.stringify(s, null, 2) + "\n");
+}
+
+function savedMarker(dir: string): string {
+  return path.join(SAVED_DIR, encodeURIComponent(dir));
+}
+
+function markDone(dir: string) {
+  if (!state) return;
+  state.done.push(dir);
+  writeState(state);
 }
 
 function baseName(dir: string): string {

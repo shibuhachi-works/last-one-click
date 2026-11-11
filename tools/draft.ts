@@ -17,6 +17,8 @@
 //
 // 途中でセレクタが合わなくなったら、止まった箇所の Playwright Inspector で
 // 要素を Pick して tools/lib/selectors.ts を直す。
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import type { Locator, Page } from "playwright";
 import { collectClickLabels } from "../shared/click-labels.js";
 import { assertClickAllowed } from "../shared/forbidden-click.js";
@@ -201,6 +203,12 @@ async function saveDraft(page: Page) {
     throw new Error("下書き保存の通信が 15 秒以内に返ってきませんでした。");
   });
   if (!res.ok()) throw new Error(`下書き保存に失敗しました(HTTP ${res.status()})。`);
+  // 見張り役から動かしたときは、保存が済んだ印を残す(このあと止まっても、同じ記事を作り直さないため)
+  const marker = process.env.LOC_SAVED_MARKER;
+  if (marker) {
+    mkdirSync(path.dirname(marker), { recursive: true });
+    writeFileSync(marker, `${new Date().toISOString()} ${page.url()}\n`);
+  }
   // 続く通信(画像など)が落ち着くのを少し待ってから閉じる
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
 }
