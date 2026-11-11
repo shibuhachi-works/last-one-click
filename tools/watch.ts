@@ -11,7 +11,7 @@
 //   LOC_WATCH_MODE    save(既定): 下書き保存して窓を閉じる。
 //                     hold: 下書き保存のあと、公開設定(ハッシュタグ・マガジン)まで入れて、窓を開いたまま待つ。
 //                     人がリモートデスクトップなどで確かめて「投稿する」を押し、窓を閉じると次の記事へ進む
-//   LOC_WATCH_REMOTE_URL 待つモードの通知(Webhook)に付ける、リモートデスクトップのリンク(rdp:// か https://)
+//   LOC_WATCH_MESSAGE 「下書きが完了しました」の Webhook(Slack など)に送る文。無ければ既定の文(書き方は shared/webhook-message.ts)
 //   LOC_WATCH_DRY_RUN 1 にすると、選んだ記事を表示するだけ。下書きは作らず、.watch-state.json も書き換えない(設定の確認用)
 //
 // 動き:
@@ -104,7 +104,7 @@ for (const dir of dirs) {
   if (r.status === 0) {
     markDone(dir);
     // hold は、人が窓を閉じたあとに戻ってくる(待っている間の通知は draft.ts が出す)
-    if (MODE === "save") await notify("下書きが完了しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
+    if (MODE === "save") await notify("下書きが完了しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`, { done: { title: baseName(dir) } });
     continue;
   }
   if (existsSync(marker)) {
