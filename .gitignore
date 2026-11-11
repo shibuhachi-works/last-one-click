@@ -4,3 +4,7 @@ node_modules/
 # preview の出力
 .preview/
 .env
+# 見張り役(tools/watch.ts)が覚えている位置と、Mac で動かすときのログ
+.watch-state.json
+.watch.log
+.watch.env

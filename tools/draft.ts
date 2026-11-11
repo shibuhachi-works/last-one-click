@@ -3,6 +3,11 @@
 //
 //   npm run draft -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
 //
+// --save を付けると、人を待たずに動く(見張り役 tools/watch.ts から使う)。
+// タイトル・本文・見出し画像を入れて「下書き保存」を押し、ブラウザを閉じて終わる。
+// 公開設定(ハッシュタグ・マガジン)は入れない(公開設定の画面を閉じると note 側で消えるため)。
+// 押すのは「下書き保存」だけで、公開ボタンには触らない。
+//
 // スクリプト名が publish だと npm 自身の publish コマンド(レジストリへの公開)と
 // ぶつかって動かないので draft にしている。
 //
@@ -16,9 +21,12 @@ import { loadArticle, type Article } from "./lib/article.js";
 import { launchPersistent } from "./lib/browser.js";
 import { NOTE } from "./lib/selectors.js";
 
-const input = process.argv[2];
+const args = process.argv.slice(2);
+/** 人を待たずに、下書き保存までして終わる */
+const SAVE = args.includes("--save");
+const input = args.find((a) => !a.startsWith("--"));
 if (!input) {
-  console.error("使い方: npm run draft -- <GitHub の記事ディレクトリ URL>");
+  console.error("使い方: npm run draft -- [--save] <GitHub の記事ディレクトリ URL>");
   process.exit(1);
 }
 
@@ -36,12 +44,21 @@ await page.goto(NOTE.newNoteUrl);
 if (NOTE.loginUrlPattern.test(page.url())) {
   console.error("ログインしていません。先に `npm run login` を実行してください。");
   await ctx.close();
-  process.exit(1);
+  // 見張り役が「ログインが切れた」と分かるように、ほかの失敗と分ける
+  process.exit(2);
 }
 
 await step("タイトル入力", () => fillTitle(page, article));
 await step("本文貼り付け", () => pasteBody(page, article));
 await step("サムネイル設定", () => setThumbnail(page, article));
+
+if (SAVE) {
+  await step("下書き保存", () => saveDraft(page));
+  console.log(`\n✅ 下書きを保存しました: ${page.url()}`);
+  console.log("   note の「下書き」から開いて確かめ、ハッシュタグ・マガジンを入れて、自分で公開してください。");
+  await ctx.close();
+  process.exit(0);
+}
 await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
 
 console.log("\n✅ 公開ボタンの手前まで入力しました。");
@@ -61,6 +78,11 @@ async function step(name: string, fn: () => Promise<void>) {
     console.log("FAILED");
     console.error(`  ${(e as Error).message}`);
     console.error("  セレクタがずれている可能性があります。Inspector で要素を確認して selectors.ts を直してください。");
+    // --save(見張り役から)は人がいないので、止めずに閉じて失敗で終わる
+    if (SAVE) {
+      await ctx.close();
+      process.exit(1);
+    }
     await page.pause();
     throw e;
   }
@@ -135,6 +157,16 @@ async function fillPublishSettings(page: Page, a: Article) {
 
   // 公開ボタンは「存在することの確認」だけ。絶対にクリックしない。
   await page.locator(NOTE.publishSettings.publishButton).first().waitFor({ timeout: 10_000 });
+}
+
+/** 「下書き保存」を押して、保存が終わるのを待つ。押すのはこのボタンだけ(公開ボタンには触らない) */
+async function saveDraft(page: Page) {
+  const button = page.locator(NOTE.saveDraft).first();
+  await button.waitFor({ timeout: 15_000 });
+  await safeClick(button, "saveDraft");
+  // 保存の通信が落ち着くまで待つ(note は保存後もしばらく通信するので、上限を付ける)
+  await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+  await page.waitForTimeout(2_000);
 }
 
 /**

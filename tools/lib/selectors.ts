@@ -26,6 +26,8 @@ export const NOTE = {
     confirm: byText("button", json.thumbnail.confirmText),
   },
   openPublishSettings: byText("button", json.openPublishSettingsText),
+  /** 「下書き保存」(draft.ts の --save だけが押す)。完全一致なので「公開」系の文字は拾わない */
+  saveDraft: byText("button", ["下書き保存"]),
   publishSettings: {
     hashtagInput: json.publishSettings.hashtagInput,
     magazineItem: (name: string) =>
