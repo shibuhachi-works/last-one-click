@@ -67,10 +67,15 @@ if (state.lastSha === head) {
 }
 
 const files = await compareFiles(state.lastSha, head);
-const dirs = pickNewArticleDirs(files, prefix).filter((d) => !state.done.includes(d));
+// この範囲で足された記事すべて(前の回で処理済みのものも含む)。位置を進めるときに、これら全部の印を消す
+const allDirs = pickNewArticleDirs(files, prefix);
+const dirs = allDirs.filter((d) => !state.done.includes(d));
 if (dirs.length === 0) {
   // DRY_RUN(設定の確認)では位置を進めない。違う prefix で試したときに、記事を取りこぼさないように
-  if (!DRY_RUN) writeState({ ...state, lastSha: head, done: [] });
+  if (!DRY_RUN) {
+    writeState({ ...state, lastSha: head, done: [] });
+    clearMarkers(allDirs);
+  }
   log(`新しい記事はありません(${state.lastSha.slice(0, 7)}..${head.slice(0, 7)})。`);
   process.exit(0);
 }
@@ -121,7 +126,7 @@ for (const dir of dirs) {
 }
 writeState({ ...state, lastSha: head, done: [] });
 // 位置を進めたので、この範囲の記事の marker はもう要らない
-for (const dir of dirs) rmSync(savedMarker(dir), { force: true });
+clearMarkers(allDirs);
 log("全部の記事を下書きにしました。");
 
 // ---------------------------------------------------------------------------
@@ -166,6 +171,14 @@ function writeState(s: State) {
 function savedMarker(dir: string): string {
   const key = createHash("sha256").update(`${repo}\n${branch}\n${dir}`).digest("hex");
   return path.join(SAVED_DIR, key);
+}
+
+/**
+ * 位置を進めたあと、その範囲の記事の印を消す(前の回で処理済みになった記事の分も)。
+ * 残すと、同じパスに別の記事が足されたときに「保存済み」と取り違える
+ */
+function clearMarkers(dirs: readonly string[]) {
+  for (const dir of dirs) rmSync(savedMarker(dir), { force: true });
 }
 
 function markDone(dir: string) {

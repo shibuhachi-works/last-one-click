@@ -91,12 +91,15 @@ if (HOLD) {
   await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
   console.log("\n✅ 公開の手前まで入れて、待っています(下書きは保存済み)。");
   console.log("   画面で確かめて、問題なければ自分で「投稿する」を押し、窓を閉じてください。");
-  await notify("公開の手前で待っています", `${article.title}。確かめて「投稿する」を押し、窓を閉じてください。`);
-  // 人が窓(タブ)かブラウザを閉じるまで待つ。時間の上限は付けない
-  await new Promise<void>((resolve) => {
+  // 人が窓(タブ)かブラウザを閉じるまで待つ。時間の上限は付けない。
+  // 通知(Webhook は最大 10 秒かかる)の間に閉じられても取り逃さないよう、通知の前に待ち受けを始める
+  const closed = new Promise<void>((resolve) => {
+    if (page.isClosed()) return resolve();
     page.once("close", () => resolve());
     ctx.once("close", () => resolve());
   });
+  await notify("公開の手前で待っています", `${article.title}。確かめて「投稿する」を押し、窓を閉じてください。`);
+  await closed;
   await ctx.close().catch(() => {});
   console.log("窓が閉じられたので終わります。");
   process.exit(0);
