@@ -11,3 +11,5 @@
 生成時の比率指定よりもストアの提出寸法を優先し、完成画像はそれぞれ 440×280、1400×560 にしている。文言内の空白と句読点は指定どおりで、長い見出しと説明は読みやすい位置で折り返す。
 
 リポジトリ直下で `npm ci && npx playwright install chromium`、続けて `extension/` で `npm ci && npm run icons && npm run build && npm run screenshots`。既存の Chromium を使う場合は `PLAYWRIGHT_CHROMIUM_PATH` に実行ファイルのパスを指定できる。日本語の描画には Noto Sans CJK JP を推奨する。
+
+`npm run screenshots` は、画像の元のファイル(`screenshot-inputs.mjs` の一覧)の指紋を `screenshots.lock` に残す。`npm run check-screenshots` はそれを今の指紋と比べ、ポップアップや素材を変えたのに画像を作り直していなければ知らせる(リリースの workflow では止まり、ふだんの CI では注意が出る)。画像に写る部品を足したら、`screenshot-inputs.mjs` の一覧にも足す。

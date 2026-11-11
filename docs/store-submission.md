@@ -19,6 +19,8 @@
 **ストアに上げる ZIP は、GitHub のリリースに添えたものを使う。** `release.yml`(Actions の「リリースを作る」)が、指定したコミットから ZIP を作ってリリースに添える。手元で作り直さない(ZIP は作るたびに中身の時刻が変わるので、リリースの ZIP と、ストアに上げた ZIP が別のものになる)。
 
 1. `manifest.json` の `version` を上げた PR をマージする。`docs/releases/v<version>.md`(リリースの本文)も、その PR で置く
+   - その前に、`extension/store/listing.md`(説明文)が、この版の機能と合っているかを見直す(機械では確かめられない)
+   - ストアの画像が古いと、「リリースを作る」が止まる。`extension/` で `npm run build && npm run screenshots` を実行し、作り直した画像と `screenshots.lock` を PR に入れる(ふだんの CI では、古いと注意が出る)
 2. Actions の「リリースを作る」を、タグ(例: `v0.1.2`)とコミット(40 文字の SHA)を指定して起動する
 3. できたリリースから `last-one-click-<version>.zip` をダウンロードして、3. でストアに上げる。本文の末尾に SHA-256 が書いてあるので、ダウンロードした ZIP と合うか確かめる
 
@@ -32,7 +34,7 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 
 - `manifest.json` の `version` を上げるのは、ストアに上げ直すとき(同じ version は再アップロードできない)
 - ZIP の中身は `dist/` の中身そのもの(`manifest.json` が直下)。中に `.map` やソースは入らない
-- 画像(アイコン・スクリーンショット)を作り直すときだけ、リポジトリ直下で `npm ci && npx playwright install chromium` をしてから `npm run icons` / `npm run screenshots`(画像はコミット済みなので、普段は不要)
+- 画像(アイコン・スクリーンショット)を作り直すときだけ、リポジトリ直下で `npm ci && npx playwright install chromium` をしてから `npm run icons` / `npm run screenshots`(画像はコミット済みなので、普段は不要)。`npm run screenshots` は画像の元のファイルの指紋を `extension/store/screenshots.lock` に残し、`npm run check-screenshots` がそれを今の指紋と比べる
 
 ## 3. ストアに上げる
 

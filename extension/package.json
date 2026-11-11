@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "icons": "node icons/render.mjs",
     "package": "node package.mjs",
-    "screenshots": "node store/screenshots.mjs"
+    "screenshots": "node store/screenshots.mjs",
+    "check-screenshots": "node store/check-screenshots.mjs"
   },
   "dependencies": {
     "marked": "^18.1.2",
