@@ -8,6 +8,10 @@
 // 公開設定(ハッシュタグ・マガジン)は入れない(公開設定の画面を閉じると note 側で消えるため)。
 // 押すのは「下書き保存」だけで、公開ボタンには触らない。
 //
+// --hold を付けると、下書き保存のあと、公開設定(ハッシュタグ・マガジン)まで入れて、窓を開いたまま待つ
+// (Inspector は出さない)。人がリモートデスクトップなどで確かめて「投稿する」を自分で押し、
+// 窓を閉じると終わる。待つ前に下書き保存しておくので、待っている間に PC が止まっても下書きは残る。
+//
 // スクリプト名が publish だと npm 自身の publish コマンド(レジストリへの公開)と
 // ぶつかって動かないので draft にしている。
 //
@@ -19,14 +23,23 @@ import { assertClickAllowed } from "../shared/forbidden-click.js";
 import { htmlToText } from "../shared/markdown-safe.js";
 import { loadArticle, type Article } from "./lib/article.js";
 import { launchPersistent } from "./lib/browser.js";
+import { notify } from "./lib/notify.js";
 import { NOTE } from "./lib/selectors.js";
 
 const args = process.argv.slice(2);
 /** 人を待たずに、下書き保存までして終わる */
 const SAVE = args.includes("--save");
+/** 下書き保存 → 公開設定まで入れて、人が窓を閉じるまで待つ */
+const HOLD = args.includes("--hold");
+/** 入力の途中には人がいない(失敗したら止めずに閉じる) */
+const UNATTENDED = SAVE || HOLD;
+if (SAVE && HOLD) {
+  console.error("--save と --hold は、どちらか一方だけを付けてください。");
+  process.exit(1);
+}
 const input = args.find((a) => !a.startsWith("--"));
 if (!input) {
-  console.error("使い方: npm run draft -- [--save] <GitHub の記事ディレクトリ URL>");
+  console.error("使い方: npm run draft -- [--save | --hold] <GitHub の記事ディレクトリ URL>");
   process.exit(1);
 }
 
@@ -59,6 +72,21 @@ if (SAVE) {
   await ctx.close();
   process.exit(0);
 }
+if (HOLD) {
+  await step("下書き保存", () => saveDraft(page));
+  await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
+  console.log("\n✅ 公開の手前まで入れて、待っています(下書きは保存済み)。");
+  console.log("   画面で確かめて、問題なければ自分で「投稿する」を押し、窓を閉じてください。");
+  notify("公開の手前で待っています", `${article.title}。確かめて「投稿する」を押し、窓を閉じてください。`);
+  // 人が窓(タブ)かブラウザを閉じるまで待つ。時間の上限は付けない
+  await new Promise<void>((resolve) => {
+    page.once("close", () => resolve());
+    ctx.once("close", () => resolve());
+  });
+  await ctx.close().catch(() => {});
+  console.log("窓が閉じられたので終わります。");
+  process.exit(0);
+}
 await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
 
 console.log("\n✅ 公開ボタンの手前まで入力しました。");
@@ -78,8 +106,8 @@ async function step(name: string, fn: () => Promise<void>) {
     console.log("FAILED");
     console.error(`  ${(e as Error).message}`);
     console.error("  セレクタがずれている可能性があります。Inspector で要素を確認して selectors.ts を直してください。");
-    // --save(見張り役から)は人がいないので、止めずに閉じて失敗で終わる
-    if (SAVE) {
+    // --save / --hold(見張り役から)は入力の途中に人がいないので、止めずに閉じて失敗で終わる
+    if (UNATTENDED) {
       await ctx.close();
       process.exit(1);
     }

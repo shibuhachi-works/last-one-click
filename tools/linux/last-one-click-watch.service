@@ -9,5 +9,6 @@ PartOf=graphical-session.target
 [Service]
 Type=oneshot
 ExecStart=%h/last-one-click/tools/linux/watch.sh
-# 下書きを作るのに時間がかかっても途中で止めない上限(1 記事 1〜2 分 × 数本)
-TimeoutStartSec=20min
+# 時間の上限は付けない(待つモード LOC_WATCH_MODE=hold では、人が窓を閉じるまで終わらないため)。
+# 終わるまでは timer が次を始めないので、二重には動かない
+TimeoutStartSec=infinity

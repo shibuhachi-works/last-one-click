@@ -8,6 +8,9 @@
 //   LOC_WATCH_PREFIX  見張るフォルダ(例 posts/)。必須。この下に足された article.md だけを下書きにする
 //   LOC_WATCH_BRANCH  見張るブランチ。既定 main
 //   GITHUB_TOKEN      private リポジトリを読むときだけ(読み取り専用のものを使う)
+//   LOC_WATCH_MODE    save(既定): 下書き保存して窓を閉じる。
+//                     hold: 下書き保存のあと、公開設定(ハッシュタグ・マガジン)まで入れて、窓を開いたまま待つ。
+//                     人がリモートデスクトップなどで確かめて「投稿する」を押し、窓を閉じると次の記事へ進む
 //   LOC_WATCH_DRY_RUN 1 にすると、選んだ記事を表示するだけ。下書きは作らず、.watch-state.json も書き換えない(設定の確認用)
 //
 // 動き:
@@ -19,6 +22,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { notify } from "./lib/notify.js";
 import { articleTreeUrl, isBranchName, isRepoName, normalizePrefix, pickNewArticleDirs, type ChangedFile } from "../shared/new-articles.js";
 
 const STATE_FILE = path.resolve(process.cwd(), ".watch-state.json");
@@ -39,6 +43,8 @@ try {
 }
 
 const DRY_RUN = process.env.LOC_WATCH_DRY_RUN === "1";
+const MODE = process.env.LOC_WATCH_MODE || "save";
+if (MODE !== "save" && MODE !== "hold") fail(`LOC_WATCH_MODE は save か hold にしてください: ${MODE}`);
 const head = await headSha();
 const state = readState();
 
@@ -74,11 +80,12 @@ for (const dir of dirs) {
   const url = articleTreeUrl(repo, head, dir);
   log(`下書きを作ります: ${dir}`);
   // シェルは通さない(引数はそのまま渡す)
-  const r = spawnSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "tools/draft.ts", "--save", url], { stdio: "inherit", env: process.env });
+  const r = spawnSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "tools/draft.ts", `--${MODE}`, url], { stdio: "inherit", env: process.env });
   if (r.status === 0) {
     state.done.push(dir);
     writeState(state);
-    notify("note の下書きを保存しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
+    // hold は、人が窓を閉じたあとに戻ってくる(待っている間の通知は draft.ts が出す)
+    if (MODE === "save") notify("note の下書きを保存しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`);
     continue;
   }
   if (r.status === 2) {
@@ -124,19 +131,6 @@ function readState(): State | undefined {
 
 function writeState(s: State) {
   writeFileSync(STATE_FILE, JSON.stringify(s, null, 2) + "\n");
-}
-
-/**
- * デスクトップの通知に出す。Linux は notify-send(libnotify-bin)、Mac は通知センター。
- * どちらも無ければ何もしない(ログには出ている)。引数はシェルを通さずに渡す
- */
-function notify(title: string, body: string) {
-  if (process.platform === "linux") {
-    spawnSync("notify-send", ["--app-name=Last One Click", `Last One Click: ${title}`, body]);
-  } else if (process.platform === "darwin") {
-    const q = (t: string) => `"${t.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
-    spawnSync("osascript", ["-e", `display notification ${q(body)} with title ${q("Last One Click")} subtitle ${q(title)}`]);
-  }
 }
 
 function baseName(dir: string): string {
