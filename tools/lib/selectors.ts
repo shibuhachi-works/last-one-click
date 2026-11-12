@@ -24,8 +24,15 @@ export const NOTE = {
     addButton: `${json.thumbnail.addButton}, ${byText("button", json.thumbnail.addButtonText)}`,
     fileInput: json.thumbnail.fileInput,
     confirm: byText("button", json.thumbnail.confirmText),
+    /** 確定ボタンの文字の候補(拡張と同じ一致判定 shared/text-match.ts で探すとき用) */
+    confirmTexts: json.thumbnail.confirmText,
+    /** 見出し画像のボタンを押すと出るメニューの「画像をアップロード」(ボタンとは限らないので要素の種類は問わない) */
+    uploadMenuTexts: json.thumbnail.uploadMenuText,
   },
   openPublishSettings: byText("button", json.openPublishSettingsText),
+  openPublishSettingsTexts: json.openPublishSettingsText,
+  /** 「下書き保存」(draft.ts の --save だけが押す)。完全一致なので「公開」系の文字は拾わない */
+  saveDraft: byText("button", ["下書き保存"]),
   publishSettings: {
     hashtagInput: json.publishSettings.hashtagInput,
     magazineItem: (name: string) =>
@@ -34,7 +41,12 @@ export const NOTE = {
         .map((s) => `${s.trim()}:text-is(${pwQuote(name)})`)
         .join(", "),
     magazineToggle: byText("button", json.publishSettings.magazineToggleText),
+    magazineToggleTexts: json.publishSettings.magazineToggleText,
+    /** マガジンの項目になりうる要素(文字の一致は draft.ts で、拡張と同じ判定をする) */
+    magazineItemBase: json.publishSettings.magazineItem,
     /** ★ 押さない ★ 存在確認にだけ使う */
     publishButton: byText("button", json.publishSettings.publishButtonText),
+    /** ★ 押さない ★ 存在確認にだけ使う */
+    publishButtonTexts: json.publishSettings.publishButtonText,
   },
 } as const;

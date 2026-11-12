@@ -1,0 +1,11 @@
+# 見張り役を 5 分おきに動かす。手順は docs/auto-draft-linux.md の 4.
+[Unit]
+Description=Last One Click: 見張り役を 5 分おきに動かす
+PartOf=graphical-session.target
+
+[Timer]
+OnActiveSec=1min
+OnUnitInactiveSec=5min
+
+[Install]
+WantedBy=graphical-session.target

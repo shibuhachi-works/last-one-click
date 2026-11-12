@@ -9,6 +9,7 @@
     "login": "tsx tools/login.ts",
     "draft": "tsx tools/draft.ts",
     "preview": "tsx tools/preview.ts",
+    "watch": "tsx tools/watch.ts",
     "test": "tsx --test shared/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
