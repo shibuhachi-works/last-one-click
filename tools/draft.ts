@@ -267,7 +267,22 @@ async function fillPublishSettings(page: Page, a: Article) {
   await safeClick(open, "fillPublishSettings.open");
 
   const tagInput = page.locator(NOTE.publishSettings.hashtagInput).first();
-  await tagInput.waitFor({ timeout: 15_000 });
+  // 公開設定の画面は、別の URL へ移ってから組み立てられるので、少し長めに待つ
+  if (!(await tagInput.waitFor({ timeout: 30_000 }).then(() => true, () => false))) {
+    // 次に直すための手がかり: いまの URL と、見えている入力欄の placeholder・aria-label
+    const inputs = await page
+      .locator("input, textarea, [contenteditable='true']")
+      .evaluateAll((els) =>
+        els
+          .filter((e) => (e as HTMLElement).offsetParent !== null)
+          .map((e) => `${e.tagName.toLowerCase()}[${e.getAttribute("placeholder") ?? e.getAttribute("aria-label") ?? ""}]`)
+          .slice(0, 20),
+      )
+      .catch(() => [] as string[]);
+    throw new Error(
+      `ハッシュタグの入力欄が見つかりません。URL: ${page.url()} / 見えている入力欄: ${inputs.join(", ") || "なし"} / 見えているボタン: ${await visibleButtonTexts(page)}`,
+    );
+  }
   for (const tag of a.hashtags) {
     await tagInput.fill(tag);
     await tagInput.press("Enter");
