@@ -262,13 +262,26 @@ async function setThumbnail(page: Page, a: Article) {
 }
 
 async function fillPublishSettings(page: Page, a: Article) {
-  const open = await waitByText(page, BUTTONS, NOTE.openPublishSettingsTexts, "data-lastclick-open", 15_000);
-  if (!open) throw new Error(`「公開に進む」のボタンが見つかりません。見えているボタン: ${await visibleButtonTexts(page)}`);
-  await safeClick(open, "fillPublishSettings.open");
-
   const tagInput = page.locator(NOTE.publishSettings.hashtagInput).first();
-  // 公開設定の画面は、別の URL へ移ってから組み立てられるので、少し長めに待つ
-  if (!(await tagInput.waitFor({ timeout: 30_000 }).then(() => true, () => false))) {
+  // 実機では、下書き保存のすぐあとに「公開に進む」を押すと、タイトルと本文が入っているのに
+  // 「タイトル、本文を入力してください」が出ることがある(閉じて押し直すと開く)。そのときは閉じて、待ってから押し直す
+  const emptyAlert = page.getByText(/タイトル.{0,3}本文.{0,3}入力してください/).first();
+  for (let attempt = 1; ; attempt++) {
+    const open = await waitByText(page, BUTTONS, NOTE.openPublishSettingsTexts, "data-lastclick-open", 15_000);
+    if (!open) throw new Error(`「公開に進む」のボタンが見つかりません。見えているボタン: ${await visibleButtonTexts(page)}`);
+    await safeClick(open, "fillPublishSettings.open");
+    // 公開設定の画面は、別の URL へ移ってから組み立てられるので、少し長めに待つ
+    const result = await Promise.race([
+      tagInput.waitFor({ timeout: 30_000 }).then(() => "open" as const, () => null),
+      emptyAlert.waitFor({ timeout: 30_000 }).then(() => "empty" as const, () => null),
+    ]);
+    if (result === "open") break;
+    if (result === "empty" && attempt < 3) {
+      await closeEmptyAlert(page, emptyAlert);
+      await page.waitForTimeout(3_000 * attempt);
+      continue;
+    }
+    if (result === "empty") throw new Error("「公開に進む」を 3 回押しましたが、note が「タイトル、本文を入力してください」と出して進めませんでした。");
     // 次に直すための手がかり: いまの URL と、見えている入力欄の placeholder・aria-label
     const inputs = await page
       .locator("input, textarea, [contenteditable='true']")
@@ -300,6 +313,18 @@ async function fillPublishSettings(page: Page, a: Article) {
   if (!(await waitByText(page, BUTTONS, NOTE.publishSettings.publishButtonTexts, "data-lastclick-publish", 10_000))) {
     throw new Error(`公開設定の画面になったことを確かめられませんでした(公開のボタンが見えません)。見えているボタン: ${await visibleButtonTexts(page)}`);
   }
+}
+
+/**
+ * 「タイトル、本文を入力してください」のお知らせを閉じる。押すのは、そのお知らせを含むいちばん内側の箱の中の
+ * 「閉じる」だけ(エディタの上にある別の「閉じる」は押さない)。見つからなければ Escape で閉じる
+ */
+async function closeEmptyAlert(page: Page, alert: Locator) {
+  const box = alert.locator("xpath=ancestor::*[.//button][1]");
+  const close = box.locator("button").filter({ hasText: /^\s*閉じる\s*$/ }).first();
+  if (await close.isVisible().catch(() => false)) await safeClick(close, "fillPublishSettings.closeEmptyAlert");
+  else await page.keyboard.press("Escape");
+  await alert.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
 }
 
 /** ページにメンテナンスのお知らせが出ているか(タイトル欄が見つからないときだけ呼ぶ) */
