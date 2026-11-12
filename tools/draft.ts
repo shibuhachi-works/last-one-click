@@ -223,11 +223,11 @@ async function setThumbnail(page: Page, a: Article) {
     // 実機のメニュー項目は「画像をアップロード」と「推奨サイズ: …」が 1 つの要素に入っていて、完全一致では見つからない
     // (拡張の content.ts の findSmallestByText と同じ観察)。文字を含む要素を探す(getByText は含む中でいちばん内側を返す)。
     // 記事本文(入力欄)に同じ文字があっても押さないよう、入力欄の中は除く
-    const outsideEditor = page.locator('body *:not([contenteditable="true"] *):not([contenteditable="true"]):not(textarea)');
+
     const menu = NOTE.thumbnail.uploadMenuTexts
       .map((t) => page.getByText(t))
       .reduce((a, b) => a.or(b))
-      .and(outsideEditor)
+      .and(outsideEditor(page))
       .first();
     const appeared = await Promise.race([
       input.waitFor({ state: "attached", timeout: 10_000 }).then(() => "input" as const),
@@ -265,7 +265,8 @@ async function fillPublishSettings(page: Page, a: Article) {
   const tagInput = page.locator(NOTE.publishSettings.hashtagInput).first();
   // 実機では、下書き保存のすぐあとに「公開に進む」を押すと、タイトルと本文が入っているのに
   // 「タイトル、本文を入力してください」が出ることがある(閉じて押し直すと開く)。そのときは閉じて、待ってから押し直す
-  const emptyAlert = page.getByText(/タイトル.{0,3}本文.{0,3}入力してください/).first();
+  // 記事本文(入力欄)に同じ文があっても取り違えないよう、入力欄の中は除く(見出し画像のメニューと同じ)
+  const emptyAlert = page.getByText(/タイトル.{0,3}本文.{0,3}入力してください/).and(outsideEditor(page)).first();
   for (let attempt = 1; ; attempt++) {
     const open = await waitByText(page, BUTTONS, NOTE.openPublishSettingsTexts, "data-lastclick-open", 15_000);
     if (!open) throw new Error(`「公開に進む」のボタンが見つかりません。見えているボタン: ${await visibleButtonTexts(page)}`);
@@ -325,6 +326,11 @@ async function closeEmptyAlert(page: Page, alert: Locator) {
   if (await close.isVisible().catch(() => false)) await safeClick(close, "fillPublishSettings.closeEmptyAlert");
   else await page.keyboard.press("Escape");
   await alert.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
+}
+
+/** 記事の入力欄(本文・タイトル)の外にある要素。記事に同じ文字があっても、画面の部品と取り違えないため */
+function outsideEditor(page: Page): Locator {
+  return page.locator('body *:not([contenteditable="true"] *):not([contenteditable="true"]):not(textarea)');
 }
 
 /** ページにメンテナンスのお知らせが出ているか(タイトル欄が見つからないときだけ呼ぶ) */
