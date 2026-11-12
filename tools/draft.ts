@@ -198,7 +198,12 @@ async function setThumbnail(page: Page, a: Article) {
   const file = { name: a.thumbnail.name, mimeType: a.thumbnail.mimeType, buffer: a.thumbnail.buffer };
   const input = page.locator(NOTE.thumbnail.fileInput).first();
   // 画面にもとからある確定ボタンと同じ文字のボタンには印を付けておき、あとで押さない
-  await page.locator(NOTE.thumbnail.confirm).evaluateAll((els, mark) => els.forEach((e) => e.setAttribute(mark, "1")), BEFORE_MARK);
+  // 見えているものだけに付ける。トリミングの画面は前から DOM にあって隠れているだけのことがあり、隠れたものに
+  // 印を付けると、その画面が出たときに確定ボタンを押せなくなる
+  await page
+    .locator(NOTE.thumbnail.confirm)
+    .filter({ visible: true })
+    .evaluateAll((els, mark) => els.forEach((e) => e.setAttribute(mark, "1")), BEFORE_MARK);
 
   if (await input.count()) {
     await input.setInputFiles(file);
@@ -239,9 +244,21 @@ async function setThumbnail(page: Page, a: Article) {
     .and(page.locator(`:not([${BEFORE_MARK}])`))
     .filter({ visible: true })
     .first();
-  await confirm.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {
-    throw new Error("見出し画像のトリミングの確定ボタン(「保存」)が出ませんでした。");
-  });
+  if (!(await confirm.waitFor({ state: "visible", timeout: 20_000 }).then(() => true, () => false))) {
+    // 次に直すための手がかり: 確定ボタンと同じ文字のボタンが、いくつ・どんな状態であるか(押しはしない)
+    const seen = await page
+      .locator(NOTE.thumbnail.confirm)
+      .evaluateAll(
+        (els, mark) =>
+          els.map((e) => {
+            const r = e.getBoundingClientRect();
+            return `${(e.textContent ?? "").trim()}(${Math.round(r.width)}x${Math.round(r.height)}${e.hasAttribute(mark) ? "・前からある" : ""}${(e as HTMLButtonElement).disabled ? "・押せない" : ""})`;
+          }),
+        BEFORE_MARK,
+      )
+      .catch(() => []);
+    throw new Error(`見出し画像のトリミングの確定ボタン(「保存」)が出ませんでした。同じ文字のボタン: ${seen.join(", ") || "なし"}`);
+  }
   // 画像の読み込みを少し待ってから押す
   await page.waitForTimeout(1_500);
   await safeClick(confirm, "setThumbnail.confirm");
