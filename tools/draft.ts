@@ -193,8 +193,12 @@ async function eyecatchButton(page: Page): Promise<Locator> {
 
 async function setThumbnail(page: Page, a: Article) {
   if (!a.thumbnail) return;
+  /** 見出し画像を入れる前から画面にあった、確定ボタンと同じ文字のボタンの印(関数の中に置く。上の処理から呼ばれるため) */
+  const BEFORE_MARK = "data-lastclick-before";
   const file = { name: a.thumbnail.name, mimeType: a.thumbnail.mimeType, buffer: a.thumbnail.buffer };
   const input = page.locator(NOTE.thumbnail.fileInput).first();
+  // 画面にもとからある確定ボタンと同じ文字のボタンには印を付けておき、あとで押さない
+  await page.locator(NOTE.thumbnail.confirm).evaluateAll((els, mark) => els.forEach((e) => e.setAttribute(mark, "1")), BEFORE_MARK);
 
   if (await input.count()) {
     await input.setInputFiles(file);
@@ -226,19 +230,26 @@ async function setThumbnail(page: Page, a: Article) {
     }
   }
 
-  // トリミング確認(ダイアログ)の確定ボタンだけを押す。画面全体から「保存」を探すと「下書き保存」を押しかねないので、
-  // ダイアログの中だけを探す。画像の読み込みに時間がかかるので、出るまで待ち、少し置いてから押す
-  const dialog = page.locator(NOTE.dialog).first();
-  const confirm = dialog.locator(NOTE.thumbnail.confirm).first();
-  // isVisible は待たないので、waitFor で出るまで待つ
-  if (await confirm.waitFor({ state: "visible", timeout: 20_000 }).then(() => true, () => false)) {
-    await dialog.locator("img, canvas").first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
-    await page.waitForTimeout(1_000);
-    await safeClick(confirm, "setThumbnail.confirm");
-    // 保存のあとはアップロードが走る。ダイアログが閉じるまで待ってから次へ進む
-    await dialog.waitFor({ state: "hidden", timeout: 60_000 });
-    await page.waitForTimeout(1_500);
-  }
+  // トリミングの確定ボタン(「保存」など。完全一致なので「下書き保存」は当たらない)を押す。
+  // 実機のトリミングの画面は role="dialog" などの印が無いことがあるので、拡張(content.ts の waitForConfirm)と同じく、
+  // 画像を入れる前から画面にあったものを除いた、見えている確定ボタンを探す。見つからなければ失敗にする
+  // (確定しないまま進むと、見出し画像が入らず、画面も覆われたままになる)
+  const confirm = page
+    .locator(NOTE.thumbnail.confirm)
+    .and(page.locator(`:not([${BEFORE_MARK}])`))
+    .filter({ visible: true })
+    .first();
+  await confirm.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {
+    throw new Error("見出し画像のトリミングの確定ボタン(「保存」)が出ませんでした。");
+  });
+  // 画像の読み込みを少し待ってから押す
+  await page.waitForTimeout(1_500);
+  await safeClick(confirm, "setThumbnail.confirm");
+  // 保存のあとはアップロードが走る。確定ボタン(トリミングの画面)が消えるまで待ってから次へ進む
+  await confirm.waitFor({ state: "hidden", timeout: 60_000 }).catch(() => {
+    throw new Error("見出し画像のトリミングの画面が閉じませんでした(アップロードが遅いか失敗した可能性)。");
+  });
+  await page.waitForTimeout(1_500);
 }
 
 async function fillPublishSettings(page: Page, a: Article) {
@@ -269,7 +280,8 @@ async function isMaintenance(page: Page): Promise<boolean> {
 
 /** 「下書き保存」を押して、保存が終わるのを待つ。押すのはこのボタンだけ(公開ボタンには触らない) */
 async function saveDraft(page: Page) {
-  const button = page.locator(NOTE.saveDraft).first();
+  // 同じ文字のボタンが隠れて複数あることがあるので、見えているものを押す
+  const button = page.locator(NOTE.saveDraft).filter({ visible: true }).first();
   await button.waitFor({ timeout: 15_000 });
   // 押したあとに note の API へ送られる保存の通信(GET 以外)を待ち、成功したことを確かめる。
   // 確かめられなければ失敗にする(見張り役が「保存できた」と記録して、やり直さなくなるのを防ぐ)
