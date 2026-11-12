@@ -22,6 +22,7 @@ import path from "node:path";
 import type { Locator, Page } from "playwright";
 import { collectClickLabels } from "../shared/click-labels.js";
 import { assertClickAllowed } from "../shared/forbidden-click.js";
+import { findEyecatchButton } from "../shared/eyecatch-button.js";
 import { htmlToText } from "../shared/markdown-safe.js";
 import { loadArticle, type Article } from "./lib/article.js";
 import { launchPersistent } from "./lib/browser.js";
@@ -163,6 +164,33 @@ async function pasteBody(page: Page, a: Article) {
   await page.waitForTimeout(500);
 }
 
+/**
+ * 見出し画像のボタン。selectors の指定(aria-label・文字)で探し、無ければ拡張と同じく画面上の位置で探す
+ * (実機のボタンは文字も aria-label も無いアイコンボタン。shared/eyecatch-button.ts)。
+ * 位置で見つけたボタンには印の属性を付けて、Playwright の locator で押す(クリックは safeClick を通す)
+ */
+async function eyecatchButton(page: Page): Promise<Locator> {
+  const bySelector = page.locator(NOTE.thumbnail.addButton).first();
+  if (await bySelector.count()) return bySelector;
+  const MARK = "data-lastclick-eyecatch";
+  const found = await page
+    .locator(NOTE.title)
+    .first()
+    .evaluate(
+      (title, [fn, mark]) => {
+        // 関数は文字列で送る(tsx の keepNames が入れる __name がページ側に無いため。eyecatch-button.dom.test.ts と同じ)
+        const find = new Function(`return (${fn})`)() as (t: HTMLElement) => HTMLElement | null;
+        const btn = find(title as HTMLElement);
+        if (!btn) return false;
+        btn.setAttribute(mark, "1");
+        return true;
+      },
+      [findEyecatchButton.toString(), MARK] as const,
+    );
+  if (!found) throw new Error("見出し画像のボタンが見つかりません(タイトル欄の上にアイコンのボタンがありません)。");
+  return page.locator(`[${MARK}="1"]`).first();
+}
+
 async function setThumbnail(page: Page, a: Article) {
   if (!a.thumbnail) return;
   const file = { name: a.thumbnail.name, mimeType: a.thumbnail.mimeType, buffer: a.thumbnail.buffer };
@@ -174,7 +202,7 @@ async function setThumbnail(page: Page, a: Article) {
     // 見出し画像のボタンを押すと、メニュー(「画像をアップロード」)が開く。画像の入力欄はメニューを開いたときだけ
     // DOM に現れる(拡張の content.ts と同じ実機の観察)。入力欄が出ればそこへ直接入れ、出なければメニューを押して
     // 開いたファイル選択へ渡す
-    await safeClick(page.locator(NOTE.thumbnail.addButton).first(), "setThumbnail.addButton");
+    await safeClick(await eyecatchButton(page), "setThumbnail.addButton");
     // 実機のメニュー項目は「画像をアップロード」と「推奨サイズ: …」が 1 つの要素に入っていて、完全一致では見つからない
     // (拡張の content.ts の findSmallestByText と同じ観察)。文字を含む要素を探す(getByText は含む中でいちばん内側を返す)。
     // 記事本文(入力欄)に同じ文字があっても押さないよう、入力欄の中は除く
