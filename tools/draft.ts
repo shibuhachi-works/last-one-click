@@ -24,10 +24,14 @@ import { collectClickLabels } from "../shared/click-labels.js";
 import { assertClickAllowed } from "../shared/forbidden-click.js";
 import { findEyecatchButton } from "../shared/eyecatch-button.js";
 import { htmlToText } from "../shared/markdown-safe.js";
+import { matchesAnyText } from "../shared/text-match.js";
 import { loadArticle, type Article } from "./lib/article.js";
 import { launchPersistent } from "./lib/browser.js";
 import { notify } from "./lib/notify.js";
 import { NOTE } from "./lib/selectors.js";
+
+/** ボタンになりうる要素(下の関数より先に置く。関数はこのファイルの上のほうの処理から呼ばれるため) */
+const BUTTONS = 'button, [role="button"]';
 
 const args = process.argv.slice(2);
 /** 人を待たずに、下書き保存までして終わる */
@@ -193,15 +197,19 @@ async function eyecatchButton(page: Page): Promise<Locator> {
 
 async function setThumbnail(page: Page, a: Article) {
   if (!a.thumbnail) return;
-  /** 見出し画像を入れる前から画面にあった、確定ボタンと同じ文字のボタンの印(関数の中に置く。上の処理から呼ばれるため) */
+  // 印の名前(関数の中に置く。ファイルの上のほうの処理から呼ばれ、下の const はまだ初期化されていないため)
+  /** 確定ボタンの文字に一致するボタン */
+  const CONFIRM_MARK = "data-lastclick-confirm";
+  /** 見出し画像を入れる前から画面にあった、確定ボタンと同じ文字のボタン */
   const BEFORE_MARK = "data-lastclick-before";
   const file = { name: a.thumbnail.name, mimeType: a.thumbnail.mimeType, buffer: a.thumbnail.buffer };
   const input = page.locator(NOTE.thumbnail.fileInput).first();
   // 画面にもとからある確定ボタンと同じ文字のボタンには印を付けておき、あとで押さない
   // 見えているものだけに付ける。トリミングの画面は前から DOM にあって隠れているだけのことがあり、隠れたものに
   // 印を付けると、その画面が出たときに確定ボタンを押せなくなる
+  await markByText(page, BUTTONS, NOTE.thumbnail.confirmTexts, CONFIRM_MARK);
   await page
-    .locator(NOTE.thumbnail.confirm)
+    .locator(`[${CONFIRM_MARK}]`)
     .filter({ visible: true })
     .evaluateAll((els, mark) => els.forEach((e) => e.setAttribute(mark, "1")), BEFORE_MARK);
 
@@ -239,25 +247,9 @@ async function setThumbnail(page: Page, a: Article) {
   // 実機のトリミングの画面は role="dialog" などの印が無いことがあるので、拡張(content.ts の waitForConfirm)と同じく、
   // 画像を入れる前から画面にあったものを除いた、見えている確定ボタンを探す。見つからなければ失敗にする
   // (確定しないまま進むと、見出し画像が入らず、画面も覆われたままになる)
-  const confirm = page
-    .locator(NOTE.thumbnail.confirm)
-    .and(page.locator(`:not([${BEFORE_MARK}])`))
-    .filter({ visible: true })
-    .first();
-  if (!(await confirm.waitFor({ state: "visible", timeout: 20_000 }).then(() => true, () => false))) {
-    // 次に直すための手がかり: 確定ボタンと同じ文字のボタンが、いくつ・どんな状態であるか(押しはしない)
-    const seen = await page
-      .locator(NOTE.thumbnail.confirm)
-      .evaluateAll(
-        (els, mark) =>
-          els.map((e) => {
-            const r = e.getBoundingClientRect();
-            return `${(e.textContent ?? "").trim()}(${Math.round(r.width)}x${Math.round(r.height)}${e.hasAttribute(mark) ? "・前からある" : ""}${(e as HTMLButtonElement).disabled ? "・押せない" : ""})`;
-          }),
-        BEFORE_MARK,
-      )
-      .catch(() => []);
-    throw new Error(`見出し画像のトリミングの確定ボタン(「保存」)が出ませんでした。同じ文字のボタン: ${seen.join(", ") || "なし"}`);
+  const confirm = await waitByText(page, BUTTONS, NOTE.thumbnail.confirmTexts, CONFIRM_MARK, 20_000, `:not([${BEFORE_MARK}])`);
+  if (!confirm) {
+    throw new Error(`見出し画像のトリミングの確定ボタン(「保存」)が出ませんでした。見えているボタン: ${await visibleButtonTexts(page)}`);
   }
   // 画像の読み込みを少し待ってから押す
   await page.waitForTimeout(1_500);
@@ -270,7 +262,9 @@ async function setThumbnail(page: Page, a: Article) {
 }
 
 async function fillPublishSettings(page: Page, a: Article) {
-  await safeClick(page.locator(NOTE.openPublishSettings).first(), "fillPublishSettings.open");
+  const open = await waitByText(page, BUTTONS, NOTE.openPublishSettingsTexts, "data-lastclick-open", 15_000);
+  if (!open) throw new Error(`「公開に進む」のボタンが見つかりません。見えているボタン: ${await visibleButtonTexts(page)}`);
+  await safeClick(open, "fillPublishSettings.open");
 
   const tagInput = page.locator(NOTE.publishSettings.hashtagInput).first();
   await tagInput.waitFor({ timeout: 15_000 });
@@ -280,13 +274,17 @@ async function fillPublishSettings(page: Page, a: Article) {
   }
 
   if (a.magazine) {
-    const toggle = page.locator(NOTE.publishSettings.magazineToggle).first();
-    if (await toggle.isVisible({ timeout: 2_000 }).catch(() => false)) await safeClick(toggle, "fillPublishSettings.magazineToggle");
-    await safeClick(page.locator(NOTE.publishSettings.magazineItem(a.magazine)).first(), "fillPublishSettings.magazineItem");
+    const toggle = await waitByText(page, BUTTONS, NOTE.publishSettings.magazineToggleTexts, "data-lastclick-magazine-toggle", 2_000);
+    if (toggle) await safeClick(toggle, "fillPublishSettings.magazineToggle");
+    const item = await waitByText(page, NOTE.publishSettings.magazineItemBase, [a.magazine], "data-lastclick-magazine", 10_000);
+    if (!item) throw new Error(`マガジン「${a.magazine}」が見つかりません。`);
+    await safeClick(item, "fillPublishSettings.magazineItem");
   }
 
-  // 公開ボタンは「存在することの確認」だけ。絶対にクリックしない。
-  await page.locator(NOTE.publishSettings.publishButton).first().waitFor({ timeout: 10_000 });
+  // 公開ボタンは「存在することの確認」だけ。絶対にクリックしない(印を付けて数えるだけ)。
+  if (!(await waitByText(page, BUTTONS, NOTE.publishSettings.publishButtonTexts, "data-lastclick-publish", 10_000))) {
+    throw new Error(`公開設定の画面になったことを確かめられませんでした(公開のボタンが見えません)。見えているボタン: ${await visibleButtonTexts(page)}`);
+  }
 }
 
 /** ページにメンテナンスのお知らせが出ているか(タイトル欄が見つからないときだけ呼ぶ) */
@@ -295,11 +293,48 @@ async function isMaintenance(page: Page): Promise<boolean> {
   return /メンテナンス|maintenance/i.test(text);
 }
 
+/**
+ * base に当たる要素のうち、文字が候補に一致するものに印(属性 mark)を付ける。一致の判定は拡張と同じ
+ * (shared/text-match.ts の matchesAnyText: 表示文字か aria-label を正規化して完全一致。「保存」は「下書き保存」に当たらない)。
+ * Playwright の `button:text-is("…")` は、文字がボタンの中の <span> などに入っていると当たらない(実機の note のボタンはこの形)
+ */
+async function markByText(page: Page, base: string, texts: readonly string[], mark: string): Promise<void> {
+  const all = page.locator(base);
+  const labels = await all.evaluateAll((els) => els.map((e) => [e.textContent, e.getAttribute("aria-label")] as const));
+  const hits = labels.flatMap((l, i) => (matchesAnyText(l, texts) ? [i] : []));
+  await all.evaluateAll(
+    (els, [hits, mark]) => els.forEach((e, i) => (hits.includes(i) ? e.setAttribute(mark, "1") : e.removeAttribute(mark))),
+    [hits, mark] as const,
+  );
+}
+
+/** base に当たり文字が候補に一致する、見えている要素が出るまで待つ(extra は追加の条件の CSS)。出なければ null */
+async function waitByText(page: Page, base: string, texts: readonly string[], mark: string, timeout: number, extra = ""): Promise<Locator | null> {
+  const end = Date.now() + timeout;
+  for (;;) {
+    await markByText(page, base, texts, mark);
+    const el = page.locator(`[${mark}]${extra}`).filter({ visible: true }).first();
+    if (await el.count()) return el;
+    if (Date.now() > end) return null;
+    await page.waitForTimeout(500);
+  }
+}
+
+/** 見えているボタンの文字の一覧(見つからなかったときの手がかり。押しはしない) */
+async function visibleButtonTexts(page: Page): Promise<string> {
+  const texts = await page
+    .locator('button, [role="button"]')
+    .filter({ visible: true })
+    .evaluateAll((els) => els.map((e) => (e.textContent ?? "").trim().slice(0, 20) || `(${e.getAttribute("aria-label") ?? "文字なし"})`))
+    .catch(() => [] as string[]);
+  return texts.slice(0, 30).join(" / ") || "なし";
+}
+
 /** 「下書き保存」を押して、保存が終わるのを待つ。押すのはこのボタンだけ(公開ボタンには触らない) */
 async function saveDraft(page: Page) {
-  // 同じ文字のボタンが隠れて複数あることがあるので、見えているものを押す
-  const button = page.locator(NOTE.saveDraft).filter({ visible: true }).first();
-  await button.waitFor({ timeout: 15_000 });
+  // 拡張と同じ一致判定で探し、見えているものを押す(同じ文字のボタンが隠れて複数あることがある)
+  const button = await waitByText(page, BUTTONS, ["下書き保存"], "data-lastclick-save", 15_000);
+  if (!button) throw new Error(`「下書き保存」のボタンが見つかりません。見えているボタン: ${await visibleButtonTexts(page)}`);
   // 押したあとに note の API へ送られる保存の通信(GET 以外)を待ち、成功したことを確かめる。
   // 確かめられなければ失敗にする(見張り役が「保存できた」と記録して、やり直さなくなるのを防ぐ)
   const saved = page.waitForResponse((r) => r.request().method() !== "GET" && /^https:\/\/([a-z0-9-]+\.)?note\.com\/api\//.test(r.url()), {
