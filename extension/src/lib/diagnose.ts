@@ -11,7 +11,7 @@ export function buildDiagnosticReport(S: Selectors): string {
   const lines: string[] = [];
   lines.push(`# Last One Click 診断レポート`);
   lines.push(`url: ${location.origin}${location.pathname}`); // クエリは除く
-  lines.push(`title: ${document.title}`);
+  // ページのタイトル(document.title)は出さない。記事のタイトルが入ることがある
   lines.push(`selectors.version: ${S.version}`);
   lines.push(``);
 
@@ -93,12 +93,20 @@ export function describe(el: HTMLElement): string {
   }
   if (attrs.length) parts.push(`[${attrs.join(" ")}]`);
 
+  // 記事の本文やタイトルの文字は出さない(診断の結果は、公開の Issue に貼ってもらうことがある)。
+  // 入力欄と、書ける欄(contenteditable)とその中の要素は、文字の長さだけを出す
   const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-  if (text) parts.push(`"${text.slice(0, TEXT_LEN)}${text.length > TEXT_LEN ? "…" : ""}"`);
+  if (text && holdsArticleText(el)) parts.push(`(文字 ${text.length} 字は出しません)`);
+  else if (text) parts.push(`"${text.slice(0, TEXT_LEN)}${text.length > TEXT_LEN ? "…" : ""}"`);
 
   parts.push(isVisible(el) ? "(visible)" : "(hidden)");
   parts.push(`path: ${cssPath(el)}`);
   return parts.join(" ");
+}
+
+/** 記事の文字が入る欄か、その中の要素か(入力欄・書ける欄) */
+function holdsArticleText(el: HTMLElement): boolean {
+  return el.isContentEditable || !!el.closest("[contenteditable]:not([contenteditable='false']), textarea, input, select");
 }
 
 /** 画面上の位置(スクロール込み)。見出し画像のボタンをタイトル欄との位置関係で決めるため */
