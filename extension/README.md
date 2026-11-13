@@ -2,7 +2,7 @@
 
 **The last one click is yours.**
 
-Markdown のファイルを選ぶだけで、note の下書き(タイトル・本文・見出し画像・ハッシュタグ・マガジン)を組み立てる拡張です。
+Markdown のファイルを選ぶだけで、note の下書き(タイトル・本文・見出し画像・ハッシュタグ・マガジン)を自動で組み立てる拡張です。
 **公開ボタンは押しません。** 最後は自分で確認して押してください。
 
 Chrome ウェブストアと chrome://extensions では「Last One Click - note の下書きツール」の名前で出ます(ツールバーなど狭い所では「Last One Click」)。
