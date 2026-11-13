@@ -10,7 +10,8 @@ const allowed = "extension/src/lib/safe-click.ts";
 // 安全側に倒し、コメントや文字列中の例も検出する。テスト用の例は *.test.ts に置く。
 function unsafeOperations(source: string): string[] {
   const patterns = [
-    /(?:\?\.|\.)\s*dispatchEvent\s*\(\s*["'`]click["'`]/g,
+    /(?:\?\.|\.)\s*dispatchEvent\s*(?:\?\.)?\s*\(\s*["'`]click["'`]/g,
+    /\[\s*["'`]dispatchEvent["'`]\s*\]\s*(?:\?\.)?\s*\(\s*["'`]click["'`]/g,
     /(?:\?\.|\.)\s*(?:click|dblclick|tap|check|uncheck|setChecked|submit|requestSubmit)\s*(?:\?\.)?\s*\(/g,
     /\[\s*["'`](?:click|dblclick|tap|check|uncheck|setChecked|submit|requestSubmit)["'`]\s*\]\s*(?:\?\.)?\s*\(/g,
     /\bnew\s+(?:(?:window|globalThis)\s*\.\s*)?(?:MouseEvent|PointerEvent)\s*\(\s*["'`]click["'`]/g,
@@ -80,7 +81,7 @@ describe("safeClick を迂回する操作の検査", () => {
     const hits = sourceFiles(join(root, "tools")).flatMap((path) => {
       const source = readFileSync(path, "utf8");
       return enterOperations(source).map((hit) => {
-        assert.equal(relative(root, path), "tools/draft.ts");
+        assert.equal(relative(root, path).replaceAll("\\", "/"), "tools/draft.ts");
         const [start, end] = functionRange(source, "fillPublishSettings");
         assert.ok(hit.index! >= start && hit.index! < end);
         assert.ok(source.slice(0, hit.index).endsWith("tagInput."));
@@ -109,7 +110,7 @@ describe("safeClick を迂回する操作の検査", () => {
   for (const source of [
     "page.mouse.click(0, 0)", "locator.dblclick()", "locator.tap()", "locator.check()",
     "checkbox.setChecked(true)", "checkbox.uncheck()", "box['setChecked'](false)", "box[\"uncheck\"]()",
-    'locator.dispatchEvent("click")', "locator['tap']()",
+    'locator.dispatchEvent("click")', 'locator.dispatchEvent?.("click")', 'locator["dispatchEvent"]("click")', "locator['dispatchEvent']?.('click')", "locator['tap']()",
     "el.click()", "el . click ( )", "el?.click?.()", "el['click']()",
     "form.submit()", "form.requestSubmit(button)", "form[\"requestSubmit\"]()",
     'new MouseEvent("click", {})', "new PointerEvent('click')",
