@@ -5,7 +5,7 @@ import { normalizeLabel } from "../../shared/forbidden-click";
 import { matchesAnyText } from "../../shared/text-match";
 import { buildDiagnosticReport, describe, rect } from "./lib/diagnose";
 import { findEyecatchButton } from "../../shared/eyecatch-button";
-import { gifUploadHint } from "../../shared/upload-hint";
+import { GIF_UPLOAD_WAIT_MS, IMAGE_UPLOAD_WAIT_MS, LATE_UPLOAD_WAIT_MS, gifUploadHint, hasGif } from "../../shared/upload-hint";
 import { findMagazineRowButton } from "../../shared/magazine-row";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
 import { safeClick, safeKey, safePress } from "./lib/safe-click";
@@ -356,11 +356,40 @@ const IMAGE_MANUAL = "本文に残っている目印(［画像1・…: …］)�
 async function insertBodyImages(S: Selectors, a: ArticlePayload) {
   const body = await waitFor(S.body, 10_000);
   const images = a.images ?? [];
+  type Img = (typeof images)[number];
   const failed: string[] = [];
   /** note に送ったが入らなかった画像(gif のひとことを出すため) */
-  const uploadFailed: typeof images = [];
+  const uploadFailed: Img[] = [];
   const captionFailed: string[] = [];
+  /** 待ちきれなかった画像。最後にもう一度、遅れて入っていないかを確かめる */
+  const pending: { img: Img; before: Set<HTMLImageElement> }[] = [];
+  /** すでにどれかの画像のものと分かった <img>(遅れて入った画像の取り違えを防ぐ) */
+  const claimed = new Set<HTMLImageElement>();
   let ok = 0;
+
+  /** 貼り付けたあとに増えた <img> のうち、アップロードが終わった(src が https の)もの。ほかの画像のものは除く */
+  const uploaded = (before: Set<HTMLImageElement>) => {
+    const added = Array.from(body.querySelectorAll("img")).filter((i) => !before.has(i) && !claimed.has(i));
+    return added.length > 0 && added.every((i) => /^https?:/.test(i.src)) ? added[0] : null;
+  };
+
+  /** 入った画像の後始末: 残った目印を消し、キャプションを入れる */
+  const finish = async (img: Img, done: HTMLImageElement) => {
+    claimed.add(done);
+    ok++;
+    // 貼り付けで目印が置き換わらずに残ったときは、目印だけ消す
+    const rest = findTextRange(body, img.marker);
+    const holder = rest?.startContainer.parentElement;
+    if (rest && holder) {
+      selectRange(rest);
+      await sleep(100);
+      safeKey(holder, "本文の画像: 目印を消す", "Backspace");
+      await sleep(200);
+    }
+    // md で ![説明](image1.png "キャプション") と書いたときは、画像のキャプションの欄に入れる
+    if (img.caption && !(await setImageCaption(body, done, img.caption))) captionFailed.push(img.name);
+  };
+
   for (const img of images) {
     const range = findTextRange(body, img.marker);
     if (!range) {
@@ -374,28 +403,34 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
     const dt = new DataTransfer();
     dt.items.add(base64ToFile(img));
     body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-    const done = await waitUntil(() => {
-      const added = Array.from(body.querySelectorAll("img")).filter((i) => !before.has(i));
-      return added.length > 0 && added.every((i) => /^https?:/.test(i.src)) ? added[0] : null;
-    }, 30_000);
+    // gif は note の側の処理に時間がかかり、30 秒を過ぎてから入ることがある(2026-11-13 実機)ので長めに待つ
+    const done = await waitUntil(() => uploaded(before), hasGif([img]) ? GIF_UPLOAD_WAIT_MS : IMAGE_UPLOAD_WAIT_MS);
     if (!done) {
-      failed.push(img.name);
-      uploadFailed.push(img);
+      pending.push({ img, before });
       continue;
     }
-    ok++;
-    // 貼り付けで目印が置き換わらずに残ったときは、目印だけ消す
-    const rest = findTextRange(body, img.marker);
-    const holder = rest?.startContainer.parentElement;
-    if (rest && holder) {
-      selectRange(rest);
-      await sleep(100);
-      safeKey(holder, "本文の画像: 目印を消す", "Backspace");
-      await sleep(200);
-    }
-    // md で ![説明](image1.png "キャプション") と書いたときは、画像のキャプションの欄に入れる
-    if (img.caption && !(await setImageCaption(body, done, img.caption))) captionFailed.push(img.name);
+    await finish(img, done);
   }
+
+  // 待ちきれなかった画像が、そのあと遅れて入っていないかを確かめる(入っていれば、目印を消してキャプションを入れる)
+  if (pending.length) {
+    const end = Date.now() + LATE_UPLOAD_WAIT_MS;
+    for (;;) {
+      for (const p of [...pending]) {
+        const done = uploaded(p.before);
+        if (!done) continue;
+        pending.splice(pending.indexOf(p), 1);
+        await finish(p.img, done);
+      }
+      if (!pending.length || Date.now() >= end) break;
+      await sleep(500);
+    }
+    for (const p of pending) {
+      failed.push(p.img.name);
+      uploadFailed.push(p.img);
+    }
+  }
+
   const problems = [...(a.imageNotes ?? [])];
   if (captionFailed.length) problems.unshift(`キャプションを入れられなかった画像があります(${captionFailed.join(", ")}。note の画面で、画像の下の「キャプションを入力」に入れてください)`);
   const gifHint = gifUploadHint(uploadFailed);
