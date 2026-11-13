@@ -40,6 +40,8 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
       // 画像のファイルを貼ると、選んでいた文字を消して、その行の後ろに画像を入れる。
       // いったん blob: の画像が入り、アップロードが終わると https の URL に変わる(2026-11-10 実機: figure.image、assets.st-note.com)
       if (e.clipboardData.files.length) {
+        // 名前が fail- で始まる画像は、アップロードに失敗する(何も入らず、目印も残る)
+        if (e.clipboardData.files[0].name.startsWith("fail-")) return;
         const sel = getSelection();
         const b = caretBlock();
         if (sel && sel.rangeCount && !sel.isCollapsed) sel.getRangeAt(0).deleteContents();
@@ -54,7 +56,9 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
         fig.append(img, cap);
         if (b && b.tagName === "P" && b.textContent.trim() === "") b.replaceWith(fig);
         else (b ?? body.lastElementChild).after(fig);
-        setTimeout(() => (img.src = "https://assets.example.com/" + e.clipboardData.files[0].name), 300);
+        // 名前が late- で始まる画像は、アップロードに 31 秒かかる(拡張が待つ 30 秒を過ぎてから入る。2026-11-13 実機の gif と同じ)
+        const name = e.clipboardData.files[0].name;
+        setTimeout(() => (img.src = "https://assets.example.com/" + name), name.startsWith("late-") ? 31_000 : 300);
         return;
       }
       const t = document.createElement("template");
@@ -194,6 +198,9 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     prepare: (popup: Page) => Promise<void> = async () => {},
     markdown = ARTICLE,
     waitBanner = "タイトル・本文・見出し画像を入れました",
+    bannerTimeout = 30_000,
+    /** 拡張が進めているあいだに、エディタの画面で確かめること */
+    whileRunning: (editor: Page) => Promise<void> = async () => {},
   ): Promise<{ editor: Page; errors: string[] }> {
     const popup = await context.newPage();
     // 拡張が chrome.tabs.create で開いたタブの最初の読み込みは、Playwright の差し替え(route)より先に通ることがある
@@ -232,12 +239,13 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     editor.on("console", (m) => logs.push(`${m.type()}: ${m.text()}`));
     editor.on("pageerror", (e) => logs.push(`pageerror: ${e.message}`));
     await editor.waitForURL(/note\.com/, { timeout: 15_000 });
+    await whileRunning(editor);
 
     // 本文の確認待ちのバナー(✅)が出るまで待つ。出なければ、原因を追えるようにバナーの中身とコンソールを出す
     const banner = editor.locator("#lastclick-pigeon-banner");
     await banner
       .getByText(waitBanner)
-      .waitFor({ timeout: 30_000 })
+      .waitFor({ timeout: bannerTimeout })
       .catch(async (e) => {
         const text = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "(バナーなし)");
         throw new Error(`バナーが出ませんでした。URL: ${editor.url()} / バナー: ${text.replace(/\s+/g, " ").trim()} / コンソール: ${logs.join(" | ") || "(なし)"} (${(e as Error).message.split("\n")[0]})`);
@@ -394,6 +402,69 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await editor.locator("#body figure.image").nth(1).waitFor({ timeout: 10_000 });
     const caps = await editor.locator("#body figure.image figcaption").allTextContents();
     assert.deepEqual(caps.map((c) => c.trim()), ["1 つ目", "2 つ目"]);
+    assert.deepEqual(errors, []);
+  });
+
+  it("アップロードに 30 秒より長くかかって遅れて入った画像も、最後に確かめて目印を消し、キャプションを入れる", async () => {
+    const md = "---\ntitle: 遅い画像のテスト\n---\n\n## 見出し\n\n![動き](late-demo.png \"遅れて入る画像\")\n";
+    const { editor, errors } = await draftFromPopup(
+      async (popup) => {
+        await dropFiles(popup, md, ["late-demo.png"]);
+      },
+      md,
+      "タイトル・本文・見出し画像を入れました",
+      70_000,
+      async (editor) => {
+        // 待っているあいだは、何をしているかと経過した秒数を出し、回る印で動いていることを見せる
+        const shadow = () => editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? "");
+        const seconds = async () => Number(/待っています… (\d+) 秒/.exec(await shadow())?.[1] ?? -1);
+        await editor.waitForFunction(
+          () => /1\/1 枚目: late-demo\.png[\s\S]*note のアップロードを待っています… \d+ 秒\(最大 30 秒\)/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
+          null,
+          { timeout: 20_000 },
+        );
+        const banner = editor.locator("#lastclick-pigeon-banner");
+        assert.equal(await banner.locator(".spin").count(), 2, "回る印が出ていません");
+        // たたんでも、秒数が進むあいだ、たたんだままになっている(バナーを作り直さない)
+        await banner.getByRole("button", { name: "バナーをたたむ" }).click();
+        const first = await seconds();
+        await editor.waitForTimeout(2_500);
+        assert.ok((await seconds()) > first, "秒数が進んでいません");
+        assert.equal(await banner.locator("#pill").isVisible(), true, "たたんだバナーが開いてしまいました");
+        await banner.locator("#pill").click();
+        await editor.waitForFunction(
+          () => /遅れて入る画像が無いかを確かめています\(1 枚\)/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
+          null,
+          { timeout: 40_000 },
+        );
+      },
+    );
+    await editor.locator("#body figure.image img[src='https://assets.example.com/late-demo.png']").waitFor({ timeout: 5_000 });
+    assert.equal(await editor.locator("#lastclick-pigeon-banner .spin").count(), 0, "終わったあとも回る印が出ています");
+    assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1・/, "遅れて入った画像の目印が残っています");
+    assert.deepEqual((await editor.locator("#body figure.image figcaption").allTextContents()).map((c) => c.trim()), ["遅れて入る画像"]);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /本文の画像 ✓\(1 枚\)/);
+    assert.deepEqual(errors, []);
+  });
+
+  it("先の画像が入らず、後の画像だけが遅れて入ったときは、後の画像の分として扱い、先の画像の目印は残す", async () => {
+    const md = "---\ntitle: 取り違えのテスト\n---\n\n## 見出し\n\n![先](fail-a.png \"先の画像\")\n\n本文\n\n![後](late-b.png \"後の画像\")\n";
+    const { editor, errors } = await draftFromPopup(
+      async (popup) => {
+        await dropFiles(popup, md, ["fail-a.png", "late-b.png"]);
+      },
+      md,
+      "一部は入力できませんでした",
+      100_000,
+    );
+    await editor.locator("#body figure.image img[src='https://assets.example.com/late-b.png']").waitFor({ timeout: 5_000 });
+    const text = await editor.locator("#body").innerText();
+    assert.match(text, /［画像1・[0-9a-z]{4}: fail-a\.png］/, "入らなかった先の画像の目印が消えています");
+    assert.doesNotMatch(text, /［画像2・/, "遅れて入った後の画像の目印が残っています");
+    assert.deepEqual((await editor.locator("#body figure.image figcaption").allTextContents()).map((c) => c.trim()), ["後の画像"]);
+    const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+    assert.match(banner, /1 枚は入れました。入れられなかった画像があります\(fail-a\.png\)/);
     assert.deepEqual(errors, []);
   });
 

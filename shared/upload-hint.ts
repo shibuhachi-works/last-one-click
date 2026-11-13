@@ -15,3 +15,10 @@ export function gifUploadHint(images: ReadonlyArray<{ name: string; mimeType?: s
     ? "gif は note が受け付けないことがあります。横幅を 620px 以下にしてください(note は 620px より広い画像を縮めますが、コマ数の多い gif では失敗することがあります)。動きを長く見せたいときは、YouTube などの URL を 1 行で書いて埋め込みにしてください"
     : "";
 }
+
+/** 本文の画像を貼り付けてから、本文に入るまで待つ時間(gif 以外) */
+export const IMAGE_UPLOAD_WAIT_MS = 30_000;
+/** gif は note の側の処理に時間がかかり、30 秒を過ぎてから入ることがある(2026-11-13 実機、480×346・280 コマ)ので長めに待つ */
+export const GIF_UPLOAD_WAIT_MS = 120_000;
+/** 待ちきれなかった画像が遅れて入っていないかを、最後にもう一度確かめる時間 */
+export const LATE_UPLOAD_WAIT_MS = 15_000;

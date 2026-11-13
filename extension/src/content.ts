@@ -5,7 +5,7 @@ import { normalizeLabel } from "../../shared/forbidden-click";
 import { matchesAnyText } from "../../shared/text-match";
 import { buildDiagnosticReport, describe, rect } from "./lib/diagnose";
 import { findEyecatchButton } from "../../shared/eyecatch-button";
-import { gifUploadHint } from "../../shared/upload-hint";
+import { GIF_UPLOAD_WAIT_MS, IMAGE_UPLOAD_WAIT_MS, LATE_UPLOAD_WAIT_MS, gifUploadHint, hasGif } from "../../shared/upload-hint";
 import { findMagazineRowButton } from "../../shared/magazine-row";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
 import { safeClick, safeKey, safePress } from "./lib/safe-click";
@@ -356,33 +356,26 @@ const IMAGE_MANUAL = "本文に残っている目印(［画像1・…: …］)�
 async function insertBodyImages(S: Selectors, a: ArticlePayload) {
   const body = await waitFor(S.body, 10_000);
   const images = a.images ?? [];
+  type Img = (typeof images)[number];
   const failed: string[] = [];
   /** note に送ったが入らなかった画像(gif のひとことを出すため) */
-  const uploadFailed: typeof images = [];
+  const uploadFailed: Img[] = [];
   const captionFailed: string[] = [];
+  /** 待ちきれなかった画像。最後にもう一度、遅れて入っていないかを確かめる */
+  const pending: { img: Img; before: Set<HTMLImageElement>; own: Set<HTMLImageElement> }[] = [];
+  /** すでにどれかの画像のものと分かった <img>(遅れて入った画像の取り違えを防ぐ) */
+  const claimed = new Set<HTMLImageElement>();
   let ok = 0;
-  for (const img of images) {
-    const range = findTextRange(body, img.marker);
-    if (!range) {
-      failed.push(img.name);
-      continue;
-    }
-    body.focus();
-    selectRange(range);
-    await sleep(200);
-    const before = new Set(Array.from(body.querySelectorAll("img")));
-    const dt = new DataTransfer();
-    dt.items.add(base64ToFile(img));
-    body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-    const done = await waitUntil(() => {
-      const added = Array.from(body.querySelectorAll("img")).filter((i) => !before.has(i));
-      return added.length > 0 && added.every((i) => /^https?:/.test(i.src)) ? added[0] : null;
-    }, 30_000);
-    if (!done) {
-      failed.push(img.name);
-      uploadFailed.push(img);
-      continue;
-    }
+
+  /** 貼り付けたあとに増えた <img> のうち、アップロードが終わった(src が https の)もの。ほかの画像のものは除く */
+  const uploaded = (before: Set<HTMLImageElement>) => {
+    const added = Array.from(body.querySelectorAll("img")).filter((i) => !before.has(i) && !claimed.has(i));
+    return added.length > 0 && added.every((i) => /^https?:/.test(i.src)) ? added[0] : null;
+  };
+
+  /** 入った画像の後始末: 残った目印を消し、キャプションを入れる */
+  const finish = async (img: Img, done: HTMLImageElement) => {
+    claimed.add(done);
     ok++;
     // 貼り付けで目印が置き換わらずに残ったときは、目印だけ消す
     const rest = findTextRange(body, img.marker);
@@ -395,7 +388,83 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
     }
     // md で ![説明](image1.png "キャプション") と書いたときは、画像のキャプションの欄に入れる
     if (img.caption && !(await setImageCaption(body, done, img.caption))) captionFailed.push(img.name);
+  };
+
+  /**
+   * 遅れて入った画像が、この画像のものだと分かるときだけ返す(取り違えて、ほかの画像の目印を消したり、キャプションを入れたりしない)。
+   * (1) この画像を貼ったときの仮の画像が、アップロードを終えた
+   * (2) この画像の目印が残っていて、その後ろ、次の目印より前に、新しい画像が入った
+   * (3) 待っているのがこの画像だけで、目印も仮の画像も無くなっていて、新しい画像が 1 枚だけ入った(仮の画像が作り直されたとき)
+   */
+  const lateUploaded = (p: (typeof pending)[number]): HTMLImageElement | null => {
+    const https = (i: HTMLImageElement) => /^https?:/.test(i.src);
+    const own = Array.from(p.own).find((i) => body.contains(i) && !claimed.has(i) && https(i));
+    if (own) return own;
+    const others = new Set(pending.flatMap((q) => (q === p ? [] : Array.from(q.own))));
+    const fresh = Array.from(body.querySelectorAll("img")).filter((i) => !p.before.has(i) && !claimed.has(i) && !others.has(i) && https(i));
+    const mark = findTextRange(body, p.img.marker);
+    if (mark) {
+      const after = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const next = images
+        .filter((o) => o !== p.img)
+        .map((o) => findTextRange(body, o.marker)?.startContainer)
+        .filter((n): n is Node => !!n && after(mark.startContainer, n));
+      return fresh.find((i) => after(mark.startContainer, i) && next.every((n) => after(i, n))) ?? null;
+    }
+    const ownLeft = Array.from(p.own).some((i) => body.contains(i));
+    return pending.length === 1 && !ownLeft && fresh.length === 1 ? fresh[0] : null;
+  };
+
+  for (const [i, img] of images.entries()) {
+    const range = findTextRange(body, img.marker);
+    if (!range) {
+      failed.push(img.name);
+      continue;
+    }
+    body.focus();
+    selectRange(range);
+    await sleep(200);
+    const before = new Set(Array.from(body.querySelectorAll("img")));
+    const dt = new DataTransfer();
+    dt.items.add(base64ToFile(img));
+    body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    // gif は note の側の処理に時間がかかり、30 秒を過ぎてから入ることがある(2026-11-13 実機)ので長めに待つ
+    const limit = hasGif([img]) ? GIF_UPLOAD_WAIT_MS : IMAGE_UPLOAD_WAIT_MS;
+    const done = await waitWithStatus(
+      () => uploaded(before),
+      limit,
+      (sec) => `本文の画像を入れています(${i + 1}/${images.length} 枚目: ${img.name})\nnote のアップロードを待っています… ${sec} 秒(最大 ${formatWait(limit)})`,
+    );
+    if (!done) {
+      // 貼り付けで入った仮の画像(まだ blob: のもの)を覚えておく。遅れて入ったかは、まずこれで確かめる
+      const own = new Set(Array.from(body.querySelectorAll("img")).filter((i) => !before.has(i) && !claimed.has(i) && !pending.some((q) => q.own.has(i))));
+      pending.push({ img, before, own });
+      continue;
+    }
+    await finish(img, done);
   }
+
+  // 待ちきれなかった画像が、そのあと遅れて入っていないかを確かめる(入っていれば、目印を消してキャプションを入れる)
+  if (pending.length) {
+    const start = Date.now();
+    const end = start + LATE_UPLOAD_WAIT_MS;
+    for (;;) {
+      bannerStatus(`遅れて入る画像が無いかを確かめています(${pending.length} 枚)… ${Math.floor((Date.now() - start) / 1000)} 秒(最大 ${formatWait(LATE_UPLOAD_WAIT_MS)})`);
+      for (const p of [...pending]) {
+        const done = lateUploaded(p);
+        if (!done) continue;
+        pending.splice(pending.indexOf(p), 1);
+        await finish(p.img, done);
+      }
+      if (!pending.length || Date.now() >= end) break;
+      await sleep(500);
+    }
+    for (const p of pending) {
+      failed.push(p.img.name);
+      uploadFailed.push(p.img);
+    }
+  }
+
   const problems = [...(a.imageNotes ?? [])];
   if (captionFailed.length) problems.unshift(`キャプションを入れられなかった画像があります(${captionFailed.join(", ")}。note の画面で、画像の下の「キャプションを入力」に入れてください)`);
   const gifHint = gifUploadHint(uploadFailed);
@@ -708,6 +777,8 @@ class StopError extends Error {}
 
 /** 工程を 1 つ実行して結果を記録する。後続に進んでよければ true、StopError なら false */
 async function step(name: string, results: string[], fn: () => Promise<unknown> | unknown): Promise<boolean> {
+  // いま何をしているかをバナーに出す(待ちが長いときに、固まったと思わないように)
+  bannerStatus(`${name}を入れています…`);
   try {
     const r = await fn();
     results.push(`${name} ✓${typeof r === "string" ? `(${r})` : ""}`);
@@ -811,6 +882,24 @@ async function waitUntil<T>(fn: () => T | null, timeout: number): Promise<T | nu
   }
 }
 
+/** waitUntil と同じ。待っているあいだ、1 秒ごとに経過した秒数をバナーに出す */
+async function waitWithStatus<T>(fn: () => T | null, timeout: number, status: (sec: number) => string): Promise<T | null> {
+  const start = Date.now();
+  const show = () => bannerStatus(status(Math.floor((Date.now() - start) / 1000)));
+  show();
+  const timer = setInterval(show, 1000);
+  try {
+    return await waitUntil(fn, timeout);
+  } finally {
+    clearInterval(timer);
+  }
+}
+
+/** 120000 → 「2 分」、30000 → 「30 秒」 */
+function formatWait(ms: number): string {
+  return ms >= 60_000 && ms % 60_000 === 0 ? `${ms / 60_000} 分` : `${Math.round(ms / 1000)} 秒`;
+}
+
 function findByText(tag: string, texts: string[], scope: ParentNode = document): HTMLElement | null {
   const all = Array.from(scope.querySelectorAll<HTMLElement>(tag));
   for (const t of texts) {
@@ -884,17 +973,25 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
           background:#fff;color:${colors[kind]};font:600 13px system-ui,sans-serif;cursor:pointer">${escapeHtml(a.label)}</button>`,
     )
     .join("");
+  // 進めているあいだ(ボタンの無いお知らせ)は、くるくる回る印を出す(止まっていないことが分かるように)
+  const working = kind === "info" && actions.length === 0;
+  const spin = (size: number) =>
+    working
+      ? `<span class="spin" aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;margin-right:6px;vertical-align:-1px;
+          border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:loc-spin .9s linear infinite"></span>`
+      : "";
   host.shadowRoot!.innerHTML = `
+    <style>@keyframes loc-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}</style>
     <div id="box" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;max-width:440px;padding:12px 16px;
       border-radius:10px;background:${colors[kind]};color:#fff;font:14px/1.6 system-ui,sans-serif;
       box-shadow:0 4px 16px rgba(0,0,0,.25)">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>Last One Click</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
-      <div style="white-space:pre-wrap">${escapeHtml(summary ?? "")}</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>${spin(12)}Last One Click</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
+      <div id="sum" style="white-space:pre-wrap">${escapeHtml(summary ?? "")}</div>
       ${details ? `<div id="det" hidden style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.95;white-space:pre-wrap">${escapeHtml(details)}</div>` : ""}
       <div style="margin-top:10px;display:flex;align-items:center;justify-content:flex-end;gap:12px">${details ? `<button type="button" id="tog" aria-expanded="false" aria-controls="det" style="${link}">詳細</button>` : ""}${buttons}</div>
     </div>
     <button type="button" id="pill" hidden aria-label="Last One Click のバナーを開く" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:6px 12px;border:0;border-radius:999px;
-      background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">Last One Click ▴</button>`;
+      background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">${spin(10)}Last One Click ▴</button>`;
   const root = host.shadowRoot!;
   const box = root.getElementById("box")!;
   const pill = root.getElementById("pill")!;
@@ -923,6 +1020,17 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
       Promise.resolve(actions[Number(b.dataset.action)]!.onClick()).catch((e) => banner(`エラー: ${(e as Error).message}`, "error"));
     };
   });
+}
+
+/**
+ * 進めているあいだのお知らせの文だけを書き換える(バナーを作り直さないので、「たたむ」で小さくしたままにできる)。
+ * 進めている途中のバナーが無いとき(ボタンや結果を出しているときなど)は、新しく出す
+ */
+function bannerStatus(text: string) {
+  const root = document.getElementById("lastclick-pigeon-banner")?.shadowRoot;
+  const sum = root?.getElementById("sum");
+  if (sum && root?.querySelector(".spin")) sum.textContent = text;
+  else banner(text);
 }
 
 function escapeHtml(s: string) {
