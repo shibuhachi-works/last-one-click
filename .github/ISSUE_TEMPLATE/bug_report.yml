@@ -1,0 +1,71 @@
+name: 不具合の報告
+description: 動かない・止まった・思ったものと違うものが入った、を知らせる
+title: "[不具合] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        知らせてくださり、ありがとうございます。
+        **Issue は誰でも読めます。** 記事の本文・トークン・パスワード・個人の情報は書かないでください。画面の写しを貼るときも、写っていないかを確かめてください。
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が起きましたか
+      description: 何をしたら、どうなったか。どうなると思っていたか
+      placeholder: |
+        例: 「note の下書きを作成」を押したら、本文の画像のところで止まった。gif の画像が入らず、目印が残った
+    validations:
+      required: true
+  - type: dropdown
+    id: step
+    attributes:
+      label: どこで起きましたか
+      options:
+        - 拡張の画面(md を読み込む・ドロップする)
+        - タイトル
+        - 目次
+        - 本文
+        - 本文の画像
+        - 埋め込み
+        - 見出し画像
+        - 公開設定(ハッシュタグ・マガジン)
+        - そのほか・分からない
+    validations:
+      required: true
+  - type: textarea
+    id: banner
+    attributes:
+      label: 画面の右下のバナーの表示
+      description: バナーの「詳細」を開いた中身も貼ってください(✓ / ✗ の行)
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: 拡張の版
+      description: 拡張の画面の「拡張機能の設定」を開くと、いちばん上に「Last One Click v0.0.0」の形で出ています
+      placeholder: v0.1.4
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: ブラウザと OS
+      placeholder: 例 Chrome 131 / Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: 診断の結果(あれば)
+      description: |
+        note の画面が変わって動かなくなったときに、何が変わったかを調べるのに使います。
+        note のエディタを開いたタブで、拡張の画面の「拡張機能の設定」→「診断(動かないとき)」→「DOM 情報を取得」を押し、「コピー」したものを貼ってください。認証情報や記事の本文は含みません
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 確かめてください
+      options:
+        - label: 記事の本文・トークン・パスワード・個人の情報を書いていません(画面の写しにも写っていません)
+          required: true

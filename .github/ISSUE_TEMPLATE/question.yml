@@ -1,0 +1,33 @@
+name: 質問・要望
+description: 使い方の質問や、足してほしい機能を送る
+title: "[質問・要望] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Issue は誰でも読めます。** 記事の本文・トークン・パスワード・個人の情報は書かないでください。
+        使える Markdown の書き方は [README の「本文で使える記法」](https://github.com/shibuhachi-works/last-one-click#本文で使える記法)、試せる見本は [templates/note](https://github.com/shibuhachi-works/last-one-click/tree/main/templates/note) にあります。
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 種類
+      options:
+        - 使い方の質問
+        - 機能の要望
+        - そのほか
+    validations:
+      required: true
+  - type: textarea
+    id: body
+    attributes:
+      label: 内容
+      description: 要望のときは、どんな場面で困っているかも書いてもらえると助かります
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 拡張の版(分かれば)
+      description: 拡張の画面の「拡張機能の設定」を開くと、いちばん上に出ています
+      placeholder: v0.1.4
