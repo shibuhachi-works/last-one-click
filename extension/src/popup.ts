@@ -216,7 +216,7 @@ $("github-load").addEventListener("click", async () => {
     forgetSource(); // 手元の md と一緒にドロップした本文の画像は、GitHub の記事には使わない
     baseUrl = r.baseUrl;
     fillFieldsFromMarkdown(r.markdown, { newSource: true });
-    setStatus("読み込みました。内容を確認して「組み立てる」を押してください。");
+    setStatus("読み込みました。内容を確認して「note の下書きを作成」を押してください。");
   } catch (e) {
     setStatus((e as Error).message, true);
   }
