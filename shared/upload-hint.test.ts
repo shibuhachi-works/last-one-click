@@ -5,7 +5,7 @@ import { gifUploadHint, hasGif } from "./upload-hint.js";
 describe("gifUploadHint", () => {
   it("入らなかった画像に gif があれば、直し方を返す", () => {
     assert.match(gifUploadHint([{ name: "demo.gif", mimeType: "image/gif" }]), /YouTube/);
-    assert.match(gifUploadHint([{ name: "a.png" }, { name: "DEMO.GIF" }]), /gif を小さく/);
+    assert.match(gifUploadHint([{ name: "a.png" }, { name: "DEMO.GIF" }]), /620px 以下/);
   });
   it("gif が無ければ空文字", () => {
     assert.equal(gifUploadHint([{ name: "a.png", mimeType: "image/png" }]), "");
