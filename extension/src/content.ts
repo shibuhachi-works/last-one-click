@@ -992,6 +992,10 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
     .join("");
   // 進めているあいだ(ボタンの無いお知らせ)は、くるくる回る印を出す(止まっていないことが分かるように)
   const working = kind === "info" && actions.length === 0;
+  // 進めているあいだは、操作を控えてもらう。拡張が文字を選んで画像を貼ったり、目印を消したりしている途中に
+  // 文字を打ったりクリックしたりすると、目印が残ったり、違う場所に入ったりする。note のダイアログ(OK を押すもの)だけは押してもらう
+  // (この関数は main() から最初の await より前に呼ばれるので、文はファイルの先頭の const にせず、ここに置く)
+  const waitNotice = "処理中です。終わるまで、この画面は操作せずにお待ちください(note のダイアログが出たときは「OK」を押してください)";
   const spin = (size: number) =>
     working
       ? `<span class="spin" aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;margin-right:6px;vertical-align:-1px;
@@ -1003,6 +1007,7 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
       border-radius:10px;background:${colors[kind]};color:#fff;font:14px/1.6 system-ui,sans-serif;
       box-shadow:0 4px 16px rgba(0,0,0,.25)">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>${spin(12)}Last One Click</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
+      ${working ? `<div id="wait" style="margin-bottom:6px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.18);font-size:13px">${escapeHtml(waitNotice)}</div>` : ""}
       <div id="sum" style="white-space:pre-wrap">${escapeHtml(summary ?? "")}</div>
       ${details ? `<div id="det" hidden style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.95;white-space:pre-wrap">${escapeHtml(details)}</div>` : ""}
       <div style="margin-top:10px;display:flex;align-items:center;justify-content:flex-end;gap:12px">${details ? `<button type="button" id="tog" aria-expanded="false" aria-controls="det" style="${link}">詳細</button>` : ""}${buttons}</div>
