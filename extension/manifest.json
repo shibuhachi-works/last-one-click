@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Last One Click - note の下書きツール",
   "short_name": "Last One Click",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Markdown のファイルを選ぶだけで note の下書き(タイトル・本文・見出し画像・ハッシュタグ・マガジン)を自動で組み立てます。最後のワンクリックは、あなたの手で。現在は note に対応しています。",
   "homepage_url": "https://shibuhachi.works/last-one-click/",
   "minimum_chrome_version": "120",
