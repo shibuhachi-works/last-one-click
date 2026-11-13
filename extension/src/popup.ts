@@ -12,6 +12,11 @@ import { loadSelectors } from "./lib/selectors";
 import { STORAGE, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+/**
+ * 「note の下書きを作成」ボタンの名前。案内の文には、この関数でボタンの文字をそのまま入れる
+ * (ボタンの名前を変えたときに、案内の文だけ古い名前のまま残らないように。shared/popup-labels.test.ts でも確かめる)
+ */
+const submitLabel = () => $("submit").textContent?.trim() || "note の下書きを作成";
 
 // 別ウィンドウ表示。ツールバーのポップアップは Finder 等に切り替えた瞬間に閉じるので、
 // ドラッグ＆ドロップで渡したいときは独立したウィンドウ(popup.html?window=1)で開く。
@@ -216,7 +221,7 @@ $("github-load").addEventListener("click", async () => {
     forgetSource(); // 手元の md と一緒にドロップした本文の画像は、GitHub の記事には使わない
     baseUrl = r.baseUrl;
     fillFieldsFromMarkdown(r.markdown, { newSource: true });
-    setStatus("読み込みました。内容を確認して「note の下書きを作成」を押してください。");
+    setStatus(`読み込みました。内容を確認して「${submitLabel()}」を押してください。`);
   } catch (e) {
     setStatus((e as Error).message, true);
   }
@@ -261,7 +266,7 @@ async function loadMarkdownFile(file: File) {
   const { titleMissing } = fillFieldsFromMarkdown(text, { newSource: true });
   setStatus(
     `${file.name} を読み込みました。` +
-      (titleMissing ? "md ファイルにタイトルが無いので「タイトル」に入力してください。" : "内容を確認して「note の下書きを作成」を押してください。") +
+      (titleMissing ? "md ファイルにタイトルが無いので「タイトル」に入力してください。" : `内容を確認して「${submitLabel()}」を押してください。`) +
       (hasThumbnail ? "\n見出し画像はファイルからは辿れないので、ドロップするか「画像を選ぶ」で画像を選んでください。" : ""),
     titleMissing,
   );
@@ -338,7 +343,7 @@ async function loadLooseFiles(files: File[]) {
   }
   const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
   if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
-  setStatus(`${got.join(" / ")} を受け取りました。「note の下書きを作成」を押してください。`);
+  setStatus(`${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。`);
 }
 
 const MAX_ZIP_FILE_BYTES = 60 * 1024 * 1024;
@@ -386,10 +391,10 @@ async function loadBundle(items: Array<{ path: string; file: File }>, label: str
   renderPicked();
   if (body.length) got.push(`本文の画像: ${body.length} 枚`);
   const missingThumb = thumbName && !thumb ? `\nfront matter の見出し画像(${thumbName})が見つかりませんでした。ドロップするか「画像を選ぶ」で選んでください。` : "";
-  setStatus(`${label} から ${got.join(" / ")} を受け取りました。「note の下書きを作成」を押してください。${missingThumb}`);
+  setStatus(`${label} から ${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。${missingThumb}`);
 }
 
-// 「md を選ぶ」「画像を選ぶ」は本物の button(キーボードでも押せる)。隠した file input を開く。
+// 「md ファイルを選ぶ」「画像を選ぶ」は本物の button(キーボードでも押せる)。隠した file input を開く。
 // 拡張内の file input でも、クリックは必ず safeClick() を通す(AGENTS.md)
 $("pick-md").addEventListener("click", () => safeClick(markdownFileEl, "popup.pickMarkdown"));
 $("pick-image").addEventListener("click", () => safeClick(thumbnailEl, "popup.pickImage"));
@@ -455,7 +460,7 @@ function renderPicked() {
 submitEl.addEventListener("click", async () => {
   submitEl.disabled = true;
   try {
-    if (!markdownEl.value.trim()) throw new Error("記事の md ファイルをドロップするか、「md を選ぶ」で選んでください。");
+    if (!markdownEl.value.trim()) throw new Error("記事の md ファイルをドロップするか、「md ファイルを選ぶ」で選んでください。");
 
     setStatus("記事を組み立て中...");
     const article = await buildArticle({
