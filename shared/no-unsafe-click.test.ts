@@ -11,8 +11,8 @@ const allowed = "extension/src/lib/safe-click.ts";
 function unsafeOperations(source: string): string[] {
   const patterns = [
     /(?:\?\.|\.)\s*dispatchEvent\s*\(\s*["'`]click["'`]/g,
-    /(?:\?\.|\.)\s*(?:click|dblclick|tap|check|submit|requestSubmit)\s*(?:\?\.)?\s*\(/g,
-    /\[\s*["'`](?:click|dblclick|tap|check|submit|requestSubmit)["'`]\s*\]\s*(?:\?\.)?\s*\(/g,
+    /(?:\?\.|\.)\s*(?:click|dblclick|tap|check|uncheck|setChecked|submit|requestSubmit)\s*(?:\?\.)?\s*\(/g,
+    /\[\s*["'`](?:click|dblclick|tap|check|uncheck|setChecked|submit|requestSubmit)["'`]\s*\]\s*(?:\?\.)?\s*\(/g,
     /\bnew\s+(?:(?:window|globalThis)\s*\.\s*)?(?:MouseEvent|PointerEvent)\s*\(\s*["'`]click["'`]/g,
   ];
   return patterns.flatMap((pattern) => [...source.matchAll(pattern)].map((match) => {
@@ -42,8 +42,16 @@ function outsideSafeClick(source: string): string {
   return source.slice(0, start) + body.replace(/[^\n]/g, " ") + source.slice(end);
 }
 
+// press(key) のほか、page.press(selector, key) / frame.press(selector, key) のようにキーが第 2 引数の形も数える。
+// 第 1 引数は文字列か、変数・プロパティ(a.b、a[0] など)だけを読み飛ばす
+const PRESS_FIRST_ARG = String.raw`(?:\s*(?:"[^"\n]*"|'[^'\n]*'|\`[^\`\n]*\`|[\w$.\[\]]+)\s*,)?`;
+const ENTER = new RegExp(
+  String.raw`(?:\bpress\s*(?:\?\.)?\s*|\[\s*["'\`]press["'\`]\s*\]\s*(?:\?\.)?\s*)\(` + PRESS_FIRST_ARG + String.raw`\s*["'\`]Enter["'\`]`,
+  "g",
+);
+
 function enterOperations(source: string): RegExpMatchArray[] {
-  return [...source.matchAll(/\bpress\s*(?:\?\.)?\s*\(\s*["'`]Enter["'`]|\[\s*["'`]press["'`]\s*\]\s*\(\s*["'`]Enter["'`]/g)];
+  return [...source.matchAll(ENTER)];
 }
 
 function sourceFiles(directory: string): string[] {
@@ -86,15 +94,21 @@ describe("safeClick を迂回する操作の検査", () => {
     const safe = 'async function safeClick() {\n  await locator.click();\n}';
     assert.equal(unsafeOperations(outsideSafeClick(safe + '\nbutton.click();')).length, 1);
     assert.throws(() => outsideSafeClick(safe.replace('await locator.click();', 'await locator.click(); button.click();')));
+    assert.throws(() => outsideSafeClick(safe.replace('await locator.click();', 'await locator.click(); await box.setChecked(true);')));
+    assert.throws(() => outsideSafeClick(safe.replace('await locator.click();', 'await locator.click(); await box.uncheck();')));
   });
 
   it("Enter の表記揺れも数え、Escape は数えない", () => {
     assert.equal(enterOperations(`input.press('Enter'); page.keyboard.press("Enter"); input["press"]("Enter");`).length, 3);
     assert.equal(enterOperations('page.keyboard.press("Escape")').length, 0);
+    // セレクタを第 1 引数に取る形(page.press / frame.press)
+    assert.equal(enterOperations(`await page.press('button[type=submit]', 'Enter'); frame.press(sel, "Enter"); page["press"]("#publish", \`Enter\`);`).length, 3);
+    assert.equal(enterOperations(`page.press("#tag", "Escape")`).length, 0);
   });
 
   for (const source of [
     "page.mouse.click(0, 0)", "locator.dblclick()", "locator.tap()", "locator.check()",
+    "checkbox.setChecked(true)", "checkbox.uncheck()", "box['setChecked'](false)", "box[\"uncheck\"]()",
     'locator.dispatchEvent("click")', "locator['tap']()",
     "el.click()", "el . click ( )", "el?.click?.()", "el['click']()",
     "form.submit()", "form.requestSubmit(button)", "form[\"requestSubmit\"]()",
