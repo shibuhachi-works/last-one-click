@@ -5,6 +5,7 @@ import { normalizeLabel } from "../../shared/forbidden-click";
 import { matchesAnyText } from "../../shared/text-match";
 import { buildDiagnosticReport, describe, rect } from "./lib/diagnose";
 import { findEyecatchButton } from "../../shared/eyecatch-button";
+import { activeClock, type ActiveClock } from "../../shared/active-clock";
 import { GIF_UPLOAD_WAIT_MS, IMAGE_UPLOAD_WAIT_MS, LATE_UPLOAD_WAIT_MS, gifUploadHint, hasGif } from "../../shared/upload-hint";
 import { findMagazineRowButton } from "../../shared/magazine-row";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
@@ -433,7 +434,8 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
     const done = await waitWithStatus(
       () => uploaded(before),
       limit,
-      (sec) => `本文の画像を入れています(${i + 1}/${images.length} 枚目: ${img.name})\nnote のアップロードを待っています… ${sec} 秒(最大 ${formatWait(limit)})`,
+      (sec, paused) =>
+        `本文の画像を入れています(${i + 1}/${images.length} 枚目: ${img.name})\nnote のアップロードを待っています… ${sec} 秒(最大 ${formatWait(limit)})${pausedNote(paused)}`,
     );
     if (!done) {
       // 貼り付けで入った仮の画像(まだ blob: のもの)を覚えておく。遅れて入ったかは、まずこれで確かめる
@@ -446,17 +448,19 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
 
   // 待ちきれなかった画像が、そのあと遅れて入っていないかを確かめる(入っていれば、目印を消してキャプションを入れる)
   if (pending.length) {
-    const start = Date.now();
-    const end = start + LATE_UPLOAD_WAIT_MS;
+    // ダイアログなどでページが止まっていた時間は数えない(shared/active-clock.ts)
+    const clock = activeClock();
     for (;;) {
-      bannerStatus(`遅れて入る画像が無いかを確かめています(${pending.length} 枚)… ${Math.floor((Date.now() - start) / 1000)} 秒(最大 ${formatWait(LATE_UPLOAD_WAIT_MS)})`);
+      bannerStatus(
+        `遅れて入る画像が無いかを確かめています(${pending.length} 枚)… ${Math.floor(clock.elapsed() / 1000)} 秒(最大 ${formatWait(LATE_UPLOAD_WAIT_MS)})${pausedNote(clock.paused())}`,
+      );
       for (const p of [...pending]) {
         const done = lateUploaded(p);
         if (!done) continue;
         pending.splice(pending.indexOf(p), 1);
         await finish(p.img, done);
       }
-      if (!pending.length || Date.now() >= end) break;
+      if (!pending.length || clock.elapsed() >= LATE_UPLOAD_WAIT_MS) break;
       await sleep(500);
     }
     for (const p of pending) {
@@ -882,17 +886,30 @@ async function waitUntil<T>(fn: () => T | null, timeout: number): Promise<T | nu
   }
 }
 
-/** waitUntil と同じ。待っているあいだ、1 秒ごとに経過した秒数をバナーに出す */
-async function waitWithStatus<T>(fn: () => T | null, timeout: number, status: (sec: number) => string): Promise<T | null> {
-  const start = Date.now();
-  const show = () => bannerStatus(status(Math.floor((Date.now() - start) / 1000)));
+/**
+ * waitUntil と同じ。待っているあいだ、1 秒ごとに経過した秒数をバナーに出す。
+ * note のダイアログなどでページが止まっていた時間は、待ち時間に数えない(shared/active-clock.ts)
+ */
+async function waitWithStatus<T>(fn: () => T | null, timeout: number, status: (sec: number, pausedMs: number) => string): Promise<T | null> {
+  const clock: ActiveClock = activeClock();
+  const show = () => bannerStatus(status(Math.floor(clock.elapsed() / 1000), clock.paused()));
   show();
   const timer = setInterval(show, 1000);
   try {
-    return await waitUntil(fn, timeout);
+    for (;;) {
+      const r = fn();
+      if (r !== null) return r;
+      if (clock.elapsed() >= timeout) return null;
+      await sleep(250);
+    }
   } finally {
     clearInterval(timer);
   }
+}
+
+/** 止まっていた時間があれば、数えていないことを添える */
+function pausedNote(ms: number): string {
+  return ms >= 1_000 ? `\nダイアログなどで止まっていた ${Math.round(ms / 1000)} 秒は、待ち時間に数えていません` : "";
 }
 
 /** 120000 → 「2 分」、30000 → 「30 秒」 */

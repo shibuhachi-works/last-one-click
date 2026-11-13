@@ -58,7 +58,15 @@ const EDITOR = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><titl
         else (b ?? body.lastElementChild).after(fig);
         // 名前が late- で始まる画像は、アップロードに 31 秒かかる(拡張が待つ 30 秒を過ぎてから入る。2026-11-13 実機の gif と同じ)
         const name = e.clipboardData.files[0].name;
-        setTimeout(() => (img.src = "https://assets.example.com/" + name), name.startsWith("late-") ? 31_000 : 300);
+        // 名前が stall- で始まる画像は、貼った 1 秒後から 20 秒、ページの処理が止まり(note のダイアログを開いたままにしたときと同じ)、
+        // 貼ってから 33 秒で入る(止まっていた 20 秒を数えなければ、拡張が待つ 30 秒のうちに入る)
+        if (name.startsWith("stall-")) {
+          setTimeout(() => {
+            const until = Date.now() + 20_000;
+            while (Date.now() < until);
+          }, 1_000);
+        }
+        setTimeout(() => (img.src = "https://assets.example.com/" + name), name.startsWith("late-") ? 31_000 : name.startsWith("stall-") ? 33_000 : 300);
         return;
       }
       const t = document.createElement("template");
@@ -445,6 +453,38 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.deepEqual((await editor.locator("#body figure.image figcaption").allTextContents()).map((c) => c.trim()), ["遅れて入る画像"]);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /本文の画像 ✓\(1 枚\)/);
+    assert.deepEqual(errors, []);
+  });
+
+  it("ダイアログなどでページが止まっていた時間は、画像のアップロードの待ち時間に数えない", async () => {
+    const md = "---\ntitle: 止まるテスト\n---\n\n## 見出し\n\n![止まる](stall-demo.png \"止まったあとに入る画像\")\n";
+    let sawPaused = false;
+    let sawLate = false;
+    const { editor, errors } = await draftFromPopup(
+      async (popup) => {
+        await dropFiles(popup, md, ["stall-demo.png"]);
+      },
+      md,
+      "タイトル・本文・見出し画像を入れました",
+      70_000,
+      async (editor) => {
+        const sum = () => editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? "");
+        const until = Date.now() + 60_000;
+        while (Date.now() < until) {
+          const t = await sum().catch(() => "");
+          if (/ダイアログなどで止まっていた (1\d|20) 秒は、待ち時間に数えていません/.test(t)) sawPaused = true;
+          if (/遅れて入る画像が無いかを確かめています/.test(t)) sawLate = true;
+          // 本文の画像の手順を終えたら、見るのをやめる
+          if (sawPaused && !t.includes("本文の画像")) break;
+          await editor.waitForTimeout(500);
+        }
+      },
+    );
+    assert.ok(sawPaused, "止まっていた時間を数えていないことが、バナーに出ていません");
+    assert.ok(!sawLate, "止まっていた時間を数えてしまい、待ちきれずに最後の確かめに回りました");
+    await editor.locator("#body figure.image img[src='https://assets.example.com/stall-demo.png']").waitFor({ timeout: 5_000 });
+    assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1・/);
+    assert.deepEqual((await editor.locator("#body figure.image figcaption").allTextContents()).map((c) => c.trim()), ["止まったあとに入る画像"]);
     assert.deepEqual(errors, []);
   });
 
