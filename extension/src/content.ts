@@ -5,6 +5,7 @@ import { normalizeLabel } from "../../shared/forbidden-click";
 import { matchesAnyText } from "../../shared/text-match";
 import { buildDiagnosticReport, describe, rect } from "./lib/diagnose";
 import { findEyecatchButton } from "../../shared/eyecatch-button";
+import { gifUploadHint } from "../../shared/upload-hint";
 import { findMagazineRowButton } from "../../shared/magazine-row";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
 import { safeClick, safeKey, safePress } from "./lib/safe-click";
@@ -356,6 +357,8 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
   const body = await waitFor(S.body, 10_000);
   const images = a.images ?? [];
   const failed: string[] = [];
+  /** note に送ったが入らなかった画像(gif のひとことを出すため) */
+  const uploadFailed: typeof images = [];
   const captionFailed: string[] = [];
   let ok = 0;
   for (const img of images) {
@@ -377,6 +380,7 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
     }, 30_000);
     if (!done) {
       failed.push(img.name);
+      uploadFailed.push(img);
       continue;
     }
     ok++;
@@ -394,7 +398,8 @@ async function insertBodyImages(S: Selectors, a: ArticlePayload) {
   }
   const problems = [...(a.imageNotes ?? [])];
   if (captionFailed.length) problems.unshift(`キャプションを入れられなかった画像があります(${captionFailed.join(", ")}。note の画面で、画像の下の「キャプションを入力」に入れてください)`);
-  if (failed.length) problems.unshift(`入れられなかった画像があります(${failed.join(", ")})`);
+  const gifHint = gifUploadHint(uploadFailed);
+  if (failed.length) problems.unshift(`入れられなかった画像があります(${failed.join(", ")})${gifHint ? `。${gifHint}` : ""}`);
   // 1 枚も入らなかったときは「0 枚は入れました」と出さない
   if (problems.length) throw new Error(`${ok ? `${ok} 枚は入れました。` : ""}${problems.join("。")}。${IMAGE_MANUAL}`);
   return `${ok} 枚`;
