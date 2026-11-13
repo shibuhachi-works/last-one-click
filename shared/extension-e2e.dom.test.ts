@@ -433,6 +433,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         );
         const banner = editor.locator("#lastclick-pigeon-banner");
         assert.equal(await banner.locator(".spin").count(), 2, "回る印が出ていません");
+        // 進めているあいだは、操作を控えてもらうお願いを出す
+        assert.match((await banner.locator("#wait").textContent()) ?? "", /終わるまで、この画面は操作せずにお待ちください/);
         // たたんでも、秒数が進むあいだ、たたんだままになっている(バナーを作り直さない)
         await banner.getByRole("button", { name: "バナーをたたむ" }).click();
         const first = await seconds();
@@ -449,6 +451,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     );
     await editor.locator("#body figure.image img[src='https://assets.example.com/late-demo.png']").waitFor({ timeout: 5_000 });
     assert.equal(await editor.locator("#lastclick-pigeon-banner .spin").count(), 0, "終わったあとも回る印が出ています");
+    assert.equal(await editor.locator("#lastclick-pigeon-banner #wait").count(), 0, "人が確かめる番になっても、操作を控えるお願いが出ています");
     assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1・/, "遅れて入った画像の目印が残っています");
     assert.deepEqual((await editor.locator("#body figure.image figcaption").allTextContents()).map((c) => c.trim()), ["遅れて入る画像"]);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
