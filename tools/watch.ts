@@ -26,6 +26,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { notify } from "./lib/notify.js";
+import { resolveArticleModes } from "./lib/article-modes.js";
 import { articleTreeUrl, isBranchName, isRepoName, normalizePrefix, pickNewArticleDirs, type ChangedFile } from "../shared/new-articles.js";
 
 const STATE_FILE = path.resolve(process.cwd(), ".watch-state.json");
@@ -86,7 +87,21 @@ if (DRY_RUN) {
   log("LOC_WATCH_DRY_RUN=1 なので、下書きは作らずに終わります。");
   process.exit(0);
 }
+let plans: Awaited<ReturnType<typeof resolveArticleModes>>;
+try {
+  plans = await resolveArticleModes(gh, repo, state.lastSha, head, dirs, MODE);
+} catch {
+  fail("記事の PR・ラベルを取得できませんでした。位置は進めず、次の回でやり直します。");
+}
 for (const dir of dirs) {
+  const plan = plans.get(dir)!;
+  const mode = plan.mode;
+  log(`記事の動き: ${dir} ${mode} (PR: ${plan.prs.join(", ") || "なし"}; ラベル: ${plan.labels.join(", ") || "なし"})`);
+  if (mode === "skip") {
+    log(`下書きは作りません: ${dir}`);
+    markDone(dir);
+    continue;
+  }
   const url = articleTreeUrl(repo, head, dir);
   const marker = savedMarker(dir);
   // 前の回で下書き保存まで済んでいた記事(待っている間に PC が止まった、など)は、作り直さない
@@ -97,14 +112,14 @@ for (const dir of dirs) {
   }
   log(`下書きを作ります: ${dir}`);
   // シェルは通さない(引数はそのまま渡す)。下書き保存が済んだら draft.ts が marker のファイルを作る
-  const r = spawnSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "tools/draft.ts", `--${MODE}`, url], {
+  const r = spawnSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "tools/draft.ts", `--${mode}`, url], {
     stdio: "inherit",
     env: { ...process.env, LOC_SAVED_MARKER: marker },
   });
   if (r.status === 0) {
     markDone(dir);
     // hold は、人が窓を閉じたあとに戻ってくる(待っている間の通知は draft.ts が出す)
-    if (MODE === "save") await notify("下書きが完了しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`, { done: { title: baseName(dir) } });
+    if (mode === "save") await notify("下書きが完了しました", `${baseName(dir)}。note の「下書き」から確かめて、公開してください。`, { done: { title: baseName(dir) } });
     continue;
   }
   if (existsSync(marker)) {
@@ -128,7 +143,7 @@ for (const dir of dirs) {
 writeState({ ...state, lastSha: head, done: [] });
 // 位置を進めたので、この範囲の記事の marker はもう要らない
 clearMarkers(allDirs);
-log("全部の記事を下書きにしました。");
+log("全部の記事を処理しました。");
 
 // ---------------------------------------------------------------------------
 
