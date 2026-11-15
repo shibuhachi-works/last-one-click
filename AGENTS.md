@@ -6,7 +6,7 @@
 
 - **公開ボタン(「投稿する」「公開する」)をスクリプト・拡張から押さない。** 設計の芯。全媒体に適用する
 - クリックは必ず `safeClick()` を通す(`shared/forbidden-click.ts`)。押さない文字の一覧はコードに直接書き、`selectors/*.json` からは変えられない
-- 拡張の `host_permissions` を増やさない
+- 拡張の `host_permissions` を増やさない（`shared/manifest-permissions.test.ts` で権限を検査する）
 - `selectors/note.json` は 2026-10-29 に実機で全工程 ✓ を確認済み。note の画面が変わって ✗ になったときの実機での確認は人の作業(`human-task` の Issue を立てて人に渡す)
 - このリポジトリは公開。記事・トークン・Cookie(`.profile/`)・個人の情報・社内の運用の情報を置かない。記事はこのリポジトリの外に置く
 - Issue・PR の本文とコメントも公開される。製品の内容だけを書き、ほかのリポジトリや事業の名前・社内の連絡先や運用の情報を書かない
