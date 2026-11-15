@@ -11,8 +11,10 @@ const base = "a".repeat(40);
 const head = "b".repeat(40);
 const names = ["save", "hold", "skip", "direct", "unlabelled"];
 const commits = names.map((_, i) => (i + 1).toString().repeat(40));
+// 名前の変更の場合に足すコミット(いちばん新しい)。save の記事を posts/save-draft から posts/save へ変える。
+const renameCommit = "6".repeat(40);
 
-function run(failure?: "compare" | "commit" | "pulls") {
+function run(failure?: "compare" | "commit" | "pulls", { token = true, renamed = false } = {}) {
   const cwd = mkdtempSync(path.join(tmpdir(), "watch-modes-"));
   try {
     const state = { repo: "owner/repo", branch: "main", lastSha: base, done: [] };
@@ -23,7 +25,8 @@ function run(failure?: "compare" | "commit" | "pulls") {
       import { syncBuiltinESMExports } from 'node:module';
       import { appendFileSync } from 'node:fs';
       const names = ${JSON.stringify(names)};
-      const commits = ${JSON.stringify(commits)};
+      const renamed = ${JSON.stringify(renamed)};
+      const commits = ${JSON.stringify(renamed ? [...commits, renameCommit] : commits)};
       const failure = ${JSON.stringify(failure ?? "")};
       const record = (entry) => appendFileSync('calls.jsonl', JSON.stringify(entry) + '\\n');
       cp.spawnSync = (cmd, args) => { record({cmd, args}); return {status: 0}; };
@@ -47,13 +50,17 @@ function run(failure?: "compare" | "commit" | "pulls") {
             labels: index === 4 ? [] : [{name: 'auto-draft:' + names[index]}]}]);
         }
         if (failure === 'commit' && index === 0) return new Response('', {status: 500});
+        if (renamed && index === 5) return Response.json({files: [{filename: 'posts/save/article.md',
+          previous_filename: 'posts/save-draft/article.md', status: 'renamed'}]});
+        if (renamed && index === 0) return Response.json({files: [{filename: 'posts/save-draft/article.md', status: 'added'}]});
         return Response.json({files: [{filename: 'posts/' + names[index] + '/article.md', status: 'added'}]});
       };
     `);
     const result = spawnSync(process.execPath, ["--import", path.join(cwd, "mock.mjs"),
       "--import", path.join(root, "node_modules/tsx/dist/loader.mjs"), path.join(root, "tools/watch.ts")], {
       cwd, encoding: "utf8", timeout: 30_000,
-      env: { PATH: "/usr/bin:/bin", LOC_WATCH_REPO: "owner/repo", LOC_WATCH_PREFIX: "posts/", LOC_WATCH_MODE: "hold" },
+      env: { PATH: "/usr/bin:/bin", LOC_WATCH_REPO: "owner/repo", LOC_WATCH_PREFIX: "posts/", LOC_WATCH_MODE: "hold",
+        ...(token ? { GITHUB_TOKEN: "test-token" } : {}) },
     });
     let calls: Array<{cmd: string; args: string[]}> = [];
     try { calls = readFileSync(path.join(cwd, "calls.jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line)); } catch { /* 起動も通知も無い場合 */ }
@@ -84,3 +91,21 @@ for (const failure of ["compare", "commit", "pulls"] as const) {
     assert.deepEqual(calls, []);
   });
 }
+
+it("記事を足したあと同じ区間で名前を変えても、足したコミットの PR のラベルを使う", () => {
+  const { result, calls, state } = run(undefined, { renamed: true });
+  assert.equal(result.status, 0, result.stderr);
+  const drafts = calls.filter(c => c.args.includes("tools/draft.ts"));
+  assert.deepEqual(drafts.map(c => c.args[2]), ["--save", "--hold", "--hold", "--hold"]);
+  assert.equal(state.lastSha, head);
+});
+
+it("GITHUB_TOKEN が無いときは、コミット・PR を読まずに、どの記事も既定モードにする", () => {
+  // コミットの API を読むと失敗する設定で動かし、読んでいないことを確かめる。
+  const { result, calls, state } = run("commit", { token: false });
+  assert.equal(result.status, 0, result.stderr);
+  const drafts = calls.filter(c => c.args.includes("tools/draft.ts"));
+  assert.deepEqual(drafts.map(c => c.args[2]), ["--hold", "--hold", "--hold", "--hold", "--hold"]);
+  assert.match(result.stdout, /GITHUB_TOKEN が無いので/);
+  assert.equal(state.lastSha, head);
+});

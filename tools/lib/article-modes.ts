@@ -31,25 +31,36 @@ export async function resolveArticleModes(
     if (batch.length === 0 || commits.length > (data.total_commits as number)) throw new Error("コミット一覧が不完全です。");
   }
 
-  const pending = new Set(dirs);
+  // 追っている article.md のパス → 記事のフォルダ。新しいコミットから古いコミットへたどる。
+  // 名前の変更(renamed)に当たったら、変更前のパス(previous_filename)に置き換えて、その追加のコミットを探す
+  // (区間全体では added でも、コミットごとには「旧パスで added → 新パスへ renamed」になることがあるため)。
+  const tracking = new Map<string, string>(dirs.map((dir) => [`${dir}/article.md`, dir]));
   const result = new Map<string, Plan>();
   // 同じパスが削除・再追加された場合は、最後の追加を使う。
   for (const commit of commits.reverse()) {
-    if (!pending.size) break;
-    const added = new Set<string>();
+    if (!tracking.size) break;
+    const matching: string[] = [];
     for (let page = 1; ; page++) {
       const data = object(await gh(`${root}/commits/${commit}?per_page=100&page=${page}`));
       const files = array(data.files);
       for (const raw of files) {
         const file = object(raw);
         if (typeof file.filename !== "string" || typeof file.status !== "string") throw new Error("変更ファイルが読めません。");
-        if (file.status === "added") added.add(file.filename);
+        const dir = tracking.get(file.filename);
+        if (dir === undefined) continue;
+        if (file.status === "added") {
+          matching.push(dir);
+          tracking.delete(file.filename);
+        } else if (file.status === "renamed") {
+          if (typeof file.previous_filename !== "string") throw new Error("名前の変更前のパスが読めません。");
+          tracking.delete(file.filename);
+          tracking.set(file.previous_filename, dir);
+        }
       }
       if (files.length < 100) break;
       // コミット API は最大 3000 ファイル。上限で打ち切られたときは推測しない。
       if (page >= 30) throw new Error("コミットの変更ファイルが多すぎます。");
     }
-    const matching = [...pending].filter((dir) => added.has(`${dir}/article.md`));
     if (!matching.length) continue;
     const labels: string[] = [];
     const prs: number[] = [];
@@ -70,11 +81,8 @@ export async function resolveArticleModes(
       if (pulls.length < 100) break;
     }
     const plan = { mode: articleMode(labels, fallback), prs, labels: [...new Set(labels)] };
-    for (const dir of matching) {
-      result.set(dir, plan);
-      pending.delete(dir);
-    }
+    for (const dir of matching) result.set(dir, plan);
   }
-  if (pending.size) throw new Error("記事を追加したコミットが見つかりません。位置は進めず、次の回でやり直します。");
+  if (tracking.size) throw new Error("記事を追加したコミットが見つかりません。位置は進めず、次の回でやり直します。");
   return result;
 }

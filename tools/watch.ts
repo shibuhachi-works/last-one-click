@@ -7,7 +7,7 @@
 //   LOC_WATCH_REPO    記事のリポジトリ(owner/repo)。必須
 //   LOC_WATCH_PREFIX  見張るフォルダ(例 posts/)。必須。この下に足された article.md だけを下書きにする
 //   LOC_WATCH_BRANCH  見張るブランチ。既定 main
-//   GITHUB_TOKEN      private リポジトリを読むときだけ(読み取り専用のものを使う)
+//   GITHUB_TOKEN      private リポジトリを読むとき、PR のラベルで記事ごとの動きを選ぶとき(読み取り専用のものを使う)
 //   LOC_WATCH_MODE    save(既定): 下書き保存して窓を閉じる。
 //                     hold: 下書き保存のあと、公開設定(ハッシュタグ・マガジン)まで入れて、窓を開いたまま待つ。
 //                     人がリモートデスクトップなどで確かめて「投稿する」を押し、窓を閉じると次の記事へ進む
@@ -88,10 +88,16 @@ if (DRY_RUN) {
   process.exit(0);
 }
 let plans: Awaited<ReturnType<typeof resolveArticleModes>>;
-try {
-  plans = await resolveArticleModes(gh, repo, state.lastSha, head, dirs, MODE);
-} catch {
-  fail("記事の PR・ラベルを取得できませんでした。位置は進めず、次の回でやり直します。");
+if (!process.env.GITHUB_TOKEN) {
+  // トークンなしの API は 1 時間に 60 回まで。記事ごとにコミット・PR を読むと足りなくなるので、ラベルは見ずに既定モードにする。
+  log(`GITHUB_TOKEN が無いので、PR のラベルは見ずに、どの記事も既定モード(${MODE})で作ります。ラベルで動きを切り替えるには GITHUB_TOKEN が要ります。`);
+  plans = new Map(dirs.map((dir) => [dir, { mode: MODE, prs: [], labels: [] }]));
+} else {
+  try {
+    plans = await resolveArticleModes(gh, repo, state.lastSha, head, dirs, MODE);
+  } catch {
+    fail("記事の PR・ラベルを取得できませんでした。位置は進めず、次の回でやり直します。");
+  }
 }
 for (const dir of dirs) {
   const plan = plans.get(dir)!;
