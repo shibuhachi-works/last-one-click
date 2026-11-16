@@ -40,6 +40,7 @@ button:hover { background: #ececec; }
 button.primary { width: 100%; margin-top: 12px; padding: 9px; background: #41c9b4; border-color: #35b3a0; color: #fff; font-weight: 700; }
 button.primary:hover { background: #35b3a0; }
 button:disabled { opacity: .6; cursor: default; }
+button.copied, button.copied:hover { background: #41c9b4; border-color: #35b3a0; color: #fff; font-weight: 700; }
 .hint { color: #666; font-size: 12px; margin: 6px 0 0; }
 .status { margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: #eef7f5; white-space: pre-line; }
 .status.error { background: #fdecea; color: #a12622; }
