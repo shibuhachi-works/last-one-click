@@ -11,6 +11,8 @@
 
 **入れ方**:[Chrome ウェブストアで入手](https://chromewebstore.google.com/detail/last-one-click/jomapffkhcdpnodaffobmpfofnnaihnd)(Chrome と Edge などの Chromium 系ブラウザで使えます)。通常はストアから入れてください。ZIP から手で入れる方法は [extension/README.md](extension/README.md) にあります。
 
+**使い方の記事**:[AIが書いた記事から 3ステップでnoteの下書きを作る方法(note)](https://note.com/shibuhachi/n/n9c41926f2a3a)。md の型・AI への頼み方・GitHub から読み込む手順などを、詳しく書いています。
+
 対象は「AI を使って投稿する人」。入力は AI の出力そのもの(Markdown)で、人が手で整形する前提にしません。
 現在対応している媒体は **note** です(説明文のとおり、現在は note に対応しています)。X / TikTok / Instagram も同じ方針(下書きまで作り、投稿は本人のクリック)で順次追加します。
 現状と今後の計画は [docs/ROADMAP.md](docs/ROADMAP.md) にまとめています。
