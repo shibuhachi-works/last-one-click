@@ -96,6 +96,9 @@ magazine: マガジン名
 　その場合はサポート URL のお問い合わせから、拡張の「拡張機能の設定」の「診断」で取れるレポートを添えてご連絡ください
 ・ソースコードは GitHub で公開しています(MIT ライセンス)
 　https://github.com/shibuhachi-works/last-one-click
+
+▼ 使い方の記事(note)
+https://note.com/shibuhachi/n/n9c41926f2a3a
 ```
 
 ## 単一の目的(Single purpose)

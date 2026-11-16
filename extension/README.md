@@ -11,6 +11,8 @@ Chrome ウェブストアと chrome://extensions では「Last One Click - note 
 
 [Chrome ウェブストアで入手](https://chromewebstore.google.com/detail/last-one-click/jomapffkhcdpnodaffobmpfofnnaihnd)(Chrome と Edge などの Chromium 系ブラウザで使えます)。通常はこちらをお使いください。以下は、開発版を手元でビルドして入れる方法です。
 
+**使い方の記事**:[AIが書いた記事から 3ステップでnoteの下書きを作る方法(note)](https://note.com/shibuhachi/n/n9c41926f2a3a)。md の型・AI への頼み方・GitHub から読み込む手順などを、詳しく書いています。
+
 ## 認証について
 
 この拡張は note の **Cookie・パスワードに一切触れません**。
