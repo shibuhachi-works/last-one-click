@@ -80,7 +80,7 @@ magazine: マガジン名
       <p class="hint">note のエディタを開いたタブでこのボタンを押すと、ページ上の入力欄・ボタン等の一覧をコピーします。<br>それを貼ってもらえれば selectors/note.json を直せます。<br>認証情報や記事本文は含みません。</p>
       <div class="row">
         <button id="diagnose" type="button">DOM 情報を取得</button>
-        <button id="diagnose-copy" type="button" disabled>コピー</button>
+        <button id="diagnose-copy" type="button" aria-live="polite" disabled>コピー</button>
       </div>
       <textarea id="diagnose-out" readonly placeholder="(ここに結果が出ます)" style="min-height:90px"></textarea>
     </details>

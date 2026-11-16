@@ -185,6 +185,7 @@ $("diagnose").addEventListener("click", async () => {
     $<HTMLButtonElement>("diagnose-copy").disabled = false;
     // 取得と同時にコピーも試す(別ウィンドウ等でクリップボードが使えないことがあるので、失敗しても結果は欄に残す)
     const copied = await navigator.clipboard.writeText(res.report).then(() => true, () => false);
+    if (copied) showCopied();
     setStatus(copied ? "診断結果を取得してコピーしました。そのまま貼り付けて共有してください。" : "診断結果を取得しました。「コピー」を押すか、欄の中を選んでコピーしてください。");
   } catch (e) {
     setStatus((e as Error).message, true);
@@ -194,12 +195,29 @@ $("diagnose-copy").addEventListener("click", async () => {
   const out = $<HTMLTextAreaElement>("diagnose-out");
   if (!out.value) return;
   const copied = await navigator.clipboard.writeText(out.value).then(() => true, () => false);
-  if (!copied) {
+  if (copied) showCopied();
+  else {
     out.focus();
     out.select();
   }
   setStatus(copied ? "診断結果をコピーしました。" : "クリップボードに書けなかったので、欄の中を選択しました。Cmd+C でコピーしてください。", !copied);
 });
+
+/**
+ * コピーできたことを、「コピー」ボタンの上で見せる。案内の文(#status)は画面の上のほうにあり、
+ * 診断の欄を開いているときは目に入りにくいため。少したつと元の「コピー」に戻す
+ */
+let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+function showCopied() {
+  const button = $<HTMLButtonElement>("diagnose-copy");
+  clearTimeout(copiedTimer);
+  button.textContent = "コピーしました ✓";
+  button.classList.add("copied");
+  copiedTimer = setTimeout(() => {
+    button.textContent = "コピー";
+    button.classList.remove("copied");
+  }, 2000);
+}
 
 /** 診断の相手にする note のタブ。アクティブなものを優先し、無ければ最後に見たもの(URL の照合は host_permissions の範囲) */
 async function findNoteTab(): Promise<chrome.tabs.Tab | undefined> {
