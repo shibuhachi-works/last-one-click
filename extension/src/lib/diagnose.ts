@@ -24,6 +24,8 @@ export function buildDiagnosticReport(S: Selectors): string {
     ["thumbnail.addButton", S.thumbnail.addButton],
     ["publishSettings.hashtagInput", S.publishSettings.hashtagInput],
     ["publishSettings.magazineItem", S.publishSettings.magazineItem],
+    ["publishSettings.paidRadio", S.publishSettings.paidRadio],
+    ["publishSettings.priceInput", S.publishSettings.priceInput],
     ["toc.openMenuButton", S.toc.openMenuButton],
     ["toc.itemSelector", S.toc.itemSelector],
   ];
@@ -36,12 +38,15 @@ export function buildDiagnosticReport(S: Selectors): string {
     ["publishSettings.magazineToggleText", S.publishSettings.magazineToggleText],
     ["publishSettings.magazineAddButtonText", S.publishSettings.magazineAddButtonText],
     ["publishSettings.publishButtonText", S.publishSettings.publishButtonText],
+    ["publishSettings.paidAreaButtonText", S.publishSettings.paidAreaButtonText],
     ["toc.itemText", S.toc.itemText],
   ];
   for (const [key, texts] of textChecks) {
     const hits = texts.map((t) => `${t}:${countByText("button", t)}`).join(", ");
     lines.push(`- ${key}: ${hits}`);
   }
+  // 記事タイプの「有料」はボタンではなく label
+  lines.push(`- publishSettings.paidLabelText(label): ${S.publishSettings.paidLabelText.map((t) => `${t}:${countByText("label", t)}`).join(", ")}`);
   lines.push(``);
 
   // 2. 見出し画像のボタン(文字も aria-label も無いアイコンボタン)を、タイトル欄の位置からどれに決めるか

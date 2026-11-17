@@ -48,5 +48,9 @@ export const NOTE = {
     publishButton: byText("button", json.publishSettings.publishButtonText),
     /** ★ 押さない ★ 存在確認にだけ使う */
     publishButtonTexts: json.publishSettings.publishButtonText,
+    /** 記事タイプの「有料」のラジオ・label の文字・価格の欄(探すのは shared/paid-price.ts) */
+    paidRadio: json.publishSettings.paidRadio,
+    paidLabelTexts: json.publishSettings.paidLabelText,
+    priceInput: json.publishSettings.priceInput,
   },
 } as const;

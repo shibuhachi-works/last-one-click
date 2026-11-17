@@ -3,6 +3,8 @@ export type ArticlePayload = {
   title: string;
   hashtags: string[];
   magazine?: string;
+  /** 有料記事の価格(円)。あれば公開設定で「有料」を選んで入れる。無ければ記事タイプに触らない */
+  price?: number;
   /** note に貼り付ける HTML */
   html: string;
   /** base64 で持ち回る(chrome.storage に入れるため) */
@@ -74,11 +76,13 @@ export type WindowHandoff = {
   title: string;
   hashtags: string;
   magazine: string;
+  /** 価格の欄(古い版から渡されたときは無い) */
+  price?: string;
   baseUrl?: string;
   /** ドロップ領域に出している md のファイル名(GitHub や貼り付け由来なら空) */
   mdName?: string;
   /** 欄をユーザーが直したか(移動先でも、直した欄を本文の再読み取りで上書きしないため) */
-  fieldsEdited?: { title: boolean; hashtags: boolean; magazine: boolean };
+  fieldsEdited?: { title: boolean; hashtags: boolean; magazine: boolean; price?: boolean };
   thumbnail?: ArticlePayload["thumbnail"];
   /** 大きすぎて渡せなかった画像の名前(新しい側で再選択を案内する) */
   skippedImageName?: string;

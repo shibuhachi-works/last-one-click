@@ -1,7 +1,7 @@
 // 記事の読み込みのうち、ブラウザにも Node にも依存しない部分。拡張と Playwright 版で共通。
 //   - GitHub の URL → 記事 md の raw URL と、同ディレクトリの raw ベース URL
 //   - front matter(先頭の --- ブロック)の読み取り
-//   - タイトルの決定・本文の "# タイトル" の除去・ハッシュタグの正規化
+//   - タイトルの決定・本文の "# タイトル" の除去・ハッシュタグの正規化・有料記事の価格(price)の読み取り
 // Markdown → HTML と YAML の変換関数は呼び出し側が渡す(marked / yaml は各パッケージのものを使う。
 // shared/ は 2 つのパッケージが別々に install するので、ここから node_modules を import しない)。
 // 取得(fetch / トークン)とサムネイルの持ち方(Buffer / base64)は各パッケージに残す。
@@ -11,6 +11,8 @@ export type FrontMatter = {
   hashtags?: string[];
   magazine?: string;
   thumbnail?: string;
+  /** 有料記事の価格(円)。正の整数だけ。書かなければ無料のまま(公開設定の記事タイプに触らない) */
+  price?: number;
 };
 
 /** YAML の文字列 → 値。各パッケージの `yaml` の parse を渡す */
@@ -49,11 +51,12 @@ export function resolveArticleUrl(input: string): { mdUrl: string; baseUrl: stri
 
 /**
  * front matter(先頭の "---" で囲まれたブロック)を YAML として読む。
- * 使うキーは title / hashtags / magazine / thumbnail だけで、他は無視する。
+ * 使うキーは title / hashtags / magazine / thumbnail / price だけで、他は無視する。
  * - 値は文字列に揃える(数値などもそのまま文字列に)。null や空は「無し」
  * - hashtags は配列でも "a, b" / "#a #b" の文字列でもよい。`#` は外す
  * - `hashtags: #AI #個人開発`(引用符なし)は YAML ではコメントになるが、README で許している書き方なので
  *   先に引用符で囲んでから読む
+ * - price は正の整数(`300` / `"300"`)だけ。ほかの値はエラーにして、直し方を出す(parsePrice)
  * front matter が無ければ data は空で、content は入力のまま。YAML として読めなければエラー。
  */
 export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: FrontMatter; content: string } {
@@ -83,7 +86,26 @@ export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: Fron
     const s = scalarToString(h);
     if (s !== undefined) data.hashtags = splitList(s);
   }
+  const price = parsePrice(obj.price);
+  if (price !== undefined) data.price = price;
   return { data, content: md.slice(m[0].length) };
+}
+
+/**
+ * 有料記事の価格を読む。正の整数(`300`)と、数字だけの文字列(`"300"`・ポップアップの欄の値)を受け付ける。
+ * null / undefined / 空文字は「無し」(無料のまま)。0・負・小数・数字以外はエラーにして、直し方を出す。
+ * 上限・下限は拡張では決めない(note の画面のエラーに任せる)
+ */
+export function parsePrice(v: unknown): number | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v === "string" && v.trim() === "") return undefined;
+  const n = typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v.trim()) ? Number(v.trim()) : NaN;
+  if (!Number.isSafeInteger(n) || n <= 0) {
+    throw new Error(
+      `price は 1 以上の整数(円)で書いてください(例: price: 300)。いまの値: ${JSON.stringify(v)}\n無料の記事にするときは、price の行を消すか、先頭に「# 」を付けてください。`,
+    );
+  }
+  return n;
 }
 
 /** 文字列・数値・真偽値は文字列に。null / undefined / 空文字 / オブジェクトは「無し」 */
@@ -111,14 +133,18 @@ export type RenderedArticle = {
   html: string;
   /** front matter の thumbnail(相対パスのまま。解決と取得は呼び出し側) */
   thumbnail?: string;
+  /** 有料記事の価格(円)。無ければ無料のまま */
+  price?: number;
 };
 
 export type ArticleOverride = {
   title?: string;
   hashtags?: string;
   magazine?: string;
+  /** 価格の欄の値(数字だけの文字列)。final なら空は「無料のまま」、そうでなければ空は front matter を使う */
+  price?: string;
   /**
-   * true なら、title / hashtags / magazine は「最終的に送る値」として扱う(拡張のポップアップ: md から読み取った値を
+   * true なら、title / hashtags / magazine / price は「最終的に送る値」として扱う(拡張のポップアップ: md から読み取った値を
    * 欄に出し、ユーザーがそこで直す)。空にしたら front matter に戻らず「なし」。本文先頭の # 見出しは、
    * front matter に title が無く、欄のタイトルがその見出しのままなら落とす(見出しをタイトルに使った扱い)。
    * false / 省略なら従来どおり「空は front matter を使う」上書き(Playwright 版の引数)
@@ -135,7 +161,7 @@ export type Converters = {
 };
 
 /**
- * Markdown から、タイトル・ハッシュタグ・マガジン・本文 HTML を決める。
+ * Markdown から、タイトル・ハッシュタグ・マガジン・価格・本文 HTML を決める。
  * - title: override → front matter → 本文の最初の "# 見出し" の順。どれも無ければエラー
  * - 本文側の "# タイトル" は note のタイトル欄と二重になるので、それをタイトルに使ったときは落とす
  */
@@ -158,6 +184,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
       ? splitList(override.hashtags)
       : (fm.hashtags ?? []);
   const magazine = override.final ? override.magazine?.trim() || undefined : override.magazine?.trim() || fm.magazine;
+  const price = override.final ? parsePrice(override.price) : override.price?.trim() ? parsePrice(override.price) : fm.price;
 
-  return { title, hashtags, magazine, html, thumbnail: fm.thumbnail };
+  return { title, hashtags, magazine, html, thumbnail: fm.thumbnail, ...(price !== undefined ? { price } : {}) };
 }

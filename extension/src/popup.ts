@@ -30,6 +30,7 @@ $("open-window").addEventListener("click", async () => {
       title: titleEl.value,
       hashtags: hashtagsEl.value,
       magazine: magazineEl.value,
+      price: priceEl.value,
       baseUrl,
       mdName: pickedMdName,
       fieldsEdited: { ...fieldsEdited },
@@ -52,6 +53,7 @@ const markdownEl = $<HTMLTextAreaElement>("markdown");
 const titleEl = $<HTMLInputElement>("title");
 const hashtagsEl = $<HTMLInputElement>("hashtags");
 const magazineEl = $<HTMLInputElement>("magazine");
+const priceEl = $<HTMLInputElement>("price");
 const thumbnailEl = $<HTMLInputElement>("thumbnail");
 const githubUrlEl = $<HTMLInputElement>("github-url");
 const markdownFileEl = $<HTMLInputElement>("markdown-file");
@@ -84,9 +86,10 @@ if (isWindow) {
     titleEl.value = h.title;
     hashtagsEl.value = h.hashtags;
     magazineEl.value = h.magazine;
+    priceEl.value = h.price ?? "";
     baseUrl = h.baseUrl;
     pickedMdName = h.mdName ?? "";
-    if (h.fieldsEdited) Object.assign(fieldsEdited, h.fieldsEdited);
+    if (h.fieldsEdited) Object.assign(fieldsEdited, { price: false, ...h.fieldsEdited });
     if (h.thumbnail) setThumbnailFile(payloadToFile(h.thumbnail));
     renderPicked();
     if (h.skippedImageName) {
@@ -418,28 +421,31 @@ $("pick-md").addEventListener("click", () => safeClick(markdownFileEl, "popup.pi
 $("pick-image").addEventListener("click", () => safeClick(thumbnailEl, "popup.pickImage"));
 
 /**
- * md の front matter(と先頭の # 見出し)から、note に入れるタイトル・ハッシュタグ・マガジンを欄に出す。
+ * md の front matter(と先頭の # 見出し)から、note に入れるタイトル・ハッシュタグ・マガジン・価格を欄に出す。
  * 欄は普段は隠していて、md を読み込んだときだけ出す。送るのは欄の値(ここで直せる)
  */
 const fieldsEl = $<HTMLDivElement>("fields");
 /** ユーザーが欄を直したか。直した欄は、本文の再読み取りで上書きしない(新しい md を読み込んだときはリセット) */
-const fieldsEdited = { title: false, hashtags: false, magazine: false };
+const fieldsEdited = { title: false, hashtags: false, magazine: false, price: false };
 function fillFieldsFromMarkdown(md: string, opts: { newSource: boolean }): { titleMissing: boolean } {
   let title = "";
   let hashtags: string[] = [];
   let magazine = "";
+  let price = "";
   try {
     const { data, content } = parseFrontMatter(md, parseYaml);
     title = data.title ?? content.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "";
     hashtags = data.hashtags ?? [];
     magazine = data.magazine ?? "";
+    price = data.price ? String(data.price) : "";
   } catch {
     // front matter が読めないときは空のまま出す(組み立て時に同じエラーを案内する)
   }
-  if (opts.newSource) fieldsEdited.title = fieldsEdited.hashtags = fieldsEdited.magazine = false;
+  if (opts.newSource) fieldsEdited.title = fieldsEdited.hashtags = fieldsEdited.magazine = fieldsEdited.price = false;
   if (!fieldsEdited.title) titleEl.value = title;
   if (!fieldsEdited.hashtags) hashtagsEl.value = hashtags.join(", ");
   if (!fieldsEdited.magazine) magazineEl.value = magazine;
+  if (!fieldsEdited.price) priceEl.value = price;
   fieldsEl.hidden = false;
   const titleMissing = !titleEl.value.trim();
   titleEl.classList.toggle("missing", titleMissing);
@@ -451,6 +457,7 @@ titleEl.addEventListener("input", () => {
 });
 hashtagsEl.addEventListener("input", () => (fieldsEdited.hashtags = true));
 magazineEl.addEventListener("input", () => (fieldsEdited.magazine = true));
+priceEl.addEventListener("input", () => (fieldsEdited.price = true));
 
 /** ドロップされた画像を「見出し画像」の input に入れる(ファイル選択と同じ扱いになる) */
 function setThumbnailFile(file: File) {
@@ -486,7 +493,7 @@ submitEl.addEventListener("click", async () => {
       thumbnailFile: thumbnailEl.files?.[0] ?? null,
       baseUrl,
       // 欄の値が「送る内容」。空にしたら front matter に戻らず「なし」(final)
-      override: { title: titleEl.value, hashtags: hashtagsEl.value, magazine: magazineEl.value, final: true },
+      override: { title: titleEl.value, hashtags: hashtagsEl.value, magazine: magazineEl.value, price: priceEl.value, final: true },
       creditLink: creditLinkEl.checked,
       insertImages: insertImagesEl.checked,
       bodyImageFiles,

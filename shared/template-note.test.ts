@@ -34,6 +34,12 @@ const FEATURES: [string, RegExp, RegExp][] = [
   ["チェックで入るハッシュタグ #LastOneClick の説明", /ハッシュタグ #LastOneClick/, /ハッシュタグ #LastOneClick/],
 ];
 
+/** 見本の front matter にコメントで入れておく書き方(先頭の「# 」を消すと使える)。[名前, md に含まれること] */
+const FRONT_MATTER_FEATURES: [string, RegExp][] = [
+  ["マガジン(magazine)", /^# magazine: /m],
+  ["有料記事の価格(price)", /^# price: 300\b/m],
+];
+
 describe("templates/note/article.md(見本)", () => {
   it("front matter が読め、タイトル・ハッシュタグ・見出し画像が入る", async () => {
     const a = await renderArticle(src, convert);
@@ -52,7 +58,14 @@ describe("templates/note/article.md(見本)", () => {
     }
   });
 
-  it("ファイル名で書いた本文の画像は、見本と同じフォルダに置いてある(GitHub から読み込んで試せるように)", () => {
+  it("front matter の省略できる項目を、コメントで見せている。先頭の「# 」を消すと、その値が入る", async () => {
+    for (const [name, inMd] of FRONT_MATTER_FEATURES) assert.match(src, inMd, `見本の front matter に「${name}」が無い`);
+    // そのまま読み込んでも有料にならないよう、price はコメントにしてある
+    assert.equal((await renderArticle(src, convert)).price, undefined);
+    assert.equal((await renderArticle(src.replace(/^# price: /m, "price: "), convert)).price, 300);
+  });
+
+    it("ファイル名で書いた本文の画像は、見本と同じフォルダに置いてある(GitHub から読み込んで試せるように)", () => {
     const names = [...src.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)].map((m) => m[1]).filter((s) => !/^https?:/.test(s));
     assert.ok(names.length > 0);
     for (const n of names) assert.ok(existsSync(new URL(`../templates/note/${n}`, import.meta.url)), `${n} がありません`);
