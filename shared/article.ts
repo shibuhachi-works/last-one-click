@@ -13,6 +13,13 @@ export type FrontMatter = {
   thumbnail?: string;
   /** 有料記事の価格(円)。正の整数だけ。書かなければ無料のまま(公開設定の記事タイプに触らない) */
   price?: number;
+  /**
+   * price が正しくないときの直し方(parsePrice のエラーの文)。parseFrontMatter はここで止めず、ほかの項目は読む。
+   * ポップアップで欄を直せば送れるようにするため。欄を使わない組み立て(renderArticle の final でない呼び出し)ではエラーにする
+   */
+  priceError?: string;
+  /** price が正しくないときの、書かれていた値(ポップアップの欄にそのまま出して直してもらう) */
+  priceRaw?: string;
 };
 
 /** YAML の文字列 → 値。各パッケージの `yaml` の parse を渡す */
@@ -56,7 +63,7 @@ export function resolveArticleUrl(input: string): { mdUrl: string; baseUrl: stri
  * - hashtags は配列でも "a, b" / "#a #b" の文字列でもよい。`#` は外す
  * - `hashtags: #AI #個人開発`(引用符なし)は YAML ではコメントになるが、README で許している書き方なので
  *   先に引用符で囲んでから読む
- * - price は正の整数(`300` / `"300"`)だけ。ほかの値はエラーにして、直し方を出す(parsePrice)
+ * - price は正の整数(`300` / `"300"`)だけ。ほかの値は止めずに priceError / priceRaw に残す(ほかの項目は読む)
  * front matter が無ければ data は空で、content は入力のまま。YAML として読めなければエラー。
  */
 export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: FrontMatter; content: string } {
@@ -86,8 +93,13 @@ export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: Fron
     const s = scalarToString(h);
     if (s !== undefined) data.hashtags = splitList(s);
   }
-  const price = parsePrice(obj.price);
-  if (price !== undefined) data.price = price;
+  try {
+    const price = parsePrice(obj.price);
+    if (price !== undefined) data.price = price;
+  } catch (e) {
+    data.priceError = (e as Error).message;
+    data.priceRaw = scalarToString(obj.price) ?? JSON.stringify(obj.price);
+  }
   return { data, content: md.slice(m[0].length) };
 }
 
@@ -184,7 +196,12 @@ export async function renderArticle(markdown: string, convert: Converters, overr
       ? splitList(override.hashtags)
       : (fm.hashtags ?? []);
   const magazine = override.final ? override.magazine?.trim() || undefined : override.magazine?.trim() || fm.magazine;
-  const price = override.final ? parsePrice(override.price) : override.price?.trim() ? parsePrice(override.price) : fm.price;
+  // final(ポップアップ)は欄の値だけを見る。front matter の price が正しくなくても、欄で直せば送れる
+  let price: number | undefined;
+  if (override.final) price = parsePrice(override.price);
+  else if (override.price?.trim()) price = parsePrice(override.price);
+  else if (fm.priceError) throw new Error(fm.priceError);
+  else price = fm.price;
 
   return { title, hashtags, magazine, html, thumbnail: fm.thumbnail, ...(price !== undefined ? { price } : {}) };
 }

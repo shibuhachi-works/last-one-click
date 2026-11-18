@@ -136,10 +136,15 @@ describe("price(有料記事の価格)", () => {
     assert.equal(parsePrice(""), undefined);
     assert.equal(parsePrice("  "), undefined);
   });
-  it("0・負・小数・文字はエラーにして、直し方を出す", () => {
+  it("0・負・小数・文字は、front matter では止めずに直し方と元の値を残し、ほかの項目は読む", () => {
     for (const v of ["0", "-300", "300.5", "abc", "300円", "'-1'", "[300]", "true"]) {
-      assert.throws(() => fm(`---\nprice: ${v}\n---\nx`), /price は 1 以上の整数\(円\)で書いてください\(例: price: 300\)/, v);
+      const { data } = fm(`---\ntitle: t\nhashtags: [a, b]\nmagazine: m\nprice: ${v}\n---\nx`);
+      assert.match(data.priceError ?? "", /price は 1 以上の整数\(円\)で書いてください\(例: price: 300\)/, v);
+      assert.ok(data.priceRaw, v);
+      assert.equal("price" in data, false, v);
+      assert.deepEqual([data.title, data.hashtags, data.magazine], ["t", ["a", "b"], "m"], v);
     }
+    assert.equal(fm("---\nprice: 300円\n---\nx").data.priceRaw, "300円");
     for (const v of ["0", "-1", "1.5", "三百", "300 円"]) assert.throws(() => parsePrice(v), /price は 1 以上の整数/, v);
   });
   it("renderArticle は front matter の price を返す。無ければ price は無い", async () => {
@@ -153,5 +158,13 @@ describe("price(有料記事の価格)", () => {
     assert.equal((await renderArticle(src, convert, { title: "t", price: "500", final: true })).price, 500);
     assert.equal((await renderArticle(src, convert, { title: "t", price: "", final: true })).price, undefined);
     await assert.rejects(() => renderArticle(src, convert, { title: "t", price: "0", final: true }), /price は 1 以上の整数/);
+  });
+  it("front matter の price が正しくないとき: 欄の値(final)で直せば送れる。欄を使わないときはエラー", async () => {
+    const bad = "---\ntitle: t\nprice: 300円\n---\nx";
+    assert.equal((await renderArticle(bad, convert, { title: "t", price: "300", final: true })).price, 300);
+    assert.equal((await renderArticle(bad, convert, { title: "t", price: "", final: true })).price, undefined);
+    await assert.rejects(() => renderArticle(bad, convert, { title: "t", price: "300円", final: true }), /price は 1 以上の整数/);
+    await assert.rejects(() => renderArticle(bad, convert), /price は 1 以上の整数/);
+    assert.equal((await renderArticle(bad, convert, { price: "500" })).price, 500);
   });
 });

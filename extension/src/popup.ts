@@ -437,7 +437,8 @@ function fillFieldsFromMarkdown(md: string, opts: { newSource: boolean }): { tit
     title = data.title ?? content.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "";
     hashtags = data.hashtags ?? [];
     magazine = data.magazine ?? "";
-    price = data.price ? String(data.price) : "";
+    // price が正しくないときも、ほかの欄は埋める。価格の欄には書かれていた値を出し、送るときに直し方を出す
+    price = data.price ? String(data.price) : (data.priceRaw ?? "");
   } catch {
     // front matter が読めないときは空のまま出す(組み立て時に同じエラーを案内する)
   }
