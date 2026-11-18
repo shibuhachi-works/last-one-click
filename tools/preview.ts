@@ -34,5 +34,6 @@ if (a.thumbnail) await writeFile(path.join(out, a.thumbnail.name), a.thumbnail.b
 console.log(`title    : ${a.title}`);
 console.log(`hashtags : ${a.hashtags.join(", ") || "(なし)"}`);
 console.log(`magazine : ${a.magazine ?? "(なし)"}`);
+console.log(`price    : ${a.price ? `${a.price} 円(有料)` : "(なし。無料)"}`);
 console.log(`thumbnail: ${a.thumbnail ? `${a.thumbnail.name} (${a.thumbnail.buffer.length} bytes)` : "(なし)"}`);
 console.log(`\n→ ${path.join(out, "index.html")} をブラウザで開いて確認してください。`);

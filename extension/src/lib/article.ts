@@ -23,7 +23,7 @@ export type BuildInput = {
   /** md を GitHub から取った場合、相対パスの thumbnail を解決する基準 */
   baseUrl?: string;
   /** popup のフォームで上書きした値(空なら front matter を使う) */
-  override?: { title?: string; hashtags?: string; magazine?: string; final?: boolean };
+  override?: { title?: string; hashtags?: string; magazine?: string; price?: string; final?: boolean };
   /** 本文の最後に「この記事は、Last One Click で下書きしました。」のリンクと、ハッシュタグ #LastOneClick を入れるか(既定は入れる) */
   creditLink?: boolean;
   /** 本文の相対パスの画像(![説明](image1.png))を、note の本文に入れるか(「本文の画像を入れる」のチェック) */
@@ -78,7 +78,7 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
   // 本文の画像は、本文と見出し画像を入れたうえで、保存できる残りの大きさまで入れる
   const used = new TextEncoder().encode(html).length + (thumbnail?.base64.length ?? 0);
   const { images, imageNotes } = await collectBodyImages(refs, input, MAX_PENDING_BYTES - used);
-  return { title: a.title, hashtags: withCreditHashtag(a.hashtags, credit), magazine: a.magazine, html, thumbnail, images, imageNotes, createdAt: Date.now() };
+  return { title: a.title, hashtags: withCreditHashtag(a.hashtags, credit), magazine: a.magazine, ...(a.price ? { price: a.price } : {}), html, thumbnail, images, imageNotes, createdAt: Date.now() };
 }
 
 /**

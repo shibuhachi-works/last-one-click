@@ -8,6 +8,7 @@ import { findEyecatchButton } from "../../shared/eyecatch-button";
 import { activeClock, type ActiveClock } from "../../shared/active-clock";
 import { GIF_UPLOAD_WAIT_MS, IMAGE_UPLOAD_WAIT_MS, LATE_UPLOAD_WAIT_MS, gifUploadHint, hasGif } from "../../shared/upload-hint";
 import { findMagazineRowButton } from "../../shared/magazine-row";
+import { findPaidControls } from "../../shared/paid-price";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
 import { safeClick, safeKey, safePress } from "./lib/safe-click";
 import { htmlToText } from "../../shared/markdown-safe";
@@ -138,6 +139,9 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   const opened = await step("公開設定", results, () => fillPublishSettings(S, article));
   const magazine = article.magazine;
   if (opened && magazine) await step("マガジン", results, () => selectMagazine(S, magazine));
+  // 有料・価格も別の工程にする(失敗しても、ハッシュタグとマガジンの結果は残す)。有料エリアの設定は押さない(人が決める)
+  const price = article.price;
+  if (opened && price) await step("有料・価格", results, () => setPaidPrice(S, price));
   // 失敗した工程は、たたんだままでも読めるように見出しに出す(「詳細」の中だけだと気づけない)。
   // 工程名は外し、失敗の文言(複数行のこともある)をそのまま ⚠️ 付きで並べる
   const failed = results.filter((r) => r.includes(" ✗ ")).map((r) => r.slice(r.indexOf(" ✗ ") + 3));
@@ -145,7 +149,7 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
     (failed.length
       ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n\n入ったものは画面で確かめ、足りないものは手で入れてから、「投稿する」を自分で押してください。\n`
       : `✅ 入力が終わりました。内容を確認して、「投稿する」を自分で押してください。\n\n`) +
-      `「キャンセル」で戻ると、ハッシュタグとマガジンは note 側で消えます。\n直したあとは「もう一度入れる」を押してください。\n${results.join("\n")}`,
+      `「キャンセル」で戻ると、ハッシュタグとマガジン${article.price ? "・有料の設定" : ""}は note 側で消えます。\n直したあとは「もう一度入れる」を押してください。\n${results.join("\n")}`,
     failed.length ? "warn" : "ok",
     [{ label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) }],
   );
@@ -739,7 +743,32 @@ async function fillPublishSettings(S: Selectors, a: ArticlePayload) {
   }
 
   // 公開ボタンは「あるかどうか」を見るだけ。絶対にクリックしない。
-  if (!findByText("button", S.publishSettings.publishButtonText)) throw new Error("公開ボタンが見つかりません(画面構成が変わった可能性)。");
+  // 「有料」を選んであると(「もう一度入れる」で入れ直したとき)、公開ボタンの代わりに「有料エリア設定」が出る。これも見るだけで押さない
+  if (!findByText("button", S.publishSettings.publishButtonText) && !findByText("button", S.publishSettings.paidAreaButtonText)) {
+    throw new Error("公開ボタンが見つかりません(画面構成が変わった可能性)。");
+  }
+}
+
+/**
+ * 公開設定の記事タイプで「有料」を選び、価格の欄に入れる。「有料」を選ぶと出る「有料エリア設定」は押さない
+ * (有料エリアの境目は人が note の画面で決める)
+ */
+async function setPaidPrice(S: Selectors, price: number) {
+  const P = S.publishSettings;
+  const found = findPaidControls(P.paidRadio, P.paidLabelText, P.priceInput);
+  // 「もう一度入れる」で再実行したときに、選択済みのものを押し直さない
+  if (!found.checked) {
+    if (!found.label) throw new Error("記事タイプの「有料」が見つかりません。\n画面で「有料」を選んで、価格を手で入れてください。");
+    safeClick(found.label, "fillPublishSettings.paid");
+  }
+  const input = await waitFor<HTMLInputElement>(P.priceInput, 5_000).catch(() => null);
+  if (!input) throw new Error("価格の欄が見つかりません。\n画面で価格を手で入れてください。");
+  const value = String(price);
+  input.focus();
+  setNativeValue(input, value);
+  input.blur();
+  if (input.value !== value) throw new Error(`価格の欄に ${value} を入れられませんでした。\n画面で価格を手で入れてください。`);
+  return `${value} 円。有料エリアは「有料エリア設定」で自分で決めてください`;
 }
 
 /** 公開設定の画面でマガジンを選ぶ。名前が一致する行が無ければ、直し方を添えて失敗にする */

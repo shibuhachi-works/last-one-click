@@ -20,6 +20,8 @@ export type Article = {
   title: string;
   hashtags: string[];
   magazine?: string;
+  /** 有料記事の価格(円)。無ければ無料のまま */
+  price?: number;
   /** 本文を note に貼り付けるための HTML */
   html: string;
   /** サムネイル画像(front matter で指定がなければ undefined) */
@@ -57,7 +59,7 @@ export async function loadArticle(input: string): Promise<Article> {
     };
   }
 
-  return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, html: a.html, thumbnail };
+  return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, ...(a.price ? { price: a.price } : {}), html: a.html, thumbnail };
 }
 
 function guessMime(name: string): string {

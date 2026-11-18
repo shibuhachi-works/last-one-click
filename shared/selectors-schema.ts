@@ -33,6 +33,17 @@ export type SelectorsJson = {
     /** マガジン名の行にある「追加」ボタンの文字。省略時は ["追加"] */
     magazineAddButtonText: string[];
     publishButtonText: string[];
+    /** 記事タイプの「有料」のラジオ(実機では隠れている。押すのは、これに付いた label)。省略時は DEFAULT_PAID.paidRadio */
+    paidRadio: string;
+    /** 記事タイプの「有料」の label の文字。label がこれと違えば押さない。省略時は ["有料"] */
+    paidLabelText: string[];
+    /** 「有料」を選んだあとに出る価格の欄。省略時は DEFAULT_PAID.priceInput */
+    priceInput: string;
+    /**
+     * 「有料」を選ぶと、右上のボタンが「投稿する」からこれに変わる。★ 押さない ★(有料エリアは人が決める)。
+     * 公開設定の画面かどうかを確かめるのにだけ使う。省略時は ["有料エリア設定"]
+     */
+    paidAreaButtonText: string[];
   };
   /**
    * 本文の先頭に目次を入れるときに押すもの(note のエディタの「+」→「目次」)。
@@ -53,6 +64,17 @@ export const DEFAULT_TOC: SelectorsJson["toc"] = {
   openMenuButton: 'button[aria-label="メニューを開く"]',
   itemSelector: "#toc-setting",
   itemText: ["目次"],
+};
+
+/**
+ * selectors の有料記事の部品を省略したときの値(2026-11-16 に公開設定の画面の診断レポートで確認)。
+ * ストアに出ている版も main の selectors/note.json を読むので、これらは足すだけにして、省略できるようにする
+ */
+export const DEFAULT_PAID: { readonly paidRadio: string; readonly paidLabelText: readonly string[]; readonly priceInput: string; readonly paidAreaButtonText: readonly string[] } = {
+  paidRadio: 'input#paid[name="is_paid"]',
+  paidLabelText: ["有料"],
+  priceInput: "input#price",
+  paidAreaButtonText: ["有料エリア設定"],
 };
 
 export class SelectorsValidationError extends Error {
@@ -135,6 +157,11 @@ export function validateSelectorsJson(input: unknown): SelectorsJson {
       magazineAddButtonText:
         p.magazineAddButtonText === undefined ? ["追加"] : strList(p.magazineAddButtonText, "publishSettings.magazineAddButtonText"),
       publishButtonText: strList(p.publishButtonText, "publishSettings.publishButtonText"),
+      paidRadio: p.paidRadio === undefined ? DEFAULT_PAID.paidRadio : str(p.paidRadio, "publishSettings.paidRadio"),
+      paidLabelText: p.paidLabelText === undefined ? [...DEFAULT_PAID.paidLabelText] : strList(p.paidLabelText, "publishSettings.paidLabelText"),
+      priceInput: p.priceInput === undefined ? DEFAULT_PAID.priceInput : str(p.priceInput, "publishSettings.priceInput"),
+      paidAreaButtonText:
+        p.paidAreaButtonText === undefined ? [...DEFAULT_PAID.paidAreaButtonText] : strList(p.paidAreaButtonText, "publishSettings.paidAreaButtonText"),
     },
     toc: toc
       ? {

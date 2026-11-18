@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Marked } from "marked";
 import { parse as parseYaml } from "yaml";
-import { parseFrontMatter, renderArticle, resolveArticleUrl, splitList } from "./article.js";
+import { parseFrontMatter, parsePrice, renderArticle, resolveArticleUrl, splitList } from "./article.js";
 import { SAFE_RENDERER } from "./markdown-safe.js";
 
 const md = new Marked({ gfm: true, breaks: true, renderer: SAFE_RENDERER as never });
@@ -118,5 +118,53 @@ describe("renderArticle", () => {
   it("thumbnail は相対パスのまま返す(解決は呼び出し側)", async () => {
     const a = await renderArticle("---\ntitle: t\nthumbnail: ./a.png\n---\nx", convert);
     assert.equal(a.thumbnail, "./a.png");
+  });
+});
+
+describe("price(有料記事の価格)", () => {
+  it("数字と、数字だけの文字列を受け付ける", () => {
+    assert.equal(fm("---\nprice: 300\n---\nx").data.price, 300);
+    assert.equal(fm('---\nprice: "300"\n---\nx').data.price, 300);
+    assert.equal(fm("---\nprice: ' 500 '\n---\nx").data.price, 500);
+    assert.equal(parsePrice("300"), 300);
+  });
+  it("書かない・空は「無し」(無料のまま)", () => {
+    assert.equal("price" in fm("---\ntitle: t\n---\nx").data, false);
+    assert.equal("price" in fm("---\nprice:\n---\nx").data, false);
+    assert.equal("price" in fm("---\nprice: ~\n---\nx").data, false);
+    assert.equal("price" in fm('---\nprice: ""\n---\nx').data, false);
+    assert.equal(parsePrice(""), undefined);
+    assert.equal(parsePrice("  "), undefined);
+  });
+  it("0・負・小数・文字は、front matter では止めずに直し方と元の値を残し、ほかの項目は読む", () => {
+    for (const v of ["0", "-300", "300.5", "abc", "300円", "'-1'", "[300]", "true"]) {
+      const { data } = fm(`---\ntitle: t\nhashtags: [a, b]\nmagazine: m\nprice: ${v}\n---\nx`);
+      assert.match(data.priceError ?? "", /price は 1 以上の整数\(円\)で書いてください\(例: price: 300\)/, v);
+      assert.ok(data.priceRaw, v);
+      assert.equal("price" in data, false, v);
+      assert.deepEqual([data.title, data.hashtags, data.magazine], ["t", ["a", "b"], "m"], v);
+    }
+    assert.equal(fm("---\nprice: 300円\n---\nx").data.priceRaw, "300円");
+    for (const v of ["0", "-1", "1.5", "三百", "300 円"]) assert.throws(() => parsePrice(v), /price は 1 以上の整数/, v);
+  });
+  it("renderArticle は front matter の price を返す。無ければ price は無い", async () => {
+    assert.equal((await renderArticle("---\ntitle: t\nprice: 300\n---\nx", convert)).price, 300);
+    assert.equal("price" in (await renderArticle("---\ntitle: t\n---\nx", convert)), false);
+  });
+  it("override: 空なら front matter の値。final なら欄の値が最終で、空は無料のまま", async () => {
+    const src = "---\ntitle: t\nprice: 300\n---\nx";
+    assert.equal((await renderArticle(src, convert, { price: " " })).price, 300);
+    assert.equal((await renderArticle(src, convert, { price: "500" })).price, 500);
+    assert.equal((await renderArticle(src, convert, { title: "t", price: "500", final: true })).price, 500);
+    assert.equal((await renderArticle(src, convert, { title: "t", price: "", final: true })).price, undefined);
+    await assert.rejects(() => renderArticle(src, convert, { title: "t", price: "0", final: true }), /price は 1 以上の整数/);
+  });
+  it("front matter の price が正しくないとき: 欄の値(final)で直せば送れる。欄を使わないときはエラー", async () => {
+    const bad = "---\ntitle: t\nprice: 300円\n---\nx";
+    assert.equal((await renderArticle(bad, convert, { title: "t", price: "300", final: true })).price, 300);
+    assert.equal((await renderArticle(bad, convert, { title: "t", price: "", final: true })).price, undefined);
+    await assert.rejects(() => renderArticle(bad, convert, { title: "t", price: "300円", final: true }), /price は 1 以上の整数/);
+    await assert.rejects(() => renderArticle(bad, convert), /price は 1 以上の整数/);
+    assert.equal((await renderArticle(bad, convert, { price: "500" })).price, 500);
   });
 });

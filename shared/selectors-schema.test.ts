@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { DEFAULT_TOC, SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
+import { DEFAULT_PAID, DEFAULT_TOC, SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
 
 const bundled = JSON.parse(readFileSync(new URL("../selectors/note.json", import.meta.url), "utf8"));
 const clone = () => JSON.parse(JSON.stringify(bundled));
@@ -20,6 +20,22 @@ describe("validateSelectorsJson", () => {
     const v = validateSelectorsJson(j);
     assert.deepEqual(v.thumbnail.uploadMenuText, ["画像をアップロード"]);
     assert.deepEqual(v.publishSettings.magazineAddButtonText, ["追加"]);
+  });
+
+  it("有料記事の部品(paidRadio / paidLabelText / priceInput / paidAreaButtonText)は省略でき、既定値になる(ストアに出ている版と同じ JSON を読むため、足すだけにする)", () => {
+    const j = clone();
+    for (const k of ["paidRadio", "paidLabelText", "priceInput", "paidAreaButtonText"]) delete j.publishSettings[k];
+    const v = validateSelectorsJson(j);
+    assert.equal(v.publishSettings.paidRadio, DEFAULT_PAID.paidRadio);
+    assert.deepEqual(v.publishSettings.paidLabelText, ["有料"]);
+    assert.equal(v.publishSettings.priceInput, "input#price");
+    assert.deepEqual(v.publishSettings.paidAreaButtonText, ["有料エリア設定"]);
+    // 同梱の JSON は既定値と同じ値を持つ
+    const b = validateSelectorsJson(bundled).publishSettings;
+    assert.deepEqual(
+      { paidRadio: b.paidRadio, paidLabelText: b.paidLabelText, priceInput: b.priceInput, paidAreaButtonText: b.paidAreaButtonText },
+      { ...DEFAULT_PAID, paidLabelText: [...DEFAULT_PAID.paidLabelText], paidAreaButtonText: [...DEFAULT_PAID.paidAreaButtonText] },
+    );
   });
 
   it("toc は省略できる(古い selectors でも既定値で目次を入れられる)", () => {

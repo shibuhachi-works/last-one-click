@@ -8,7 +8,7 @@
 // 公開設定(ハッシュタグ・マガジン)は入れない(公開設定の画面を閉じると note 側で消えるため)。
 // 押すのは「下書き保存」だけで、公開ボタンには触らない。
 //
-// --hold を付けると、下書き保存のあと、公開設定(ハッシュタグ・マガジン)まで入れて、窓を開いたまま待つ
+// --hold を付けると、下書き保存のあと、公開設定(ハッシュタグ・マガジン・有料と価格)まで入れて、窓を開いたまま待つ
 // (Inspector は出さない)。人がリモートデスクトップなどで確かめて「投稿する」を自分で押し、
 // 窓を閉じると終わる。待つ前に下書き保存しておくので、待っている間に PC が止まっても下書きは残る。
 //
@@ -23,6 +23,7 @@ import type { Locator, Page } from "playwright";
 import { collectClickLabels } from "../shared/click-labels.js";
 import { assertClickAllowed } from "../shared/forbidden-click.js";
 import { findEyecatchButton } from "../shared/eyecatch-button.js";
+import { findPaidControls } from "../shared/paid-price.js";
 import { htmlToText } from "../shared/markdown-safe.js";
 import { matchesAnyText } from "../shared/text-match.js";
 import { loadArticle, type Article } from "./lib/article.js";
@@ -55,6 +56,7 @@ const article = await loadArticle(input);
 console.log(`  title    : ${article.title}`);
 console.log(`  hashtags : ${article.hashtags.join(", ") || "(なし)"}`);
 console.log(`  magazine : ${article.magazine ?? "(なし)"}`);
+console.log(`  price    : ${article.price ? `${article.price} 円(有料)` : "(なし。無料)"}`);
 console.log(`  thumbnail: ${article.thumbnail?.name ?? "(なし)"}`);
 
 const ctx = await launchPersistent();
@@ -94,6 +96,7 @@ if (SAVE) {
 if (HOLD) {
   await step("下書き保存", () => saveDraft(page));
   await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
+  await paidStep();
   console.log("\n✅ 公開の手前まで入れて、待っています(下書きは保存済み)。");
   console.log("   画面で確かめて、問題なければ自分で「投稿する」を押し、窓を閉じてください。");
   // 人が窓(タブ)かブラウザを閉じるまで待つ。時間の上限は付けない。
@@ -110,6 +113,7 @@ if (HOLD) {
   process.exit(0);
 }
 await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
+await paidStep();
 
 console.log("\n✅ 公開ボタンの手前まで入力しました。");
 console.log("   ブラウザで内容を確認し、問題なければ自分で公開ボタンを押してください。");
@@ -135,6 +139,24 @@ async function step(name: string, fn: () => Promise<void>) {
     }
     await page.pause();
     throw e;
+  }
+}
+
+/**
+ * 有料・価格は別の工程にする。失敗しても止めずに先へ進む(入れたハッシュタグ・マガジンを残し、人が画面で直せるように)。
+ * 「有料」を選んだあとに出る「有料エリア設定」は押さない(有料エリアは人が決める)
+ */
+async function paidStep() {
+  const price = article.price;
+  if (!price) return;
+  process.stdout.write("- 有料・価格 ... ");
+  try {
+    await setPaidPrice(page, price);
+    console.log(`OK(${price} 円。有料エリアは「有料エリア設定」で自分で決めてください)`);
+  } catch (e) {
+    console.log("FAILED");
+    console.error(`  ${(e as Error).message}`);
+    console.error("  画面で「有料」を選んで、価格を手で入れてください(ハッシュタグ・マガジンは入っています)。");
   }
 }
 
@@ -314,6 +336,32 @@ async function fillPublishSettings(page: Page, a: Article) {
   if (!(await waitByText(page, BUTTONS, NOTE.publishSettings.publishButtonTexts, "data-lastclick-publish", 10_000))) {
     throw new Error(`公開設定の画面になったことを確かめられませんでした(公開のボタンが見えません)。見えているボタン: ${await visibleButtonTexts(page)}`);
   }
+}
+
+/** 公開設定の記事タイプで「有料」を選び、価格の欄に入れる(拡張の content.ts の setPaidPrice と同じ流れ) */
+async function setPaidPrice(page: Page, price: number) {
+  const MARK = "data-lastclick-paid";
+  const found = await page.evaluate(
+    ([fn, radio, texts, priceSel, mark]) => {
+      // 関数は文字列で送る(tsx の keepNames が入れる __name がページ側に無いため)
+      const find = new Function(`return (${fn})`)() as typeof findPaidControls;
+      const r = find(radio, texts, priceSel);
+      document.querySelectorAll(`[${mark}]`).forEach((e) => e.removeAttribute(mark));
+      r.label?.setAttribute(mark, "1");
+      return { label: Boolean(r.label), checked: r.checked };
+    },
+    [findPaidControls.toString(), NOTE.publishSettings.paidRadio, NOTE.publishSettings.paidLabelTexts, NOTE.publishSettings.priceInput, MARK] as const,
+  );
+  if (!found.checked) {
+    if (!found.label) throw new Error("記事タイプの「有料」が見つかりません。");
+    await safeClick(page.locator(`[${MARK}="1"]`).first(), "fillPublishSettings.paid");
+  }
+  const input = page.locator(NOTE.publishSettings.priceInput).first();
+  await input.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {
+    throw new Error("価格の欄が見つかりません。");
+  });
+  await input.fill(String(price));
+  if ((await input.inputValue()) !== String(price)) throw new Error(`価格の欄に ${price} を入れられませんでした。`);
 }
 
 /**
