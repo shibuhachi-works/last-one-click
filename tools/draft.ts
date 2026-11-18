@@ -8,7 +8,7 @@
 // 公開設定(ハッシュタグ・マガジン)は入れない(公開設定の画面を閉じると note 側で消えるため)。
 // 押すのは「下書き保存」だけで、公開ボタンには触らない。
 //
-// --hold を付けると、下書き保存のあと、公開設定(ハッシュタグ・マガジン・有料と価格)まで入れて、窓を開いたまま待つ
+// --hold を付けると、下書き保存のあと、公開設定(ハッシュタグ・マガジン・有料と価格・本文の印の位置の有料エリア)まで入れて、窓を開いたまま待つ
 // (Inspector は出さない)。人がリモートデスクトップなどで確かめて「投稿する」を自分で押し、
 // 窓を閉じると終わる。待つ前に下書き保存しておくので、待っている間に PC が止まっても下書きは残る。
 //
@@ -24,6 +24,7 @@ import { collectClickLabels } from "../shared/click-labels.js";
 import { assertClickAllowed } from "../shared/forbidden-click.js";
 import { findEyecatchButton } from "../shared/eyecatch-button.js";
 import { findPaidControls } from "../shared/paid-price.js";
+import { findPaywallTarget, paywallFailureMessage, type PaywallTarget } from "../shared/paywall.js";
 import { htmlToText } from "../shared/markdown-safe.js";
 import { matchesAnyText } from "../shared/text-match.js";
 import { loadArticle, type Article } from "./lib/article.js";
@@ -57,6 +58,7 @@ console.log(`  title    : ${article.title}`);
 console.log(`  hashtags : ${article.hashtags.join(", ") || "(なし)"}`);
 console.log(`  magazine : ${article.magazine ?? "(なし)"}`);
 console.log(`  price    : ${article.price ? `${article.price} 円(有料)` : "(なし。無料)"}`);
+if (article.paywallAnchor !== undefined) console.log(`  paywall  : 「${article.paywallAnchor.slice(0, 30)}」のすぐ下から有料`);
 console.log(`  thumbnail: ${article.thumbnail?.name ?? "(なし)"}`);
 
 const ctx = await launchPersistent();
@@ -96,7 +98,7 @@ if (SAVE) {
 if (HOLD) {
   await step("下書き保存", () => saveDraft(page));
   await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
-  await paidStep();
+  if (await paidStep()) await paywallStep();
   console.log("\n✅ 公開の手前まで入れて、待っています(下書きは保存済み)。");
   console.log("   画面で確かめて、問題なければ自分で「投稿する」を押し、窓を閉じてください。");
   // 人が窓(タブ)かブラウザを閉じるまで待つ。時間の上限は付けない。
@@ -113,7 +115,7 @@ if (HOLD) {
   process.exit(0);
 }
 await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
-await paidStep();
+if (await paidStep()) await paywallStep();
 
 console.log("\n✅ 公開ボタンの手前まで入力しました。");
 console.log("   ブラウザで内容を確認し、問題なければ自分で公開ボタンを押してください。");
@@ -146,17 +148,73 @@ async function step(name: string, fn: () => Promise<void>) {
  * 有料・価格は別の工程にする。失敗しても止めずに先へ進む(入れたハッシュタグ・マガジンを残し、人が画面で直せるように)。
  * 「有料」を選んだあとに出る「有料エリア設定」は押さない(有料エリアは人が決める)
  */
-async function paidStep() {
+async function paidStep(): Promise<boolean> {
   const price = article.price;
-  if (!price) return;
+  if (!price) return false;
   process.stdout.write("- 有料・価格 ... ");
   try {
     await setPaidPrice(page, price);
-    console.log(`OK(${price} 円。有料エリアは「有料エリア設定」で自分で決めてください)`);
+    console.log(article.paywallAnchor !== undefined ? `OK(${price} 円)` : `OK(${price} 円。有料エリアは「有料エリア設定」で自分で決めてください)`);
+    return true;
   } catch (e) {
     console.log("FAILED");
     console.error(`  ${(e as Error).message}`);
     console.error("  画面で「有料」を選んで、価格を手で入れてください(ハッシュタグ・マガジンは入っています)。");
+    return false;
+  }
+}
+
+/**
+ * 本文に「ここから有料」の印があれば、「有料エリア設定」を押して、印の直前のブロックのすぐ下にラインを引く(拡張の setPaywallLine と同じ流れ)。
+ * 別の工程にして、失敗しても止めない。ラインを引いたら止まる(「投稿する」などは押さない)
+ */
+async function paywallStep() {
+  const anchor = article.paywallAnchor;
+  if (anchor === undefined) return;
+  process.stdout.write("- 有料エリア ... ");
+  try {
+    await setPaywallLine(page, anchor);
+    console.log("OK(印の直前の段落のすぐ下にラインを引きました。位置を画面で確かめてください)");
+  } catch (e) {
+    console.log("FAILED");
+    console.error(`  ${(e as Error).message}`);
+  }
+}
+
+async function setPaywallLine(page: Page, anchor: string) {
+  const P = NOTE.publishSettings;
+  const MARK = "data-lastclick-paywall-line";
+  const find = () =>
+    page.evaluate(
+      ([fn, container, widget, texts, line, anchor, mark]) => {
+        // 関数は文字列で送る(tsx の keepNames が入れる __name がページ側に無いため)
+        const f = new Function(`return (${fn})`)() as typeof findPaywallTarget;
+        const r = f(container, widget, texts, line, anchor);
+        document.querySelectorAll(`[${mark}]`).forEach((e) => e.removeAttribute(mark));
+        r.button?.setAttribute(mark, "1");
+        return { status: r.status, count: r.count } as Pick<PaywallTarget, "status" | "count">;
+      },
+      [findPaywallTarget.toString(), P.paywallContainer, P.paywallWidget, P.paywallChangeButtonTexts, P.paywallLine, anchor, MARK] as const,
+    );
+  if (!(await page.locator(P.paywallContainer).count())) {
+    const open = await waitByText(page, BUTTONS, P.paidAreaButtonTexts, "data-lastclick-paid-area", 5_000);
+    if (!open) throw new Error(`「有料エリア設定」のボタンが見つかりません。画面で手でラインを引いてください。見えているボタン: ${await visibleButtonTexts(page)}`);
+    await safeClick(open, "setPaywallLine.open");
+  }
+  // 画面が組み立てられるまで(ブロックとボタンが並ぶまで)待つ
+  const end = Date.now() + 10_000;
+  let t = await find();
+  while (t.status !== "ok" && t.status !== "already" && Date.now() < end) {
+    await page.waitForTimeout(500);
+    t = await find();
+  }
+  if (t.status === "already") return;
+  if (t.status !== "ok") throw new Error(paywallFailureMessage(t));
+  await safeClick(page.locator(`[${MARK}="1"]`).first(), "setPaywallLine.line");
+  const until = Date.now() + 5_000;
+  while ((await find()).status !== "already") {
+    if (Date.now() > until) throw new Error("「ラインをこの場所に変更」を押しましたが、ラインが動いたことを確かめられませんでした。画面でラインの位置を確かめてください。");
+    await page.waitForTimeout(250);
   }
 }
 

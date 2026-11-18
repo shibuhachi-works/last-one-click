@@ -22,7 +22,11 @@
     "paidRadio": "input#paid[name=\"is_paid\"]",
     "paidLabelText": ["有料"],
     "priceInput": "input#price",
-    "paidAreaButtonText": ["有料エリア設定"]
+    "paidAreaButtonText": ["有料エリア設定"],
+    "paywallContainer": ".ProseMirror.paywall-setting",
+    "paywallWidget": ".ProseMirror-widget",
+    "paywallChangeButtonText": ["ラインをこの場所に変更"],
+    "paywallLine": "#paywall-line"
   },
   "toc": {
     "openMenuButton": "button[aria-label=\"メニューを開く\"]",

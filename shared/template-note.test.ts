@@ -38,6 +38,7 @@ const FEATURES: [string, RegExp, RegExp][] = [
 const FRONT_MATTER_FEATURES: [string, RegExp][] = [
   ["マガジン(magazine)", /^# magazine: /m],
   ["有料記事の価格(price)", /^# price: 300\b/m],
+  ["有料の境目の印(<!-- ここから有料 -->)の説明", /^# .*「<!-- ここから有料 -->」だけの行/m],
 ];
 
 describe("templates/note/article.md(見本)", () => {
@@ -63,6 +64,12 @@ describe("templates/note/article.md(見本)", () => {
     // そのまま読み込んでも有料にならないよう、price はコメントにしてある
     assert.equal((await renderArticle(src, convert)).price, undefined);
     assert.equal((await renderArticle(src.replace(/^# price: /m, "price: "), convert)).price, 300);
+    // 見本の本文には印を入れていない(入れると見本が有料になる)。price と一緒に本文に印を足すと、その位置が読める
+    assert.equal((await renderArticle(src, convert)).paywallAnchor, undefined);
+    const paid = src.replace(/^# price: /m, "price: ").replace(/^(本文はここから書きます。.*)$/m, "$1\n\n<!-- ここから有料 -->");
+    const a = await renderArticle(paid, convert);
+    assert.match(a.paywallAnchor ?? "", /^本文はここから書きます。/);
+    assert.doesNotMatch(a.html, /ここから有料/);
   });
 
     it("ファイル名で書いた本文の画像は、見本と同じフォルダに置いてある(GitHub から読み込んで試せるように)", () => {

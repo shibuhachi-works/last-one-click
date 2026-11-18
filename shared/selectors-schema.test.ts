@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { DEFAULT_PAID, DEFAULT_TOC, SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
+import { DEFAULT_PAID, DEFAULT_PAYWALL, DEFAULT_TOC, SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
 
 const bundled = JSON.parse(readFileSync(new URL("../selectors/note.json", import.meta.url), "utf8"));
 const clone = () => JSON.parse(JSON.stringify(bundled));
@@ -36,6 +36,21 @@ describe("validateSelectorsJson", () => {
       { paidRadio: b.paidRadio, paidLabelText: b.paidLabelText, priceInput: b.priceInput, paidAreaButtonText: b.paidAreaButtonText },
       { ...DEFAULT_PAID, paidLabelText: [...DEFAULT_PAID.paidLabelText], paidAreaButtonText: [...DEFAULT_PAID.paidAreaButtonText] },
     );
+  });
+
+  it("有料エリアの部品(paywallContainer / paywallWidget / paywallChangeButtonText / paywallLine)は省略でき、既定値になる(足すだけにする)", () => {
+    const j = clone();
+    for (const k of ["paywallContainer", "paywallWidget", "paywallChangeButtonText", "paywallLine"]) delete j.publishSettings[k];
+    const v = validateSelectorsJson(j).publishSettings;
+    const want = { ...DEFAULT_PAYWALL, paywallChangeButtonText: [...DEFAULT_PAYWALL.paywallChangeButtonText] };
+    const pick = (p: typeof v) => ({ paywallContainer: p.paywallContainer, paywallWidget: p.paywallWidget, paywallChangeButtonText: p.paywallChangeButtonText, paywallLine: p.paywallLine });
+    assert.deepEqual(pick(v), want);
+    // 同梱の JSON は既定値と同じ値を持つ
+    assert.deepEqual(pick(validateSelectorsJson(bundled).publishSettings), want);
+    // 書くなら空でない値にする
+    const bad = clone();
+    bad.publishSettings.paywallChangeButtonText = [];
+    assert.throws(() => validateSelectorsJson(bad), SelectorsValidationError);
   });
 
   it("toc は省略できる(古い selectors でも既定値で目次を入れられる)", () => {

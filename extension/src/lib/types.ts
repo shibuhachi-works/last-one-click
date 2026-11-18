@@ -5,6 +5,8 @@ export type ArticlePayload = {
   magazine?: string;
   /** 有料記事の価格(円)。あれば公開設定で「有料」を選んで入れる。無ければ記事タイプに触らない */
   price?: number;
+  /** 本文の「ここから有料」の印の直前のブロックの文字。あれば「有料エリア設定」で、そのすぐ下にラインを引く */
+  paywallAnchor?: string;
   /** note に貼り付ける HTML */
   html: string;
   /** base64 で持ち回る(chrome.storage に入れるため) */
