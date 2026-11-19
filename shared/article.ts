@@ -5,7 +5,7 @@
 // Markdown → HTML と YAML の変換関数は呼び出し側が渡す(marked / yaml は各パッケージのものを使う。
 // shared/ は 2 つのパッケージが別々に install するので、ここから node_modules を import しない)。
 // 取得(fetch / トークン)とサムネイルの持ち方(Buffer / base64)は各パッケージに残す。
-import { PAYWALL_MARKER, makePaywallToken, replacePaywallMarker, takePaywallAnchor } from "./paywall.js";
+import { PAYWALL_MARKER, findMarkerLines, makePaywallToken, markerLinesInCode, replacePaywallMarker, takePaywallAnchor } from "./paywall.js";
 
 export type FrontMatter = {
   title?: string;
@@ -197,8 +197,10 @@ export async function renderArticle(markdown: string, convert: Converters, overr
   const usedH1 = Boolean(h1) && !fm.title && (override.final ? title === h1 : !overrideTitle);
   const body = usedH1 ? content.replace(/^#\s+.+\n?/m, "") : content;
   // 「ここから有料」の印の行は、目印の段落に置き換えてから HTML にし、HTML から目印を取り除く(印を本文に文字で残さない)
+  // コードの中に書いた印は、本文の変換で確かめて除く(印の候補がある記事だけ、もう一度変換する)
   const token = makePaywallToken(markdown);
-  const marked = replacePaywallMarker(body, token);
+  const inCode = await markerLinesInCode(body, findMarkerLines(body), token, convert.markdown);
+  const marked = replacePaywallMarker(body, token, inCode);
   let html = await convert.markdown(marked.content);
   let paywallAnchor: string | undefined;
   if (marked.found) ({ html, anchor: paywallAnchor } = takePaywallAnchor(html, token));

@@ -1,7 +1,8 @@
 // 有料記事の「ここから有料」の印(md の本文の `<!-- ここから有料 -->` の行)。
 //
 // 読み取り(Node とブラウザの両方。DOM 不要):
-//   - 本文の中で、前後の空白を除いて印だけの行を、有料の境目として読む。コードブロック(``` / ~~~ と、空行のあとの 4 字以上の字下げ)の中の印は文字のまま
+//   - 本文の中で、前後の空白を除いて印だけの行を、有料の境目として読む。Markdown のコード(``` / ~~~・字下げ・箇条書きの中のコードなど)の中の印は文字のまま。
+//     コードの中かどうかは、本文の変換そのもので確かめる(markerLinesInCode)
 //   - 印の行は本文から取り除いてから HTML にする(生の HTML は文字として出すので、残すと印が本文に出る)
 //   - 印より前の最後のブロックの文字を、ラインを引く場所の目印(anchor)にする
 //
@@ -17,39 +18,50 @@ import { decodeEntities } from "./markdown-safe.js";
 /** 有料の境目の印。前後の空白を除いて、この文字だけの行 */
 export const PAYWALL_MARKER = "<!-- ここから有料 -->";
 
-/**
- * 本文から印の行を探し、その行を目印の段落(token だけの段落)に置き換える。印が無ければ content はそのまま。
- * 印が 2 つ以上あればエラー。コードブロック(``` / ~~~ と字下げのコード)の中の印は印として扱わない
- */
-export function replacePaywallMarker(content: string, token: string): { content: string; found: boolean } {
-  const lines = content.split("\n");
-  let fence: { ch: string; len: number } | null = null;
-  // 字下げのコード: 空行のあと(または本文の最初)の、4 字以上(タブは 4 字ごとの位置まで)字下げした行から始まり、
-  // 字下げの無い空行でない行が来るまで続く。段落のすぐ下の字下げした行は、段落の続きでコードではない(Markdown と同じ)
-  let indented = false;
-  let prevBlank = true;
+/** 前後の空白を除いて印だけの行の番号(0 始まり)。コードの中かどうかは、ここでは見ない(markerLinesInCode で調べる) */
+export function findMarkerLines(content: string): number[] {
   const hits: number[] = [];
-  lines.forEach((line, i) => {
-    const f = line.match(/^ {0,3}(`{3,}|~{3,})/);
-    if (fence) {
-      if (f && f[1][0] === fence.ch && f[1].length >= fence.len && /^ {0,3}(`+|~+)\s*$/.test(line)) fence = null;
-      prevBlank = false;
-      return;
-    }
-    if (line.trim() === "") {
-      prevBlank = true;
-      return;
-    }
-    const codeIndent = indentWidth(line) >= 4;
-    indented = codeIndent && (indented || prevBlank);
-    prevBlank = false;
-    if (indented) return;
-    if (f) {
-      fence = { ch: f[1][0], len: f[1].length };
-      return;
-    }
+  content.split("\n").forEach((line, i) => {
     if (line.trim() === PAYWALL_MARKER) hits.push(i);
   });
+  return hits;
+}
+
+/**
+ * 印の候補の行のうち、Markdown のコードの中(``` / ~~~ ・字下げのコード・箇条書きや引用の中のコード)にあるものの番号。
+ * 自前で Markdown を読み分けず、本文の変換(convert)そのものに任せる: 候補の行の印を、行ごとに違う目印の文字に
+ * その場で置き換えて(字下げはそのまま)一度変換し、目印が <code> の中に出た行をコードの中とみなす
+ */
+export async function markerLinesInCode(
+  content: string,
+  lines: readonly number[],
+  token: string,
+  convert: (md: string) => string | Promise<string>,
+): Promise<Set<number>> {
+  if (!lines.length) return new Set();
+  const probe = content.split("\n");
+  for (const i of lines) probe[i] = probe[i].replace(PAYWALL_MARKER, probeToken(token, i));
+  const html = await convert(probe.join("\n"));
+  const inCode = new Set<number>();
+  for (const i of lines) {
+    const at = html.indexOf(probeToken(token, i));
+    // 見つからない(変換で消えた)ものも、印としては扱わない
+    if (at < 0 || html.lastIndexOf("<code", at) > html.lastIndexOf("</code>", at)) inCode.add(i);
+  }
+  return inCode;
+}
+
+function probeToken(token: string, line: number): string {
+  return `${token}N${line}N`;
+}
+
+/**
+ * 本文の印の行(ignore の行を除く)を、目印の段落(token だけの段落)に置き換える。印が無ければ content はそのまま。
+ * 印が 2 つ以上あればエラー。ignore には markerLinesInCode で調べた、コードの中の行を渡す
+ */
+export function replacePaywallMarker(content: string, token: string, ignore: ReadonlySet<number> = new Set()): { content: string; found: boolean } {
+  const lines = content.split("\n");
+  const hits = findMarkerLines(content).filter((i) => !ignore.has(i));
   if (hits.length > 1) {
     throw new Error(
       `本文に「${PAYWALL_MARKER}」の行が ${hits.length} つあります(本文の ${hits.map((i) => i + 1).join("・")} 行目)。有料の境目は 1 か所だけにしてください。`,
@@ -59,17 +71,6 @@ export function replacePaywallMarker(content: string, token: string): { content:
   // 前後を空行にして、目印だけの段落にする(箇条書きや段落の続きに混ざらないように)
   lines[hits[0]] = `\n${token}\n`;
   return { content: lines.join("\n"), found: true };
-}
-
-/** 行の先頭の字下げの幅。タブは次の 4 の倍数の位置まで進める */
-function indentWidth(line: string): number {
-  let w = 0;
-  for (const ch of line) {
-    if (ch === " ") w++;
-    else if (ch === "\t") w += 4 - (w % 4);
-    else break;
-  }
-  return w;
 }
 
 /** 本文の md に含まれない目印の文字を作る(英大文字だけ。marked の変換で形が変わらない) */

@@ -75,6 +75,21 @@ describe("本文の「ここから有料」の印", () => {
     assert.equal(c.paywallAnchor, "code");
   });
 
+  it("箇条書き・引用の中のコード(フェンス)の中の印は印として扱わず、コードの形も崩さない", async () => {
+    const free = "---\ntitle: T\n---\n";
+    const a = await render(`- 例:\n\n  \`\`\`md\n  ${PAYWALL_MARKER}\n  \`\`\`\n\n続き\n`, free);
+    assert.equal(a.paywallAnchor, undefined);
+    assert.match(a.html, /<code[^>]*>&lt;!-- ここから有料 --&gt;/);
+    const b = await render(`- \`\`\`md\n  ${PAYWALL_MARKER}\n  \`\`\`\n\n続き\n`, free);
+    assert.equal(b.paywallAnchor, undefined);
+    assert.match(b.html, /<code[^>]*>&lt;!-- ここから有料 --&gt;/);
+    const c = await render(`> \`\`\`\n> ${PAYWALL_MARKER}\n> \`\`\`\n\n続き\n`, free);
+    assert.equal(c.paywallAnchor, undefined);
+    // コードの中の印と、本当の印が 1 つずつ: 本当の印だけを読む(2 つあるエラーにしない)
+    const d = await render(`例:\n\n\`\`\`\n${PAYWALL_MARKER}\n\`\`\`\n\n無料の最後\n\n${PAYWALL_MARKER}\n\n有料\n`);
+    assert.equal(d.paywallAnchor, "無料の最後");
+  });
+
   it("目印の段落の名前付き文字参照(&copy; &mdash; など)は表示の文字に戻す", async () => {
     const a = await render(`&copy; 2026 &mdash; 無料はここまで&hellip;\n\n${PAYWALL_MARKER}\n\n有料\n`);
     assert.equal(a.paywallAnchor, "© 2026 — 無料はここまで…");
