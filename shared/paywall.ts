@@ -1,34 +1,49 @@
 // 有料記事の「ここから有料」の印(md の本文の `<!-- ここから有料 -->` の行)。
 //
 // 読み取り(Node とブラウザの両方。DOM 不要):
-//   - 本文の中で、前後の空白を除いて印だけの行を、有料の境目として読む。コードブロックの中の印は文字のまま
+//   - 本文の中で、前後の空白を除いて印だけの行を、有料の境目として読む。コードブロック(``` / ~~~ と、空行のあとの 4 字以上の字下げ)の中の印は文字のまま
 //   - 印の行は本文から取り除いてから HTML にする(生の HTML は文字として出すので、残すと印が本文に出る)
 //   - 印より前の最後のブロックの文字を、ラインを引く場所の目印(anchor)にする
 //
-// 画面での探し方(findPaywallTarget。ブラウザの中で動く。DOM 依存、import なし):
+// 画面での探し方(findPaywallTarget。ブラウザの中で動く。DOM 依存。この関数の中では import したものを使わない):
 //   2026-11-16 の診断レポート: 「有料エリア設定」を押した先の本文は div.ProseMirror.paywall-setting(編集できない)で、
 //   その直下にブロックとブロックの間ごとに div.ProseMirror-widget があり、中に「ラインをこの場所に変更」のボタンがある。
 //   いまのラインは button#paywall-line(「このラインより先を有料にする」)で、選んだブロックのすぐ下に入れ替わって出る。
 //   何番目のボタンかでは決めない(画像・箇条書き・目次で、note 側のブロックの数え方がずれるため)。
 //   目印と同じ文字のブロックを探し、そのすぐ下の widget のボタンを返す。押すのは呼び出し側(safeClick を通す)。
 
+import { decodeEntities } from "./markdown-safe.js";
+
 /** 有料の境目の印。前後の空白を除いて、この文字だけの行 */
 export const PAYWALL_MARKER = "<!-- ここから有料 -->";
 
 /**
  * 本文から印の行を探し、その行を目印の段落(token だけの段落)に置き換える。印が無ければ content はそのまま。
- * 印が 2 つ以上あればエラー。コードブロック(``` / ~~~)の中の印は印として扱わない
+ * 印が 2 つ以上あればエラー。コードブロック(``` / ~~~ と字下げのコード)の中の印は印として扱わない
  */
 export function replacePaywallMarker(content: string, token: string): { content: string; found: boolean } {
   const lines = content.split("\n");
   let fence: { ch: string; len: number } | null = null;
+  // 字下げのコード: 空行のあと(または本文の最初)の、4 字以上(タブは 4 字ごとの位置まで)字下げした行から始まり、
+  // 字下げの無い空行でない行が来るまで続く。段落のすぐ下の字下げした行は、段落の続きでコードではない(Markdown と同じ)
+  let indented = false;
+  let prevBlank = true;
   const hits: number[] = [];
   lines.forEach((line, i) => {
     const f = line.match(/^ {0,3}(`{3,}|~{3,})/);
     if (fence) {
       if (f && f[1][0] === fence.ch && f[1].length >= fence.len && /^ {0,3}(`+|~+)\s*$/.test(line)) fence = null;
+      prevBlank = false;
       return;
     }
+    if (line.trim() === "") {
+      prevBlank = true;
+      return;
+    }
+    const codeIndent = indentWidth(line) >= 4;
+    indented = codeIndent && (indented || prevBlank);
+    prevBlank = false;
+    if (indented) return;
     if (f) {
       fence = { ch: f[1][0], len: f[1].length };
       return;
@@ -44,6 +59,17 @@ export function replacePaywallMarker(content: string, token: string): { content:
   // 前後を空行にして、目印だけの段落にする(箇条書きや段落の続きに混ざらないように)
   lines[hits[0]] = `\n${token}\n`;
   return { content: lines.join("\n"), found: true };
+}
+
+/** 行の先頭の字下げの幅。タブは次の 4 の倍数の位置まで進める */
+function indentWidth(line: string): number {
+  let w = 0;
+  for (const ch of line) {
+    if (ch === " ") w++;
+    else if (ch === "\t") w += 4 - (w % 4);
+    else break;
+  }
+  return w;
 }
 
 /** 本文の md に含まれない目印の文字を作る(英大文字だけ。marked の変換で形が変わらない) */
@@ -93,16 +119,8 @@ export function lastTopLevelBlock(html: string): string | undefined {
     }
   }
   if (!last) return undefined;
-  return decodeBasicEntities(html.slice(last[0], last[1]).replace(/<[^>]+>/g, "")).trim();
-}
-
-/** marked が出す文字参照(&amp; &lt; &gt; &quot; &#39; と数値参照)を戻す。比べるのは空白を詰めた文字だけ */
-function decodeBasicEntities(s: string): string {
-  return s
-    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&(lt|gt|quot|#39|apos|nbsp);/g, (_, n: string) => ({ lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " })[n] ?? "")
-    .replace(/&amp;/g, "&");
+  // 文字参照は、名前付き(&copy; &mdash; など)も含めて表示の文字に戻す(画面の textContent と比べるため。markdown-safe と同じ戻し方)
+  return decodeEntities(html.slice(last[0], last[1]).replace(/<[^>]+>/g, "")).trim();
 }
 
 export type PaywallTarget = {

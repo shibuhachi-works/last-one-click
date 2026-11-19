@@ -136,17 +136,24 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   }
   banner("公開設定を入力中...");
   const results = [...before];
-  // ハッシュタグとマガジンは別の工程にする。マガジンが見つからなくても、ハッシュタグが入ったことは分かるように
-  const opened = await step("公開設定", results, () => fillPublishSettings(S, article));
-  const magazine = article.magazine;
-  if (opened && magazine) await step("マガジン", results, () => selectMagazine(S, magazine));
-  // 有料・価格も別の工程にする(失敗しても、ハッシュタグとマガジンの結果は残す)。有料エリアの設定は押さない(人が決める)
   const price = article.price;
-  if (opened && price) await step("有料・価格", results, () => setPaidPrice(S, price, article.paywallAnchor !== undefined));
-  // 本文に「ここから有料」の印があれば、「有料エリア設定」を押して、その位置にラインを引く(別の工程。失敗してもほかの結果は残す)。
-  // ラインを引いたら止まる。その画面の「投稿する」「キャンセル」は押さない
   const anchor = article.paywallAnchor;
-  if (opened && price && anchor !== undefined) await step("有料エリア", results, () => setPaywallLine(S, anchor));
+  if (price && anchor !== undefined && document.querySelector(S.publishSettings.paywallContainer)) {
+    // 有料エリア設定の画面(ラインを引く画面)で「もう一度入れる」を押したとき: この画面にはハッシュタグの欄も「公開に進む」も無いので、
+    // 公開設定の工程は通らず、有料エリアの工程だけを入れ直す
+    results.push("公開設定 − 有料エリア設定の画面が開いているので、ハッシュタグ・マガジン・有料・価格は入れ直していません。前の画面で入れたものを確かめてください");
+    await step("有料エリア", results, () => setPaywallLine(S, anchor));
+  } else {
+    // ハッシュタグとマガジンは別の工程にする。マガジンが見つからなくても、ハッシュタグが入ったことは分かるように
+    const opened = await step("公開設定", results, () => fillPublishSettings(S, article));
+    const magazine = article.magazine;
+    if (opened && magazine) await step("マガジン", results, () => selectMagazine(S, magazine));
+    // 有料・価格も別の工程にする(失敗しても、ハッシュタグとマガジンの結果は残す)
+    if (opened && price) await step("有料・価格", results, () => setPaidPrice(S, price, anchor !== undefined));
+    // 本文に「ここから有料」の印があれば、「有料エリア設定」を押して、その位置にラインを引く(別の工程。失敗してもほかの結果は残す)。
+    // ラインを引いたら止まる。その画面の「投稿する」「キャンセル」は押さない
+    if (opened && price && anchor !== undefined) await step("有料エリア", results, () => setPaywallLine(S, anchor));
+  }
   // 失敗した工程は、たたんだままでも読めるように見出しに出す(「詳細」の中だけだと気づけない)。
   // 工程名は外し、失敗の文言(複数行のこともある)をそのまま ⚠️ 付きで並べる
   const failed = results.filter((r) => r.includes(" ✗ ")).map((r) => r.slice(r.indexOf(" ✗ ") + 3));

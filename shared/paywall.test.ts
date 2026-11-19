@@ -60,6 +60,27 @@ describe("本文の「ここから有料」の印", () => {
     assert.match(a.html, /無料 &lt;!-- ここから有料 --&gt;/);
   });
 
+  it("字下げのコード(空行のあとの 4 字以上の字下げ・タブ)の中の印は印として扱わない。無料の記事もエラーにならない", async () => {
+    const free = "---\ntitle: T\n---\n";
+    for (const indent of ["    ", "\t", "  \t", "        "]) {
+      const a = await render(`例:\n\n${indent}${PAYWALL_MARKER}\n\n続き\n`, free);
+      assert.equal(a.paywallAnchor, undefined, JSON.stringify(indent));
+      assert.match(a.html, /<pre><code>\s*&lt;!-- ここから有料 --&gt;/, JSON.stringify(indent));
+    }
+    // 字下げのコードが空行をはさんで続くときも、コードの中
+    const b = await render(`例:\n\n    a\n\n    ${PAYWALL_MARKER}\n\n続き\n`, free);
+    assert.equal(b.paywallAnchor, undefined);
+    // コードのあとの、字下げの無い印は読む
+    const c = await render(`例:\n\n    code\n\n${PAYWALL_MARKER}\n\n有料\n`);
+    assert.equal(c.paywallAnchor, "code");
+  });
+
+  it("目印の段落の名前付き文字参照(&copy; &mdash; など)は表示の文字に戻す", async () => {
+    const a = await render(`&copy; 2026 &mdash; 無料はここまで&hellip;\n\n${PAYWALL_MARKER}\n\n有料\n`);
+    assert.equal(a.paywallAnchor, "© 2026 — 無料はここまで…");
+    assert.equal(lastTopLevelBlock("<p>A&nbsp;&amp;&nbsp;B &lt;tag&gt; &#x41;&#66;</p>"), "A\u00a0&\u00a0B <tag> AB");
+  });
+
   it("price なし: 直し方を添えてエラー。ポップアップの欄(final)で価格を入れれば通る", async () => {
     await assert.rejects(render(`無料\n\n${PAYWALL_MARKER}\n\n有料\n`, "---\ntitle: T\n---\n"), /price がありません.*price: 300/);
     const src = `---\ntitle: T\n---\n無料\n\n${PAYWALL_MARKER}\n\n有料\n`;
