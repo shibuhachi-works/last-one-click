@@ -106,3 +106,44 @@ export function localImageSrcs(MarkedClass: MarkedLike, markdown: string, fallba
   new MarkedClass({ gfm: true, breaks: true, renderer: { image: makeImageRenderer(refs, fallback, "0000") } }).parse(body);
   return [...new Set(refs.map((r) => r.src))];
 }
+
+/**
+ * 目印にした画像のファイルを集める(拡張の buildArticle から使う)。上限(枚数・合計の大きさ)を超えた分と、
+ * 見つからなかった分・画像でない分は入れず、notes で知らせる(目印は本文に残るので、どこに何が入っていないかは note の画面で分かる)。
+ * 同じ参照先は 1 回だけ読む。load が失敗したら見つからなかった画像として扱う
+ */
+export async function collectBodyImageFiles<F extends { size: number; type: string }, P extends object>(
+  refs: BodyImageRef[],
+  budget: number,
+  load: (src: string) => Promise<F | null>,
+  toPayload: (file: F) => Promise<P>,
+): Promise<{ images: Array<P & { marker: string; caption?: string }>; imageNotes: string[] }> {
+  const images: Array<P & { marker: string; caption?: string }> = [];
+  const notes: string[] = [];
+  if (refs.length === 0) return { images, imageNotes: notes };
+  if (refs.length > MAX_BODY_IMAGES) notes.push(`本文の画像が ${refs.length} 枚あり、上限の ${MAX_BODY_IMAGES} 枚を超えた ${refs.length - MAX_BODY_IMAGES} 枚は入れていません`);
+  const cache = new Map<string, F | null>();
+  let total = 0;
+  const missing: string[] = [];
+  const tooBig: string[] = [];
+  for (const ref of refs.slice(0, MAX_BODY_IMAGES)) {
+    let file = cache.get(ref.src);
+    if (file === undefined) {
+      file = await load(ref.src).catch(() => null);
+      cache.set(ref.src, file);
+    }
+    if (!file || !file.type.startsWith("image/")) {
+      missing.push(imageFileName(ref.src));
+      continue;
+    }
+    if (total + base64Size(file.size) > budget) {
+      tooBig.push(imageFileName(ref.src));
+      continue;
+    }
+    total += base64Size(file.size);
+    images.push({ marker: ref.marker, ...(await toPayload(file)), ...(ref.caption ? { caption: ref.caption } : {}) });
+  }
+  if (missing.length) notes.push(`見つからなかった画像があります(${missing.join(", ")})`);
+  if (tooBig.length) notes.push(`画像の合計が大きすぎるため入れていない画像があります(${tooBig.join(", ")}。本文・見出し画像と合わせて約 ${Math.floor(MAX_PENDING_BYTES / 1024 / 1024 / (4 / 3))}MB まで)`);
+  return { images, imageNotes: notes };
+}
