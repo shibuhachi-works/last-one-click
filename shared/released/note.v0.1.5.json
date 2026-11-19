@@ -1,0 +1,28 @@
+{
+  "$comment": "note のエディタに対するセレクタ。拡張は起動時にこのファイルを GitHub から読む(失敗時は同梱コピー)。note の DOM が変わったらここだけ直して push すれば、拡張の再配布なしで復旧する。2026-10-29 に実機(note の記事編集ページ・公開設定ページ)で全工程 ✓ を確認済み。note の DOM が変わって ✗ になったら、診断レポート(DOM 情報を取得)をもとにここを直す。",
+  "version": 1,
+  "newNoteUrl": "https://note.com/notes/new",
+  "loginUrlPattern": "note\\.com/login",
+  "title": "textarea[placeholder*=\"タイトル\"], [data-placeholder*=\"タイトル\"], h1[contenteditable=\"true\"]",
+  "body": ".ProseMirror[contenteditable=\"true\"], [contenteditable=\"true\"][data-placeholder*=\"本文\"]",
+  "thumbnail": {
+    "fileInput": "#note-editor-eyecatch-input, input[type=\"file\"][accept*=\"image\"]",
+    "addButton": "button[aria-label*=\"見出し画像\"]",
+    "addButtonText": ["画像を追加", "見出し画像"],
+    "uploadMenuText": ["画像をアップロード"],
+    "confirmText": ["保存", "適用"]
+  },
+  "openPublishSettingsText": ["公開に進む", "公開設定"],
+  "publishSettings": {
+    "hashtagInput": "input[placeholder*=\"ハッシュタグ\"], input[placeholder*=\"#\"]",
+    "magazineToggleText": ["マガジン"],
+    "magazineItem": "label, [role=\"option\"]",
+    "magazineAddButtonText": ["追加"],
+    "publishButtonText": ["投稿する", "公開する"]
+  },
+  "toc": {
+    "openMenuButton": "button[aria-label=\"メニューを開く\"]",
+    "itemSelector": "#toc-setting",
+    "itemText": ["目次"]
+  }
+}

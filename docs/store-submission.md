@@ -56,7 +56,7 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 1. `manifest.json` の `version` を上げる(例: 0.1.0 → 0.1.1)
 2. `npm run package` → ダッシュボードの「パッケージ」→「新しいパッケージをアップロード」
 3. 掲載情報・プライバシーの回答に変更があれば `listing.md` を先に直してから画面に反映する
-4. ストアで新しい版が公開されたら、`shared/released/selectors-schema.v<版>.ts` を、その版のタグの `shared/selectors-schema.ts` の写しに置き換える(ファイル名の版と、`shared/selectors-released.test.ts` の import も変える)
+4. ストアで新しい版が公開されたら、`shared/released/selectors-schema.v<版>.ts` を、その版のタグの `shared/selectors-schema.ts` の写しに、`shared/released/note.v<版>.json` を、その版のタグの `selectors/note.json` の写しに置き換える(ファイル名の版と、`shared/selectors-released.test.ts` の import と `RELEASED` も変える)
 
 ## 守ること(AGENTS.md / extension/README と同じ)
 

@@ -8,7 +8,7 @@
 - クリックは必ず `safeClick()` を通す(`shared/forbidden-click.ts`)。押さない文字の一覧はコードに直接書き、`selectors/*.json` からは変えられない
 - 拡張の `host_permissions` を増やさない（`shared/manifest-permissions.test.ts` で権限を検査する）
 - `selectors/note.json` は 2026-10-29 に実機で全工程 ✓ を確認済み。note の画面が変わって ✗ になったときの実機での確認は人の作業(`human-task` の Issue を立てて人に渡す)
-- `selectors/note.json` は、ストアに出ている版の拡張も main から読む。**足すだけにする。** 今ある項目の値を、新しい版の都合で変えない(note の画面が変わって直すときは別)。出ている版の読み込み処理で読めることは `shared/selectors-released.test.ts` で検査する
+- `selectors/note.json` は、ストアに出ている版の拡張も main から読む。**足すだけにする。** 今ある項目の値を、新しい版の都合で変えない(note の画面が変わって直すときは別)。出ている版の読み込み処理で読めること・今ある項目の値が出ている版のとき(`shared/released/note.v<版>.json`)と同じことは `shared/selectors-released.test.ts` で検査する。画面が変わって値を直すときは、同じ PR でその写しも直す
 - `selectors/note.json` に足す項目は、無くても動くようにする(`shared/selectors-schema.ts` で省略できるようにし、既定値を持つ。`magazineAddButtonText` と同じ形)
 - このリポジトリは公開。記事・トークン・Cookie(`.profile/`)・個人の情報・社内の運用の情報を置かない。記事はこのリポジトリの外に置く
 - Issue・PR の本文とコメントも公開される。製品の内容だけを書き、ほかのリポジトリや事業の名前・社内の連絡先や運用の情報を書かない
