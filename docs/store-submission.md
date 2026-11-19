@@ -18,7 +18,9 @@
 
 **ストアに上げる ZIP は、GitHub のリリースに添えたものを使う。** `release.yml`(Actions の「リリースを作る」)が、指定したコミットから ZIP を作ってリリースに添える。手元で作り直さない(ZIP は作るたびに中身の時刻が変わるので、リリースの ZIP と、ストアに上げた ZIP が別のものになる)。
 
-1. `manifest.json` の `version` を上げた PR をマージする。`docs/releases/v<version>.md`(リリースの本文)も、その PR で置く
+1. `manifest.json` の `version` を上げた PR(リリースの PR)をマージする。`docs/releases/v<version>.md`(リリースの本文)も、その PR で置く
+   - `docs/releases/next.md`(main にためてきた、まだ出していない変更)を `docs/releases/v<version>.md` に名前を変えて、リリースの本文にする(冒頭の説明を版の紹介に直し、`v0.1.5.md` と同じ形で「入手」などを足す)。同じ PR で、空の `next.md`(冒頭の説明と、「変わったこと」「変えていないもの」の見出しだけ)を作り直す
+   - README などの「(v<version> から)」は、この PR では外さない(ストアで公開されるまで、ストアの版では使えないため。外すのは 5. の 5)
    - その前に、`extension/store/listing.md`(説明文)が、この版の機能と合っているかを見直す(機械では確かめられない)
    - ストアの画像が古いと、「リリースを作る」が止まる。`extension/` で `npm run build && npm run screenshots` を実行し、作り直した画像と `screenshots.lock` を PR に入れる(ふだんの CI では、古いと注意が出る)
 2. Actions の「リリースを作る」を、タグ(例: `v0.1.2`)とコミット(40 文字の SHA)を指定して起動する
@@ -57,6 +59,7 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 2. `npm run package` → ダッシュボードの「パッケージ」→「新しいパッケージをアップロード」
 3. 掲載情報・プライバシーの回答に変更があれば `listing.md` を先に直してから画面に反映する
 4. ストアで新しい版が公開されたら、`shared/released/selectors-schema.v<版>.ts` を、その版のタグの `shared/selectors-schema.ts` の写しに、`shared/released/note.v<版>.json` を、その版のタグの `selectors/note.json` の写しに置き換える(ファイル名の版と、`shared/selectors-released.test.ts` の import と `RELEASED` も変える)
+5. ストアで新しい版が公開されたら、`README.md`・`extension/README.md`・`templates/note/` の「(v<版> から)」を外す(公開の前には外さない)
 
 ## 守ること(AGENTS.md / extension/README と同じ)
 
