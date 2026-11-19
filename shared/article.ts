@@ -176,6 +176,12 @@ export type Converters = {
   markdown: (body: string) => string | Promise<string>;
   /** YAML → 値(yaml の parse) */
   yaml: YamlParse;
+  /**
+   * 「ここから有料」の印がコードの中かを確かめるための変換(shared/paywall.ts の markerLinesInCode)。
+   * markdown と同じ読み方で、副作用の無いもの(本文の画像を集めるなど、呼ぶたびに何かを足す変換は渡さない)。
+   * 省略すると markdown を使う(markdown に副作用が無いときだけ省略してよい)
+   */
+  probe?: (body: string) => string | Promise<string>;
 };
 
 /**
@@ -199,7 +205,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
   // 「ここから有料」の印の行は、目印の段落に置き換えてから HTML にし、HTML から目印を取り除く(印を本文に文字で残さない)
   // コードの中に書いた印は、本文の変換で確かめて除く(印の候補がある記事だけ、もう一度変換する)
   const token = makePaywallToken(markdown);
-  const inCode = await markerLinesInCode(body, findMarkerLines(body), token, convert.markdown);
+  const inCode = await markerLinesInCode(body, findMarkerLines(body), token, convert.probe ?? convert.markdown);
   const marked = replacePaywallMarker(body, token, inCode);
   let html = await convert.markdown(marked.content);
   let paywallAnchor: string | undefined;

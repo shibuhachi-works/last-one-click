@@ -90,6 +90,24 @@ describe("本文の「ここから有料」の印", () => {
     assert.equal(d.paywallAnchor, "無料の最後");
   });
 
+  it("印がコードの中かを確かめる変換(probe)を渡したときは、本文の変換(markdown)は 1 回だけ呼ぶ(本文の画像を二重に集めない)", async () => {
+    let markdownCalls = 0;
+    let probeCalls = 0;
+    const counted = {
+      markdown: (s: string) => (markdownCalls++, md.parse(s) as string),
+      probe: (s: string) => (probeCalls++, md.parse(s) as string),
+      yaml: parseYaml,
+    };
+    const a = await renderArticle(`${PRICE}無料\n\n\`\`\`\n${PAYWALL_MARKER}\n\`\`\`\n\n無料の最後\n\n${PAYWALL_MARKER}\n\n有料\n`, counted);
+    assert.equal(a.paywallAnchor, "無料の最後");
+    assert.equal(markdownCalls, 1);
+    assert.equal(probeCalls, 1);
+    // 印の候補が無い記事では、確かめる変換は呼ばない
+    probeCalls = 0;
+    await renderArticle(`${PRICE}無料\n`, counted);
+    assert.equal(probeCalls, 0);
+  });
+
   it("目印の段落の名前付き文字参照(&copy; &mdash; など)は表示の文字に戻す", async () => {
     const a = await render(`&copy; 2026 &mdash; 無料はここまで&hellip;\n\n${PAYWALL_MARKER}\n\n有料\n`);
     assert.equal(a.paywallAnchor, "© 2026 — 無料はここまで…");
