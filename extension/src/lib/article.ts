@@ -7,7 +7,7 @@ import { renderArticle, resolveArticleUrl } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
 import { appendCreditHtml, withCreditHashtag } from "../../../shared/credit";
-import { MAX_BODY_IMAGES, MAX_PENDING_BYTES, base64Size, findDroppedImage, imageFileName, makeImageRenderer, makeMarkerTag, localImageNames as sharedLocalImageNames, localImageSrcs as sharedLocalImageSrcs, type BodyImageRef } from "../../../shared/body-images";
+import { MAX_PENDING_BYTES, collectBodyImageFiles, findDroppedImage, imageFileName, makeImageRenderer, makeMarkerTag, localImageNames as sharedLocalImageNames, localImageSrcs as sharedLocalImageSrcs, type BodyImageRef } from "../../../shared/body-images";
 import { SAFE_RENDERER } from "../../../shared/markdown-safe";
 import { STORAGE, type ArticlePayload } from "./types";
 
@@ -91,38 +91,10 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
 }
 
 /**
- * 目印にした画像のファイルを集める。上限(枚数・合計の大きさ)を超えた分と、見つからなかった分は入れず、notes で知らせる
- * (目印は本文に残るので、どこに何が入っていないかは note の画面で分かる)
+ * 目印にした画像のファイルを集める。上限(枚数・合計の大きさ)の判定は shared/body-images.ts の collectBodyImageFiles
  */
 async function collectBodyImages(refs: BodyImageRef[], input: BuildInput, budget: number): Promise<{ images: NonNullable<ArticlePayload["images"]>; imageNotes: string[] }> {
-  const images: NonNullable<ArticlePayload["images"]> = [];
-  const notes: string[] = [];
-  if (refs.length === 0) return { images, imageNotes: notes };
-  if (refs.length > MAX_BODY_IMAGES) notes.push(`本文の画像が ${refs.length} 枚あり、上限の ${MAX_BODY_IMAGES} 枚を超えた ${refs.length - MAX_BODY_IMAGES} 枚は入れていません`);
-  const cache = new Map<string, File | null>();
-  let total = 0;
-  const missing: string[] = [];
-  const tooBig: string[] = [];
-  for (const ref of refs.slice(0, MAX_BODY_IMAGES)) {
-    let file = cache.get(ref.src);
-    if (file === undefined) {
-      file = await loadBodyImage(ref.src, input).catch(() => null);
-      cache.set(ref.src, file);
-    }
-    if (!file || !file.type.startsWith("image/")) {
-      missing.push(imageFileName(ref.src));
-      continue;
-    }
-    if (total + base64Size(file.size) > budget) {
-      tooBig.push(imageFileName(ref.src));
-      continue;
-    }
-    total += base64Size(file.size);
-    images.push({ marker: ref.marker, ...(await fileToPayload(file)), ...(ref.caption ? { caption: ref.caption } : {}) });
-  }
-  if (missing.length) notes.push(`見つからなかった画像があります(${missing.join(", ")})`);
-  if (tooBig.length) notes.push(`画像の合計が大きすぎるため入れていない画像があります(${tooBig.join(", ")}。本文・見出し画像と合わせて約 ${Math.floor(MAX_PENDING_BYTES / 1024 / 1024 / (4 / 3))}MB まで)`);
-  return { images, imageNotes: notes };
+  return collectBodyImageFiles(refs, budget, (src) => loadBodyImage(src, input), fileToPayload);
 }
 
 /** GitHub から読んだ記事なら、記事と同じフォルダから取る。手元の md なら、一緒にドロップされた画像から探す */
