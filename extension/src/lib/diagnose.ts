@@ -26,6 +26,9 @@ export function buildDiagnosticReport(S: Selectors): string {
     ["publishSettings.magazineItem", S.publishSettings.magazineItem],
     ["publishSettings.paidRadio", S.publishSettings.paidRadio],
     ["publishSettings.priceInput", S.publishSettings.priceInput],
+    ["publishSettings.paywallContainer", S.publishSettings.paywallContainer],
+    ["publishSettings.paywallWidget", S.publishSettings.paywallWidget],
+    ["publishSettings.paywallLine", S.publishSettings.paywallLine],
     ["toc.openMenuButton", S.toc.openMenuButton],
     ["toc.itemSelector", S.toc.itemSelector],
   ];
@@ -39,6 +42,7 @@ export function buildDiagnosticReport(S: Selectors): string {
     ["publishSettings.magazineAddButtonText", S.publishSettings.magazineAddButtonText],
     ["publishSettings.publishButtonText", S.publishSettings.publishButtonText],
     ["publishSettings.paidAreaButtonText", S.publishSettings.paidAreaButtonText],
+    ["publishSettings.paywallChangeButtonText", S.publishSettings.paywallChangeButtonText],
     ["toc.itemText", S.toc.itemText],
   ];
   for (const [key, texts] of textChecks) {
@@ -64,6 +68,18 @@ export function buildDiagnosticReport(S: Selectors): string {
     for (const b of icons.slice(0, 20)) lines.push(`  - ${rect(b)} ${describe(b)}`);
   }
   lines.push(``);
+
+  // 有料エリア設定の画面: 本文の直下の並び(タグ名と class だけ。本文の文字は出さない)。ブロックと widget が交互に並ぶかを確かめる
+  const paywall = document.querySelector<HTMLElement>(S.publishSettings.paywallContainer);
+  if (paywall) {
+    const kids = Array.from(paywall.children);
+    lines.push(`## 有料エリア設定の本文の並び (${kids.length} 件${kids.length > MAX_PER_GROUP ? `、先頭 ${MAX_PER_GROUP} 件のみ` : ""})`);
+    for (const k of kids.slice(0, MAX_PER_GROUP)) {
+      const cls = Array.from(k.classList).slice(0, 3).join(".");
+      lines.push(`- ${k.tagName.toLowerCase()}${k.id ? `#${k.id}` : ""}${cls ? `.${cls}` : ""}`);
+    }
+    lines.push(``);
+  }
 
   // 3. 候補要素の一覧
   section(lines, "入力欄 (input / textarea)", "input:not([type=hidden]), textarea");

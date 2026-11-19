@@ -58,7 +58,16 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
   // 本文の画像を入れるときは、相対パスの画像を目印の文字にして、どの画像をどこに入れるかを集める
   const refs: BodyImageRef[] = [];
   const parser = input.insertImages ? imageParser(refs, input.markdown) : marked;
-  const a = await renderArticle(input.markdown, { markdown: (body) => parser.parse(body, { gfm: true, breaks: true }) as string, yaml: parseYaml }, input.override);
+  // 印がコードの中かを確かめる変換(probe)は、本文の画像を集めない marked にする(imageParser は呼ぶたびに refs に足すため)
+  const a = await renderArticle(
+    input.markdown,
+    {
+      markdown: (body) => parser.parse(body, { gfm: true, breaks: true }) as string,
+      probe: (body) => marked.parse(body, { gfm: true, breaks: true }) as string,
+      yaml: parseYaml,
+    },
+    input.override,
+  );
 
   let thumbnail: ArticlePayload["thumbnail"];
   if (input.thumbnailFile) {
@@ -78,7 +87,7 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
   // 本文の画像は、本文と見出し画像を入れたうえで、保存できる残りの大きさまで入れる
   const used = new TextEncoder().encode(html).length + (thumbnail?.base64.length ?? 0);
   const { images, imageNotes } = await collectBodyImages(refs, input, MAX_PENDING_BYTES - used);
-  return { title: a.title, hashtags: withCreditHashtag(a.hashtags, credit), magazine: a.magazine, ...(a.price ? { price: a.price } : {}), html, thumbnail, images, imageNotes, createdAt: Date.now() };
+  return { title: a.title, hashtags: withCreditHashtag(a.hashtags, credit), magazine: a.magazine, ...(a.price ? { price: a.price } : {}), ...(a.paywallAnchor !== undefined ? { paywallAnchor: a.paywallAnchor } : {}), html, thumbnail, images, imageNotes, createdAt: Date.now() };
 }
 
 /**

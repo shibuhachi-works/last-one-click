@@ -22,6 +22,8 @@ export type Article = {
   magazine?: string;
   /** 有料記事の価格(円)。無ければ無料のまま */
   price?: number;
+  /** 本文の「ここから有料」の印の直前のブロックの文字。あれば有料エリア設定で、そのすぐ下にラインを引く */
+  paywallAnchor?: string;
   /** 本文を note に貼り付けるための HTML */
   html: string;
   /** サムネイル画像(front matter で指定がなければ undefined) */
@@ -59,7 +61,7 @@ export async function loadArticle(input: string): Promise<Article> {
     };
   }
 
-  return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, ...(a.price ? { price: a.price } : {}), html: a.html, thumbnail };
+  return { title: a.title, hashtags: a.hashtags, magazine: a.magazine, ...(a.price ? { price: a.price } : {}), ...(a.paywallAnchor !== undefined ? { paywallAnchor: a.paywallAnchor } : {}), html: a.html, thumbnail };
 }
 
 function guessMime(name: string): string {

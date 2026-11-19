@@ -44,6 +44,17 @@ export type SelectorsJson = {
      * 公開設定の画面かどうかを確かめるのにだけ使う。省略時は ["有料エリア設定"]
      */
     paidAreaButtonText: string[];
+    /**
+     * 「有料エリア設定」を押した先の本文(編集できない ProseMirror)。この直下に、本文のブロックと widget が交互に並ぶ。
+     * 省略時は DEFAULT_PAYWALL.paywallContainer
+     */
+    paywallContainer: string;
+    /** ブロックとブロックの間の部品(中に「ラインをこの場所に変更」がある)。省略時は DEFAULT_PAYWALL.paywallWidget */
+    paywallWidget: string;
+    /** widget の中の、押すとその位置にラインを動かすボタンの文字。省略時は ["ラインをこの場所に変更"] */
+    paywallChangeButtonText: string[];
+    /** いまのライン(「このラインより先を有料にする」)。押さない。ラインが動いたかを確かめるのに使う。省略時は "#paywall-line" */
+    paywallLine: string;
   };
   /**
    * 本文の先頭に目次を入れるときに押すもの(note のエディタの「+」→「目次」)。
@@ -75,6 +86,22 @@ export const DEFAULT_PAID: { readonly paidRadio: string; readonly paidLabelText:
   paidLabelText: ["有料"],
   priceInput: "input#price",
   paidAreaButtonText: ["有料エリア設定"],
+};
+
+/**
+ * selectors の有料エリアの部品を省略したときの値(2026-11-16 に「有料エリア設定」の画面の診断レポートで確認)。
+ * DEFAULT_PAID と同じく、足すだけにして省略できるようにする
+ */
+export const DEFAULT_PAYWALL: {
+  readonly paywallContainer: string;
+  readonly paywallWidget: string;
+  readonly paywallChangeButtonText: readonly string[];
+  readonly paywallLine: string;
+} = {
+  paywallContainer: ".ProseMirror.paywall-setting",
+  paywallWidget: ".ProseMirror-widget",
+  paywallChangeButtonText: ["ラインをこの場所に変更"],
+  paywallLine: "#paywall-line",
 };
 
 export class SelectorsValidationError extends Error {
@@ -162,6 +189,14 @@ export function validateSelectorsJson(input: unknown): SelectorsJson {
       priceInput: p.priceInput === undefined ? DEFAULT_PAID.priceInput : str(p.priceInput, "publishSettings.priceInput"),
       paidAreaButtonText:
         p.paidAreaButtonText === undefined ? [...DEFAULT_PAID.paidAreaButtonText] : strList(p.paidAreaButtonText, "publishSettings.paidAreaButtonText"),
+      paywallContainer:
+        p.paywallContainer === undefined ? DEFAULT_PAYWALL.paywallContainer : str(p.paywallContainer, "publishSettings.paywallContainer"),
+      paywallWidget: p.paywallWidget === undefined ? DEFAULT_PAYWALL.paywallWidget : str(p.paywallWidget, "publishSettings.paywallWidget"),
+      paywallChangeButtonText:
+        p.paywallChangeButtonText === undefined
+          ? [...DEFAULT_PAYWALL.paywallChangeButtonText]
+          : strList(p.paywallChangeButtonText, "publishSettings.paywallChangeButtonText"),
+      paywallLine: p.paywallLine === undefined ? DEFAULT_PAYWALL.paywallLine : str(p.paywallLine, "publishSettings.paywallLine"),
     },
     toc: toc
       ? {

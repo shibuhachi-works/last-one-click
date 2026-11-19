@@ -52,5 +52,11 @@ export const NOTE = {
     paidRadio: json.publishSettings.paidRadio,
     paidLabelTexts: json.publishSettings.paidLabelText,
     priceInput: json.publishSettings.priceInput,
+    /** 「有料エリア設定」のボタンの文字(押してよい)と、押した先の画面の部品(探すのは shared/paywall.ts) */
+    paidAreaButtonTexts: json.publishSettings.paidAreaButtonText,
+    paywallContainer: json.publishSettings.paywallContainer,
+    paywallWidget: json.publishSettings.paywallWidget,
+    paywallChangeButtonTexts: json.publishSettings.paywallChangeButtonText,
+    paywallLine: json.publishSettings.paywallLine,
   },
 } as const;

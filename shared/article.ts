@@ -5,6 +5,7 @@
 // Markdown → HTML と YAML の変換関数は呼び出し側が渡す(marked / yaml は各パッケージのものを使う。
 // shared/ は 2 つのパッケージが別々に install するので、ここから node_modules を import しない)。
 // 取得(fetch / トークン)とサムネイルの持ち方(Buffer / base64)は各パッケージに残す。
+import { PAYWALL_MARKER, findMarkerLines, makePaywallToken, markerLinesInCode, replacePaywallMarker, takePaywallAnchor } from "./paywall.js";
 
 export type FrontMatter = {
   title?: string;
@@ -147,6 +148,11 @@ export type RenderedArticle = {
   thumbnail?: string;
   /** 有料記事の価格(円)。無ければ無料のまま */
   price?: number;
+  /**
+   * 本文に「ここから有料」の印(`<!-- ここから有料 -->`)があったときの、印の直前のブロックの文字。
+   * 有料エリア設定の画面で、この文字のブロックのすぐ下にラインを引く。印が無ければ無い
+   */
+  paywallAnchor?: string;
 };
 
 export type ArticleOverride = {
@@ -170,12 +176,20 @@ export type Converters = {
   markdown: (body: string) => string | Promise<string>;
   /** YAML → 値(yaml の parse) */
   yaml: YamlParse;
+  /**
+   * 「ここから有料」の印がコードの中かを確かめるための変換(shared/paywall.ts の markerLinesInCode)。
+   * markdown と同じ読み方で、副作用の無いもの(本文の画像を集めるなど、呼ぶたびに何かを足す変換は渡さない)。
+   * 省略すると markdown を使う(markdown に副作用が無いときだけ省略してよい)
+   */
+  probe?: (body: string) => string | Promise<string>;
 };
 
 /**
  * Markdown から、タイトル・ハッシュタグ・マガジン・価格・本文 HTML を決める。
  * - title: override → front matter → 本文の最初の "# 見出し" の順。どれも無ければエラー
  * - 本文側の "# タイトル" は note のタイトル欄と二重になるので、それをタイトルに使ったときは落とす
+ * - 本文の「ここから有料」の印(shared/paywall.ts)は本文から取り除き、直前のブロックの文字を paywallAnchor に入れる。
+ *   印が 2 つ以上・本文の最初にある・price が無いときはエラー
  */
 export async function renderArticle(markdown: string, convert: Converters, override: ArticleOverride = {}): Promise<RenderedArticle> {
   const { data: fm, content } = parseFrontMatter(markdown, convert.yaml);
@@ -188,7 +202,14 @@ export async function renderArticle(markdown: string, convert: Converters, overr
   // 本文の # 見出しをタイトルに使ったとき(final: 欄のタイトルがその見出しのままのとき)は、本文から落とす
   const usedH1 = Boolean(h1) && !fm.title && (override.final ? title === h1 : !overrideTitle);
   const body = usedH1 ? content.replace(/^#\s+.+\n?/m, "") : content;
-  const html = await convert.markdown(body);
+  // 「ここから有料」の印の行は、目印の段落に置き換えてから HTML にし、HTML から目印を取り除く(印を本文に文字で残さない)
+  // コードの中に書いた印は、本文の変換で確かめて除く(印の候補がある記事だけ、もう一度変換する)
+  const token = makePaywallToken(markdown);
+  const inCode = await markerLinesInCode(body, findMarkerLines(body), token, convert.probe ?? convert.markdown);
+  const marked = replacePaywallMarker(body, token, inCode);
+  let html = await convert.markdown(marked.content);
+  let paywallAnchor: string | undefined;
+  if (marked.found) ({ html, anchor: paywallAnchor } = takePaywallAnchor(html, token));
 
   const hashtags = override.final
     ? splitList(override.hashtags ?? "")
@@ -202,6 +223,19 @@ export async function renderArticle(markdown: string, convert: Converters, overr
   else if (override.price?.trim()) price = parsePrice(override.price);
   else if (fm.priceError) throw new Error(fm.priceError);
   else price = fm.price;
+  if (paywallAnchor !== undefined && price === undefined) {
+    throw new Error(
+      `本文に「${PAYWALL_MARKER}」がありますが、price がありません。front matter に price: 300 のように価格を書くか(ポップアップでは「価格(有料)」の欄に入れる)、印の行を消してください。`,
+    );
+  }
 
-  return { title, hashtags, magazine, html, thumbnail: fm.thumbnail, ...(price !== undefined ? { price } : {}) };
+  return {
+    title,
+    hashtags,
+    magazine,
+    html,
+    thumbnail: fm.thumbnail,
+    ...(price !== undefined ? { price } : {}),
+    ...(paywallAnchor !== undefined ? { paywallAnchor } : {}),
+  };
 }

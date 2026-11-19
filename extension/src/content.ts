@@ -9,6 +9,7 @@ import { activeClock, type ActiveClock } from "../../shared/active-clock";
 import { GIF_UPLOAD_WAIT_MS, IMAGE_UPLOAD_WAIT_MS, LATE_UPLOAD_WAIT_MS, gifUploadHint, hasGif } from "../../shared/upload-hint";
 import { findMagazineRowButton } from "../../shared/magazine-row";
 import { findPaidControls } from "../../shared/paid-price";
+import { findPaywallTarget, paywallFailureMessage, type PaywallTarget } from "../../shared/paywall";
 import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from "../../shared/article-key";
 import { safeClick, safeKey, safePress } from "./lib/safe-click";
 import { htmlToText } from "../../shared/markdown-safe";
@@ -135,13 +136,24 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   }
   banner("公開設定を入力中...");
   const results = [...before];
-  // ハッシュタグとマガジンは別の工程にする。マガジンが見つからなくても、ハッシュタグが入ったことは分かるように
-  const opened = await step("公開設定", results, () => fillPublishSettings(S, article));
-  const magazine = article.magazine;
-  if (opened && magazine) await step("マガジン", results, () => selectMagazine(S, magazine));
-  // 有料・価格も別の工程にする(失敗しても、ハッシュタグとマガジンの結果は残す)。有料エリアの設定は押さない(人が決める)
   const price = article.price;
-  if (opened && price) await step("有料・価格", results, () => setPaidPrice(S, price));
+  const anchor = article.paywallAnchor;
+  if (price && anchor !== undefined && document.querySelector(S.publishSettings.paywallContainer)) {
+    // 有料エリア設定の画面(ラインを引く画面)で「もう一度入れる」を押したとき: この画面にはハッシュタグの欄も「公開に進む」も無いので、
+    // 公開設定の工程は通らず、有料エリアの工程だけを入れ直す
+    results.push("公開設定 − 有料エリア設定の画面が開いているので、ハッシュタグ・マガジン・有料・価格は入れ直していません。前の画面で入れたものを確かめてください");
+    await step("有料エリア", results, () => setPaywallLine(S, anchor));
+  } else {
+    // ハッシュタグとマガジンは別の工程にする。マガジンが見つからなくても、ハッシュタグが入ったことは分かるように
+    const opened = await step("公開設定", results, () => fillPublishSettings(S, article));
+    const magazine = article.magazine;
+    if (opened && magazine) await step("マガジン", results, () => selectMagazine(S, magazine));
+    // 有料・価格も別の工程にする(失敗しても、ハッシュタグとマガジンの結果は残す)
+    if (opened && price) await step("有料・価格", results, () => setPaidPrice(S, price, anchor !== undefined));
+    // 本文に「ここから有料」の印があれば、「有料エリア設定」を押して、その位置にラインを引く(別の工程。失敗してもほかの結果は残す)。
+    // ラインを引いたら止まる。その画面の「投稿する」「キャンセル」は押さない
+    if (opened && price && anchor !== undefined) await step("有料エリア", results, () => setPaywallLine(S, anchor));
+  }
   // 失敗した工程は、たたんだままでも読めるように見出しに出す(「詳細」の中だけだと気づけない)。
   // 工程名は外し、失敗の文言(複数行のこともある)をそのまま ⚠️ 付きで並べる
   const failed = results.filter((r) => r.includes(" ✗ ")).map((r) => r.slice(r.indexOf(" ✗ ") + 3));
@@ -753,7 +765,7 @@ async function fillPublishSettings(S: Selectors, a: ArticlePayload) {
  * 公開設定の記事タイプで「有料」を選び、価格の欄に入れる。「有料」を選ぶと出る「有料エリア設定」は押さない
  * (有料エリアの境目は人が note の画面で決める)
  */
-async function setPaidPrice(S: Selectors, price: number) {
+async function setPaidPrice(S: Selectors, price: number, withPaywall = false) {
   const P = S.publishSettings;
   const found = findPaidControls(P.paidRadio, P.paidLabelText, P.priceInput);
   // 「もう一度入れる」で再実行したときに、選択済みのものを押し直さない
@@ -768,7 +780,35 @@ async function setPaidPrice(S: Selectors, price: number) {
   setNativeValue(input, value);
   input.blur();
   if (input.value !== value) throw new Error(`価格の欄に ${value} を入れられませんでした。\n画面で価格を手で入れてください。`);
-  return `${value} 円。有料エリアは「有料エリア設定」で自分で決めてください`;
+  return withPaywall ? `${value} 円` : `${value} 円。有料エリアは「有料エリア設定」で自分で決めてください`;
+}
+
+/**
+ * 「有料エリア設定」を押し、本文の「ここから有料」の印の直前のブロック(anchor)と同じ文字のブロックのすぐ下の
+ * 「ラインをこの場所に変更」を押す。何番目のボタンかでは決めない。一致が無い・2 つ以上なら押さずに失敗にする。
+ * ラインが動いたことを確かめてから成功にする。その先の「投稿する」などは押さない
+ */
+async function setPaywallLine(S: Selectors, anchor: string) {
+  const P = S.publishSettings;
+  const find = (): PaywallTarget => findPaywallTarget(P.paywallContainer, P.paywallWidget, P.paywallChangeButtonText, P.paywallLine, anchor);
+  // 「もう一度入れる」で再実行したときは、もう有料エリア設定の画面が開いている
+  if (!document.querySelector(P.paywallContainer)) {
+    const open = findByText("button", P.paidAreaButtonText);
+    if (!open) throw new Error("「有料エリア設定」のボタンが見つかりません。\n画面で「有料エリア設定」を押し、手でラインを引いてください。");
+    safeClick(open, "setPaywallLine.open");
+  }
+  // 画面が組み立てられるまで(ブロックとボタンが並ぶまで)待つ
+  let target = await waitUntil(() => {
+    const t = find();
+    return t.status === "ok" || t.status === "already" ? t : null;
+  }, 10_000);
+  if (!target) throw new Error(paywallFailureMessage(find()));
+  if (target.status === "ok" && target.button) {
+    safeClick(target.button, "setPaywallLine.line");
+    target = await waitUntil(() => (find().status === "already" ? find() : null), 5_000);
+    if (!target) throw new Error("「ラインをこの場所に変更」を押しましたが、ラインが動いたことを確かめられませんでした。\n画面でラインの位置を確かめ、違っていれば手でラインを引いてください。");
+  }
+  return "印の直前の段落のすぐ下にラインを引きました。位置を画面で確かめてください";
 }
 
 /** 公開設定の画面でマガジンを選ぶ。名前が一致する行が無ければ、直し方を添えて失敗にする */
