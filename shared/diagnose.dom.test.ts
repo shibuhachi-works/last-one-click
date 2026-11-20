@@ -78,7 +78,7 @@ const ID = "hanako_yamada_t";
 const ICON = "https://assets.st-note.com/production/uploads/images/987654/profile_zz9secret.png";
 const ACCOUNT_PAGE = `<!doctype html><html><head><title>${NAME}｜note</title>
   <script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
-    props: { pageProps: { currentUser: { urlname: ID, nickname: NAME, profileImagePath: ICON }, byName: { [ID]: { id: 1234567 } } } },
+    props: { pageProps: { currentUser: { urlname: ID, nickname: NAME, profileImagePath: ICON }, byName: { [ID]: { id: 1234567 } }, users: { private_handle_zq: { userId: 123456 } } } },
   })}</script>
   <script>window.__NUXT__ = { state: { auth: { user: { urlname: "${ID}", nickname: "${NAME}" } } } };</script>
 </head><body>
@@ -130,11 +130,14 @@ describe("診断の結果: ログイン中のアカウントの手がかり (DOM
   });
 
   it("埋め込まれたデータは、キーの道筋だけを出す(ID をキーにした所は伏せる)", () => {
-    assert.match(report, /script#__NEXT_DATA__\[type="application\/json"\]: キー 4 個/);
+    assert.match(report, /script#__NEXT_DATA__\[type="application\/json"\]: キー 5 個/);
     assert.match(report, /\.props\.pageProps\.currentUser \(オブジェクト\)/);
     assert.match(report, new RegExp(`\\.props\\.pageProps\\.currentUser\\.nickname \\(文字 ${NAME.length} 字\\)`));
     assert.match(report, /\.props\.pageProps\.currentUser\.profileImagePath \(文字 \d+ 字\)/);
     assert.doesNotMatch(report, /byName\.hanako/);
+    // ID をキーにした表は、その ID がデータの値に無くても伏せる
+    assert.ok(!report.includes("private_handle_zq"), report);
+    assert.match(report, /\.props\.pageProps\.users\.\*\*\*\.userId \(number\)/);
     assert.match(report, /window\.__NUXT__: キー 3 個/);
     assert.match(report, /\.state\.auth\.user\.urlname \(文字 \d+ 字\)/);
     assert.match(report, /__NUXT__ を作る script: 1 個/);

@@ -18,6 +18,12 @@ const ACCOUNT_KEYS = new Set(
     k.toLowerCase(),
   ),
 );
+/** 埋め込まれたデータの道筋で、そのまま出してよい構造の名前(これ以外のキーは *** にする) */
+const STRUCTURE_KEYS = new Set([
+  "props", "pageProps", "initialProps", "initialState", "state", "store", "data", "auth", "session", "account", "profile",
+  "viewer", "login", "loginUser", "currentUserData", "page", "query", "config", "fetch", "layout", "error", "serverRendered",
+  "pinia", "vuex", "modules", "entities", "users", "author", "owner", "creator", "result", "results", "payload", "response",
+]);
 /** note.com/<1 語> のうち、アカウントのページではないもの */
 const NOT_PROFILE = new Set([
   "notes", "hashtag", "search", "settings", "sitesettings", "login", "signup", "premium", "info", "topic", "topics",
@@ -183,7 +189,8 @@ function dataLines(where: string, data: unknown, addSecret: (s: string) => void)
 
   const paths: string[] = [];
   nodes = 0;
-  const seg = (k: string) => (values.has(k) || !/^[A-Za-z_$][\w$]*$/.test(k) ? "***" : k);
+  // 決まった構造の名前(下の一覧)と探すキーだけをそのまま出し、ほかのキーは *** にする(ID をキーにした表で、ID が値に無くても出さないため)
+  const seg = (k: string) => (!values.has(k) && (ACCOUNT_KEYS.has(k.toLowerCase()) || STRUCTURE_KEYS.has(k)) ? k : "***");
   const walk = (v: unknown, path: string, depth: number) => {
     if (nodes++ > MAX_NODES || depth > MAX_DEPTH) return;
     if (Array.isArray(v)) {
@@ -202,7 +209,7 @@ function dataLines(where: string, data: unknown, addSecret: (s: string) => void)
   };
   walk(data, "", 0);
   const unique = Array.from(new Set(paths));
-  const out = [`- ${where}: キー ${unique.length} 個${unique.length ? "" : "(見つかりません)"}`];
+  const out = [`- ${where}: キー ${unique.length} 個${unique.length ? "(*** は伏せたキー)" : "(見つかりません)"}`];
   for (const p of unique) out.push(`  - ${p}`);
   return out;
 }
