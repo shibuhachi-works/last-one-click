@@ -71,3 +71,78 @@ describe("診断の結果 (DOM)", () => {
     assert.match(report, /"公開に進む"/);
   });
 });
+
+// ログイン中のアカウントの手がかり: 名前・ID・アイコンの URL は出さず、どこにあるかだけを出す
+const NAME = "やまだ花子テスト";
+const ID = "hanako_yamada_t";
+const ICON = "https://assets.st-note.com/production/uploads/images/987654/profile_zz9secret.png";
+const ACCOUNT_PAGE = `<!doctype html><html><head><title>${NAME}｜note</title>
+  <script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+    props: { pageProps: { currentUser: { urlname: ID, nickname: NAME, profileImagePath: ICON }, byName: { [ID]: { id: 1234567 } } } },
+  })}</script>
+  <script>window.__NUXT__ = { state: { auth: { user: { urlname: "${ID}", nickname: "${NAME}" } } } };</script>
+</head><body>
+  <header>
+    <a href="https://note.com/${ID}" class="o-navbar__avatar"><img src="${ICON}" alt="${NAME}" class="a-icon" width="32" height="32"></a>
+    <button type="button" aria-label="アカウントメニューを開く" aria-haspopup="menu"><img src="${ICON}" alt="${NAME}のアイコン" class="m-avatar"></button>
+    <button type="button">${NAME}</button>
+    <a href="https://note.com/${ID}/n/n0123abcd">記事</a>
+    <a href="/hashtag/note">タグ</a>
+  </header>
+  <main><textarea placeholder="記事タイトル">タイトル</textarea></main>
+</body></html>`;
+
+describe("診断の結果: ログイン中のアカウントの手がかり (DOM)", () => {
+  let browser: Browser;
+  let report = "";
+
+  before(async () => {
+    browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
+    const page = await browser.newPage();
+    await page.setContent(ACCOUNT_PAGE);
+    await page.addScriptTag({ content: bundle() });
+    report = await page.evaluate((S) => {
+      try {
+        return (globalThis as unknown as { __diagnose: (s: unknown) => string }).__diagnose(S);
+      } catch (e) {
+        return `ERROR: ${(e as Error).message}`;
+      }
+    }, SELECTORS);
+  });
+  after(async () => {
+    await browser?.close();
+  });
+
+  it("名前・ID・アイコンの URL を、レポートのどこにも出さない", () => {
+    assert.doesNotMatch(report, /^ERROR/);
+    for (const s of [NAME, "やまだ", ID, ICON, "zz9secret", "987654", "1234567"]) assert.ok(!report.includes(s), `${s} が出ています\n${report}`);
+  });
+
+  it("アイコンらしい画像は、大きさ・alt の文字数・src のホスト名と道筋を出す", () => {
+    assert.match(report, /## ログイン中のアカウントの手がかり/);
+    assert.match(report, /### アイコンらしい画像 \(2 件\)/);
+    assert.match(report, new RegExp(`- \\d+x\\d+ alt ${NAME.length} 字 src: assets\\.st-note\\.com [^\\n]*path: [^\\n]*img\\.a-icon`));
+  });
+
+  it("プロフィールらしいリンクは、ID を文字数だけにして出す(記事・タグのリンクは数えない)", () => {
+    assert.match(report, /### プロフィールらしいリンク \(1 件、ID の種類 1 個\)/);
+    assert.match(report, new RegExp(`- href: note\\.com/\\*\\*\\*\\(${ID.length} 文字\\) 画像あり [^\\n]*path: [^\\n]*a\\.o-navbar__avatar`));
+  });
+
+  it("埋め込まれたデータは、キーの道筋だけを出す(ID をキーにした所は伏せる)", () => {
+    assert.match(report, /script#__NEXT_DATA__\[type="application\/json"\]: キー 4 個/);
+    assert.match(report, /\.props\.pageProps\.currentUser \(オブジェクト\)/);
+    assert.match(report, new RegExp(`\\.props\\.pageProps\\.currentUser\\.nickname \\(文字 ${NAME.length} 字\\)`));
+    assert.match(report, /\.props\.pageProps\.currentUser\.profileImagePath \(文字 \d+ 字\)/);
+    assert.doesNotMatch(report, /byName\.hanako/);
+    assert.match(report, /window\.__NUXT__: キー 3 個/);
+    assert.match(report, /\.state\.auth\.user\.urlname \(文字 \d+ 字\)/);
+    assert.match(report, /__NUXT__ を作る script: 1 個/);
+    assert.match(report, /キー: [^\n]*nickname:1/);
+  });
+
+  it("メニューを開くボタンは、言葉と道筋を出す", () => {
+    assert.match(report, /### メニューを開くボタン \(1 件\)/);
+    assert.match(report, /- button 言葉: アカウント・メニュー aria-haspopup="menu" [^\n]*path: /);
+  });
+});
