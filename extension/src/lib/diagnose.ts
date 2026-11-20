@@ -2,6 +2,7 @@
 // selectors/note.json が合わなくなった時に、このレポートを貼ってもらえば
 // 実機を見なくても直せる、というのが狙い。認証情報やページ本文は含めない。
 import { findEyecatchButton } from "../../../shared/eyecatch-button";
+import { accountHints, redact } from "./diagnose-account";
 import type { Selectors } from "./types";
 
 const MAX_PER_GROUP = 60;
@@ -81,6 +82,10 @@ export function buildDiagnosticReport(S: Selectors): string {
     lines.push(``);
   }
 
+  // ログイン中のアカウントの手がかり(中身は出さない。名前・ID などはレポート全体から伏せる)
+  const account = accountHints(cssPath, isVisible);
+  lines.push(...account.lines);
+
   // 3. 候補要素の一覧
   section(lines, "入力欄 (input / textarea)", "input:not([type=hidden]), textarea");
   section(lines, "contenteditable", "[contenteditable='true'], [contenteditable='']");
@@ -88,7 +93,7 @@ export function buildDiagnosticReport(S: Selectors): string {
   section(lines, "ボタン", "button, [role='button'], input[type='submit']");
   section(lines, "チェックボックス / ラベル / option", "input[type='checkbox'], label, [role='option'], [role='menuitem']");
 
-  return lines.join("\n");
+  return redact(lines.join("\n"), account.secrets);
 }
 
 function section(lines: string[], name: string, selector: string) {
