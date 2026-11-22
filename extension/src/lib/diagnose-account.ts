@@ -187,7 +187,8 @@ function dataLines(where: string, data: unknown, addSecret: (s: string) => void)
   };
   collect(data, 0);
 
-  const paths: string[] = [];
+  // 同じ道筋の繰り返し(同じ形の記事一覧など)で上限を使い切らないよう、重複を除いてから「異なる道筋の数」に上限をかける
+  const paths = new Set<string>();
   nodes = 0;
   // 決まった構造の名前(下の一覧)と探すキーだけをそのまま出し、ほかのキーは *** にする(ID をキーにした表で、ID が値に無くても出さないため)
   const seg = (k: string) => (!values.has(k) && (ACCOUNT_KEYS.has(k.toLowerCase()) || STRUCTURE_KEYS.has(k)) ? k : "***");
@@ -201,14 +202,14 @@ function dataLines(where: string, data: unknown, addSecret: (s: string) => void)
     for (const [k, x] of Object.entries(v)) {
       const p = `${path}.${seg(k)}`;
       if (ACCOUNT_KEYS.has(k.toLowerCase())) {
-        if (paths.length < MAX_DATA_PATHS) paths.push(`${p} (${kindOf(x)})`);
+        if (paths.size < MAX_DATA_PATHS) paths.add(`${p} (${kindOf(x)})`);
         if (typeof x === "string" || typeof x === "number") addSecret(String(x));
       }
       walk(x, p, depth + 1);
     }
   };
   walk(data, "", 0);
-  const unique = Array.from(new Set(paths));
+  const unique = Array.from(paths);
   const out = [`- ${where}: キー ${unique.length} 個${unique.length ? "(*** は伏せたキー)" : "(見つかりません)"}`];
   for (const p of unique) out.push(`  - ${p}`);
   return out;
