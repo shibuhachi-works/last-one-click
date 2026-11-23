@@ -144,6 +144,10 @@ describe("診断の結果: ログイン中のアカウントの手がかり (DOM
     assert.match(report, /キー: [^\n]*nickname:1/);
   });
 
+  it("ログイン中のユーザーの問い合わせ(#106)の結果を渡さなければ、その節は出さない", () => {
+    assert.doesNotMatch(report, /ログイン中のユーザーの問い合わせ/);
+  });
+
   it("メニューを開くボタンは、言葉と道筋を出す", () => {
     assert.match(report, /### メニューを開くボタン \(1 件\)/);
     assert.match(report, /- button 言葉: アカウント・メニュー aria-haspopup="menu" [^\n]*path: /);
@@ -193,5 +197,40 @@ describe("診断の結果: 埋め込まれたデータの道筋は、重複を�
 
   it("名前・ID をレポートのどこにも出さない", () => {
     for (const s of [NAME, ID, "書き手テスト"]) assert.ok(!report.includes(s), `${s} が出ています\n${report}`);
+  });
+});
+
+// ログイン中のユーザーの問い合わせ(#106)の結果を渡したとき: 節に並べ、読めた値はレポート全体から伏せる
+describe("診断の結果: ログイン中のユーザーの問い合わせ (DOM)", () => {
+  let browser: Browser;
+  let report = "";
+
+  before(async () => {
+    browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
+    const page = await browser.newPage();
+    // 問い合わせで読めた名前が、画面のボタンにも出ている(アカウントの手がかりとしては拾われない所)
+    await page.setContent(`<!doctype html><html><body><button type="button">別名テスト太郎さんへ</button><textarea placeholder="記事タイトル">t</textarea></body></html>`);
+    await page.addScriptTag({ content: bundle() });
+    report = await page.evaluate((S) => {
+      const extra = { lines: ["### ログイン中のユーザーの問い合わせ", "- 応答: あり、HTTP 200", "- 名前: data.nickname (文字 7 字)"], secrets: new Set(["別名テスト太郎"]) };
+      try {
+        return (globalThis as unknown as { __diagnose: (s: unknown, e: unknown) => string }).__diagnose(S, extra);
+      } catch (e) {
+        return `ERROR: ${(e as Error).message}`;
+      }
+    }, SELECTORS);
+  });
+  after(async () => {
+    await browser?.close();
+  });
+
+  it("「ログイン中のアカウントの手がかり」の節の中に、問い合わせの結果を並べる", () => {
+    assert.doesNotMatch(report, /^ERROR/);
+    assert.match(report, /## ログイン中のアカウントの手がかり[\s\S]*### メニューを開くボタン[\s\S]*### ログイン中のユーザーの問い合わせ\n- 応答: あり、HTTP 200\n- 名前: data\.nickname \(文字 7 字\)/);
+  });
+
+  it("問い合わせで読めた値は、ほかの節に紛れても出さない", () => {
+    assert.ok(!report.includes("別名テスト太郎"), report);
+    assert.match(report, /\*\*\*さんへ/);
   });
 });

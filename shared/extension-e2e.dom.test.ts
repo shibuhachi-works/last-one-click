@@ -612,4 +612,67 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.close();
     assert.deepEqual(second.errors, []);
   });
+
+  // ログイン中のアカウント(#106)。本物の note には出ていかない。応答は見本の JSON(実機の形は人が確かめる)
+  const CURRENT_USER = "https://note.com/api/v2/current_user";
+  async function withCurrentUser<T>(fulfill: Parameters<Route["fulfill"]>[0], fn: (requests: string[]) => Promise<T>): Promise<T> {
+    const requests: string[] = [];
+    const handler = (route: Route) => {
+      requests.push(`${route.request().method()} ${route.request().url()}`);
+      return route.fulfill(fulfill);
+    };
+    await context.route(CURRENT_USER, handler);
+    try {
+      return await fn(requests);
+    } finally {
+      await context.unroute(CURRENT_USER, handler);
+    }
+  }
+  const accountIn = (page: Page, from: "banner" | "popup") =>
+    page.evaluate((where) => {
+      const root = where === "banner" ? document.getElementById("lastclick-pigeon-banner")?.shadowRoot : document;
+      const el = root?.getElementById("account");
+      if (!el || (el as HTMLElement).hidden) return null;
+      return { text: el.textContent?.replace(/\s+/g, "") ?? "", icon: el.querySelector("img")?.getAttribute("src") ?? null };
+    }, from);
+
+  it("ログイン中のアカウントの名前とアイコンを、編集画面のバナーとポップアップに出す。保存はしない(#106)", async () => {
+    const sample = { data: { id: 1234, nickname: "見本の書き手", urlname: "sample_writer", profile_image_path: "https://note.com/e2e-icon.png" } };
+    await withCurrentUser({ status: 200, contentType: "application/json", body: JSON.stringify(sample) }, async (requests) => {
+      const { editor, errors } = await draftFromPopup();
+      assert.deepEqual(await accountIn(editor, "banner"), { text: "このアカウントで作りました:見本の書き手(@sample_writer)", icon: "https://note.com/e2e-icon.png" });
+      // ポップアップを開くと、開いている note のタブから読んで「note の下書きを作成」の上に出す
+      const popup = await context.newPage();
+      await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+      await popup.locator("#account").waitFor({ state: "visible", timeout: 10_000 });
+      assert.deepEqual(await accountIn(popup, "popup"), { text: "ログイン中:見本の書き手(@sample_writer)", icon: "https://note.com/e2e-icon.png" });
+      // 名前・ID・アイコンの URL は chrome.storage に残さない
+      const stored = await popup.evaluate(async () => {
+        const c = (globalThis as unknown as { chrome: { storage: Record<"local" | "session", { get: (k: null) => Promise<unknown> }> } }).chrome;
+        return JSON.stringify([await c.storage.local.get(null), await c.storage.session.get(null)]);
+      });
+      for (const s of ["見本の書き手", "sample_writer", "e2e-icon"]) assert.ok(!stored.includes(s), `${s} が chrome.storage に残っています`);
+      await popup.close();
+      // 問い合わせは GET だけ(下書きを入れ終えたとき・ポップアップを開いたとき。前のテストで開いた note のタブにも聞くことがある)
+      assert.ok(requests.length >= 2, requests.join("\n"));
+      for (const r of requests) assert.equal(r, `GET ${CURRENT_USER}`);
+      assert.deepEqual(errors, []);
+      await editor.close();
+    });
+  });
+
+  it("ログイン中のアカウントが読めない(401)ときは何も出さず、下書きの作成は最後まで進む(#106)", async () => {
+    await withCurrentUser({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { message: "login required" } }) }, async () => {
+      const { editor, errors } = await draftFromPopup();
+      assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
+      assert.equal(await accountIn(editor, "banner"), null);
+      const popup = await context.newPage();
+      await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+      await popup.waitForTimeout(1_000);
+      assert.equal(await accountIn(popup, "popup"), null);
+      await popup.close();
+      assert.deepEqual(errors, []);
+      await editor.close();
+    });
+  });
 });

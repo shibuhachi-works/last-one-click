@@ -32,5 +32,11 @@
     "openMenuButton": "button[aria-label=\"メニューを開く\"]",
     "itemSelector": "#toc-setting",
     "itemText": ["目次"]
+  },
+  "account": {
+    "currentUserUrl": "https://note.com/api/v2/current_user",
+    "namePaths": ["data.nickname", "data.name"],
+    "idPaths": ["data.urlname"],
+    "iconPaths": ["data.profile_image_path", "data.user_profile_image_path", "data.profileImagePath"]
   }
 }

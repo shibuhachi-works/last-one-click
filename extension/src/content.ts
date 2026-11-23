@@ -15,8 +15,10 @@ import { safeClick, safeKey, safePress } from "./lib/safe-click";
 import { htmlToText } from "../../shared/markdown-safe";
 import { hasTocHeadings } from "../../shared/toc";
 import { installFilePickerGuard, type FilePickerGuard } from "../../shared/file-picker-guard";
+import { diagnoseCurrentUser, fetchCurrentUser, type CurrentUser } from "../../shared/current-user";
 import {
   STORAGE,
+  type AccountResponse,
   type ArticlePayload,
   type DiagnoseResponse,
   type Message,
@@ -30,13 +32,34 @@ const PENDING_TTL_MS = 10 * 60 * 1000;
 const TAB_ID_WAIT_MS = 3_000;
 
 // ポップアップからの診断要求。pending の有無に関係なく、note のどのページでも応える
-chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: DiagnoseResponse) => void) => {
-  if (msg?.type !== "diagnose") return;
-  requestSelectors()
-    .then(({ selectors }) => sendResponse({ ok: true, report: buildDiagnosticReport(selectors) }))
-    .catch((e) => sendResponse({ ok: false, error: (e as Error).message }));
-  return true; // 非同期で sendResponse する
+chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: DiagnoseResponse | AccountResponse) => void) => {
+  if (msg?.type === "diagnose") {
+    requestSelectors()
+      .then(async ({ selectors }) => {
+        // ログイン中のユーザーの問い合わせ(#106)も 1 回だけ行い、応答の有無・状態・道筋と文字数だけを出す
+        const currentUser = await diagnoseCurrentUser(selectors.account, location.origin);
+        sendResponse({ ok: true, report: buildDiagnosticReport(selectors, currentUser) });
+      })
+      .catch((e) => sendResponse({ ok: false, error: (e as Error).message }));
+    return true; // 非同期で sendResponse する
+  }
+  if (msg?.type === "account") {
+    // ポップアップを開いたときに 1 回だけ来る。読めなければ null(ポップアップには何も出さない)
+    requestSelectors()
+      .then(({ selectors }) => readAccount(selectors))
+      .catch(() => null)
+      .then((account) => sendResponse({ account }));
+    return true;
+  }
 });
+
+/**
+ * ログイン中の note アカウント(#106)。読めなければ null。投げない。
+ * 名前・ID・アイコンの URL は、バナーやポップアップに出すだけ。保存しない・外へ送らない
+ */
+function readAccount(S: Selectors): Promise<CurrentUser | null> {
+  return fetchCurrentUser(S.account, location.origin).catch(() => null);
+}
 
 main().catch((e) => banner(`エラー: ${(e as Error).message}`, "error"));
 
@@ -78,12 +101,15 @@ async function main() {
   // 本文を貼ったり見出し画像を入れたりすると、画面が本文の途中や最後まで動く。確かめやすいよう、エディタのいちばん上に戻す
   scrollToTop(titleEl);
   const proceed = { label: "公開設定を入れる", onClick: () => runPublishSettings(S, article, results, keyRef) };
+  // 入れ終えたので、どのアカウントで作ったかを 1 回だけ読む(#106)。読めなければ出さない。公開設定まで一気に進むときは、そちらで読む
+  const account = article.skipBodyReview && goOn ? null : await readAccount(S);
   if (!goOn) {
     // 見出し画像のアップロードを確認できないまま公開設定へ移ると、アップロードが途中で切れる可能性があるので、ここで止める
     banner(
       `⚠️ 見出し画像を確認できませんでした。画面で確かめてから「公開設定を入れる」を押してください。\n\n公開設定には進んでいません。\n${results.join("\n")}`,
       "warn",
       [proceed],
+      account,
     );
     return;
   }
@@ -99,6 +125,7 @@ async function main() {
         `下書き保存・プレビューはこの画面で済ませてください。\n「公開設定を入れる」を押すと、拡張が「公開に進む」を押し、ハッシュタグとマガジンを入れて止まります。\n${results.join("\n")}`,
       failed ? "warn" : "ok",
       [proceed],
+      account,
     );
     return;
   }
@@ -157,6 +184,8 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   // 失敗した工程は、たたんだままでも読めるように見出しに出す(「詳細」の中だけだと気づけない)。
   // 工程名は外し、失敗の文言(複数行のこともある)をそのまま ⚠️ 付きで並べる
   const failed = results.filter((r) => r.includes(" ✗ ")).map((r) => r.slice(r.indexOf(" ✗ ") + 3));
+  // 公開設定を入れたあとにも、どのアカウントかを 1 回だけ読んで出す(#106)。「投稿する」を押す前に気づけるように
+  const account = await readAccount(S);
   banner(
     (failed.length
       ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n\n入ったものは画面で確かめ、足りないものは手で入れてから、「投稿する」を自分で押してください。\n`
@@ -164,6 +193,7 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
       `「キャンセル」で戻ると、ハッシュタグとマガジン${article.price ? "・有料の設定" : ""}は note 側で消えます。\n直したあとは「もう一度入れる」を押してください。\n${results.join("\n")}`,
     failed.length ? "warn" : "ok",
     [{ label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) }],
+    account,
   );
 }
 
@@ -1037,7 +1067,7 @@ type BannerAction = { label: string; onClick: () => Promise<void> | void };
  * text の 1 行目だけを出し、2 行目以降は「詳細」を押したときに開く(本文の確認の邪魔にならないように)。
  * 「たたむ」で小さなピルにし、押すと戻る。actions を渡すとボタンを出す(押すとボタンを無効にして onClick を呼ぶ。失敗はエラーのバナーにする)
  */
-function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", actions: BannerAction[] = []) {
+function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", actions: BannerAction[] = [], account: CurrentUser | null = null) {
   let host = document.getElementById("lastclick-pigeon-banner");
   if (!host) {
     host = document.createElement("div");
@@ -1078,12 +1108,15 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>${spin(12)}Last One Click</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
       ${working ? `<div id="wait" style="margin-bottom:6px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.18);font-size:13px">${escapeHtml(waitNotice)}</div>` : ""}
       <div id="sum" style="white-space:pre-wrap">${escapeHtml(summary ?? "")}</div>
+      ${account ? `<div id="account" style="margin-top:6px;display:flex;align-items:center;gap:6px;font-size:13px"></div>` : ""}
       ${details ? `<div id="det" hidden style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.95;white-space:pre-wrap">${escapeHtml(details)}</div>` : ""}
       <div style="margin-top:10px;display:flex;align-items:center;justify-content:flex-end;gap:12px">${details ? `<button type="button" id="tog" aria-expanded="false" aria-controls="det" style="${link}">詳細</button>` : ""}${buttons}</div>
     </div>
     <button type="button" id="pill" hidden aria-label="Last One Click のバナーを開く" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:6px 12px;border:0;border-radius:999px;
       background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">${spin(10)}Last One Click ▴</button>`;
   const root = host.shadowRoot!;
+  const accountEl = root.getElementById("account");
+  if (account && accountEl) accountEl.append(...accountNodes("このアカウントで作りました:", account));
   const box = root.getElementById("box")!;
   const pill = root.getElementById("pill")!;
   root.getElementById("min")!.onclick = () => {
@@ -1122,6 +1155,29 @@ function bannerStatus(text: string) {
   const sum = root?.getElementById("sum");
   if (sum && root?.querySelector(".spin")) sum.textContent = text;
   else banner(text);
+}
+
+/**
+ * 「<見出し> [アイコン] 名前 (@ID)」を作る。文字は textContent で入れる(HTML として読まない)。
+ * アイコンは応答にある https の URL をそのまま img で出すだけ(取り込んで保存しない)
+ */
+function accountNodes(heading: string, account: CurrentUser): Node[] {
+  const nodes: Node[] = [document.createTextNode(heading)];
+  if (account.iconUrl) {
+    const img = document.createElement("img");
+    img.src = account.iconUrl;
+    img.alt = "";
+    img.width = 20;
+    img.height = 20;
+    img.referrerPolicy = "no-referrer";
+    img.style.cssText = "border-radius:50%;background:#fff;flex:none";
+    nodes.push(img);
+  }
+  const name = document.createElement("b");
+  name.textContent = account.name;
+  nodes.push(name);
+  if (account.id && account.id !== account.name) nodes.push(document.createTextNode(`(@${account.id})`));
+  return nodes;
 }
 
 function escapeHtml(s: string) {

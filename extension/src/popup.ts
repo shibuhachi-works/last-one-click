@@ -9,7 +9,7 @@ import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
-import { STORAGE, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
+import { STORAGE, type AccountResponse, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 /**
@@ -232,6 +232,36 @@ async function findNoteTab(): Promise<chrome.tabs.Tab | undefined> {
   const tabs = await chrome.tabs.query({ url: NOTE });
   return tabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
 }
+
+/**
+ * ログイン中の note アカウントを、「note の下書きを作成」の近くに出す(#106)。
+ * 開いている note のタブの content script に 1 回だけ聞く(拡張は Cookie を読まない。問い合わせは note のタブの中で行う)。
+ * 読めなければ何も出さない。名前・ID・アイコンの URL は画面に出すだけで、保存しない
+ */
+async function showAccount(): Promise<void> {
+  const tab = await findNoteTab().catch(() => undefined);
+  if (tab?.id === undefined) return;
+  const res = (await chrome.tabs.sendMessage(tab.id, { type: "account" } satisfies Message).catch(() => null)) as AccountResponse | null;
+  const account = res?.account;
+  if (!account || typeof account.name !== "string" || !account.name) return;
+  const el = $<HTMLParagraphElement>("account");
+  const nodes: Node[] = [document.createTextNode("ログイン中:")];
+  if (typeof account.iconUrl === "string" && account.iconUrl.startsWith("https://")) {
+    const img = document.createElement("img");
+    img.src = account.iconUrl;
+    img.alt = "";
+    img.referrerPolicy = "no-referrer";
+    nodes.push(img);
+  }
+  const name = document.createElement("b");
+  name.textContent = account.name;
+  nodes.push(name);
+  if (account.id && account.id !== account.name) nodes.push(document.createTextNode(`(@${account.id})`));
+  el.replaceChildren(...nodes);
+  el.title = "開いている note のタブでログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
+  el.hidden = false;
+}
+void showAccount();
 
 // GitHub から md を読み込んで textarea に入れる
 $("github-load").addEventListener("click", async () => {

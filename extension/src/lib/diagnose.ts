@@ -4,11 +4,13 @@
 import { findEyecatchButton } from "../../../shared/eyecatch-button";
 import { accountHints, redact } from "./diagnose-account";
 import type { Selectors } from "./types";
+import type { CurrentUserDiagnosis } from "../../../shared/current-user";
 
 const MAX_PER_GROUP = 60;
 const TEXT_LEN = 40;
 
-export function buildDiagnosticReport(S: Selectors): string {
+/** currentUser は、ログイン中のユーザーの問い合わせの結果(#106。content script が先に問い合わせて渡す) */
+export function buildDiagnosticReport(S: Selectors, currentUser?: CurrentUserDiagnosis): string {
   const lines: string[] = [];
   lines.push(`# Last One Click 診断レポート`);
   lines.push(`url: ${location.origin}${location.pathname}`); // クエリは除く
@@ -83,7 +85,7 @@ export function buildDiagnosticReport(S: Selectors): string {
   }
 
   // ログイン中のアカウントの手がかり(中身は出さない。名前・ID などはレポート全体から伏せる)
-  const account = accountHints(cssPath, isVisible);
+  const account = accountHints(cssPath, isVisible, currentUser);
   lines.push(...account.lines);
 
   // 3. 候補要素の一覧

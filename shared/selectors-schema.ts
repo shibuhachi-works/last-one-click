@@ -68,6 +68,20 @@ export type SelectorsJson = {
     /** itemSelector で見つからないときに文字で探す */
     itemText: string[];
   };
+  /**
+   * ログイン中のアカウントを読む問い合わせ(#106)。名前とアイコンを画面に出すためだけに使う。省略時は下の DEFAULT_ACCOUNT。
+   * note が URL や応答の形を変えたら、ここを直せば追従できる
+   */
+  account: {
+    /** ログイン中のユーザーの情報を返す URL(GET だけ)。"/" で始まるときは、開いている note のページの origin に付ける */
+    currentUserUrl: string;
+    /** 応答の JSON の中の、表示名の道筋("data.nickname" の形)。前から順に見て、最初に読めたものを使う */
+    namePaths: string[];
+    /** note の ID(note.com/<ID>)の道筋 */
+    idPaths: string[];
+    /** アイコンの画像の URL の道筋 */
+    iconPaths: string[];
+  };
 };
 
 /** selectors の toc を省略したときの値(2026-11-10 に note のエディタの診断レポートで確認) */
@@ -103,6 +117,27 @@ export const DEFAULT_PAYWALL: {
   paywallChangeButtonText: ["ラインをこの場所に変更"],
   paywallLine: "#paywall-line",
 };
+
+/**
+ * selectors の account を省略したときの値(#106)。ストアに出ている版も main の selectors/note.json を読むので、
+ * account は足すだけにして、省略できるようにする。応答の形は実機で確かめる(人の作業)
+ */
+export const DEFAULT_ACCOUNT: {
+  readonly currentUserUrl: string;
+  readonly namePaths: readonly string[];
+  readonly idPaths: readonly string[];
+  readonly iconPaths: readonly string[];
+} = {
+  currentUserUrl: "https://note.com/api/v2/current_user",
+  namePaths: ["data.nickname", "data.name"],
+  idPaths: ["data.urlname"],
+  iconPaths: ["data.profile_image_path", "data.user_profile_image_path", "data.profileImagePath"],
+};
+
+/** account の道筋の形(英数字と _ のキーを . でつなぐ) */
+const ACCOUNT_PATH = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,7}$/;
+/** account の道筋の候補の数の上限 */
+const MAX_ACCOUNT_PATHS = 10;
 
 export class SelectorsValidationError extends Error {
   constructor(message: string) {
@@ -162,6 +197,7 @@ export function validateSelectorsJson(input: unknown): SelectorsJson {
   const t = obj(o.thumbnail, "thumbnail");
   const p = obj(o.publishSettings, "publishSettings");
   const toc = o.toc === undefined ? undefined : obj(o.toc, "toc");
+  const account = o.account === undefined ? undefined : obj(o.account, "account");
 
   return {
     version: o.version,
@@ -205,5 +241,38 @@ export function validateSelectorsJson(input: unknown): SelectorsJson {
           itemText: strList(toc.itemText, "toc.itemText"),
         }
       : { ...DEFAULT_TOC, itemText: [...DEFAULT_TOC.itemText] },
+    account: {
+      currentUserUrl: account?.currentUserUrl === undefined ? DEFAULT_ACCOUNT.currentUserUrl : currentUserUrl(account.currentUserUrl),
+      namePaths: account?.namePaths === undefined ? [...DEFAULT_ACCOUNT.namePaths] : accountPaths(account.namePaths, "account.namePaths"),
+      idPaths: account?.idPaths === undefined ? [...DEFAULT_ACCOUNT.idPaths] : accountPaths(account.idPaths, "account.idPaths"),
+      iconPaths: account?.iconPaths === undefined ? [...DEFAULT_ACCOUNT.iconPaths] : accountPaths(account.iconPaths, "account.iconPaths"),
+    },
   };
+}
+
+/**
+ * ログイン中のユーザーの問い合わせ先。note の origin(https)の /api/ の下だけを許す
+ * ("/" で始まる書き方は、開いている note のページの origin に付く。どちらも許可リストの origin になる)
+ */
+function currentUserUrl(v: unknown): string {
+  const s = str(v, "account.currentUserUrl", 300);
+  let u: URL;
+  try {
+    u = new URL(s, "https://note.com");
+  } catch {
+    fail("account.currentUserUrl が URL として不正");
+  }
+  if (!s.startsWith("/") && !isAllowedNoteUrl(s)) fail(`account.currentUserUrl は ${ALLOWED_NOTE_ORIGINS.join(" / ")} のどれかで始まる必要があります: ${s}`);
+  if (s.startsWith("//")) fail("account.currentUserUrl は // で始められません");
+  if (!u.pathname.startsWith("/api/")) fail(`account.currentUserUrl は /api/ の下である必要があります: ${s}`);
+  return s;
+}
+
+function accountPaths(v: unknown, name: string): string[] {
+  const list = strList(v, name);
+  if (list.length > MAX_ACCOUNT_PATHS) fail(`${name} が多すぎます(${list.length} > ${MAX_ACCOUNT_PATHS})`);
+  list.forEach((p, i) => {
+    if (!ACCOUNT_PATH.test(p)) fail(`${name}[${i}] は "data.nickname" の形である必要があります: ${p}`);
+  });
+  return list;
 }

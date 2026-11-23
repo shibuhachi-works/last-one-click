@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { DEFAULT_PAID, DEFAULT_PAYWALL, DEFAULT_TOC, SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
+import { DEFAULT_ACCOUNT, DEFAULT_PAID, DEFAULT_PAYWALL, DEFAULT_TOC, SelectorsValidationError, isAllowedNoteUrl, validateSelectorsJson } from "./selectors-schema.js";
 
 const bundled = JSON.parse(readFileSync(new URL("../selectors/note.json", import.meta.url), "utf8"));
 const clone = () => JSON.parse(JSON.stringify(bundled));
@@ -70,6 +70,52 @@ describe("validateSelectorsJson", () => {
     const j = clone();
     j.toc.itemText = [];
     assert.throws(() => validateSelectorsJson(j), SelectorsValidationError);
+  });
+
+  it("account(#106)は省略できる(古い selectors でも既定値で読む)。中のキーも 1 つずつ省略できる", () => {
+    const j = clone();
+    delete j.account;
+    assert.deepEqual(validateSelectorsJson(j).account, DEFAULT_ACCOUNT);
+    const k = clone();
+    k.account = { namePaths: ["data.display_name"] };
+    assert.deepEqual(validateSelectorsJson(k).account, { ...DEFAULT_ACCOUNT, namePaths: ["data.display_name"] });
+  });
+
+  it("同梱の account は、ログイン中のユーザーの情報の 1 か所(note.com の /api/)を指す", () => {
+    const v = validateSelectorsJson(bundled);
+    assert.equal(v.account.currentUserUrl, "https://note.com/api/v2/current_user");
+    assert.deepEqual(v.account, DEFAULT_ACCOUNT);
+  });
+
+  it("account.currentUserUrl は note の origin の /api/ の下だけを通す", () => {
+    for (const ok of ["https://note.com/api/v2/current_user", "https://editor.note.com/api/v1/me", "/api/v2/current_user"]) {
+      const j = clone();
+      j.account.currentUserUrl = ok;
+      assert.equal(validateSelectorsJson(j).account.currentUserUrl, ok);
+    }
+    for (const bad of [
+      "https://evil.example/api/v2/current_user",
+      "https://note.com.evil.example/api/v2/current_user",
+      "http://note.com/api/v2/current_user",
+      "//evil.example/api/x",
+      "https://note.com/notes/new",
+      "/settings/account",
+      "javascript:alert(1)",
+      "",
+      1,
+    ]) {
+      const j = clone();
+      j.account.currentUserUrl = bad;
+      assert.throws(() => validateSelectorsJson(j), SelectorsValidationError, String(bad));
+    }
+  });
+
+  it("account の道筋は \"data.nickname\" の形だけを通す", () => {
+    for (const bad of [[], ["data..x"], ["data[0]"], ["a b"], [""], ["x".repeat(3000)], Array.from({ length: 11 }, () => "data.x"), "data.nickname"]) {
+      const j = clone();
+      j.account.namePaths = bad;
+      assert.throws(() => validateSelectorsJson(j), SelectorsValidationError, JSON.stringify(bad).slice(0, 50));
+    }
   });
 
   it("newNoteUrl が note 以外(フィッシング)なら通さない", () => {
