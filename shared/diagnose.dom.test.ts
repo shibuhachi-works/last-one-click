@@ -149,3 +149,49 @@ describe("診断の結果: ログイン中のアカウントの手がかり (DOM
     assert.match(report, /- button 言葉: アカウント・メニュー aria-haspopup="menu" [^\n]*path: /);
   });
 });
+
+// 同じ形の記事一覧がログイン情報より先にあっても、同じ道筋の繰り返しで上限を使い切らず、currentUser の道筋が出る
+const LIST_PAGE = `<!doctype html><html><head><title>一覧｜note</title>
+  <script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+    props: {
+      pageProps: {
+        articles: Array.from({ length: 30 }, (_, i) => ({ user: { nickname: `書き手テスト${String(i).padStart(2, "0")}` } })),
+        currentUser: { urlname: ID, nickname: NAME },
+      },
+    },
+  })}</script>
+</head><body><main><textarea placeholder="記事タイトル">タイトル</textarea></main></body></html>`;
+
+describe("診断の結果: 埋め込まれたデータの道筋は、重複を除いてから上限をかける (DOM)", () => {
+  let browser: Browser;
+  let report = "";
+
+  before(async () => {
+    browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
+    const page = await browser.newPage();
+    await page.setContent(LIST_PAGE);
+    await page.addScriptTag({ content: bundle() });
+    report = await page.evaluate((S) => {
+      try {
+        return (globalThis as unknown as { __diagnose: (s: unknown) => string }).__diagnose(S);
+      } catch (e) {
+        return `ERROR: ${(e as Error).message}`;
+      }
+    }, SELECTORS);
+  });
+  after(async () => {
+    await browser?.close();
+  });
+
+  it("同じ道筋の繰り返しのあとにある currentUser の道筋を出す", () => {
+    assert.doesNotMatch(report, /^ERROR/);
+    assert.match(report, /script#__NEXT_DATA__\[type="application\/json"\]: キー 5 個/, report);
+    assert.match(report, /\.props\.pageProps\.\*\*\*\[\]\.user \(オブジェクト\)/);
+    assert.match(report, /\.props\.pageProps\.currentUser \(オブジェクト\)/, report);
+    assert.match(report, new RegExp(`\\.props\\.pageProps\\.currentUser\\.nickname \\(文字 ${NAME.length} 字\\)`));
+  });
+
+  it("名前・ID をレポートのどこにも出さない", () => {
+    for (const s of [NAME, ID, "書き手テスト"]) assert.ok(!report.includes(s), `${s} が出ています\n${report}`);
+  });
+});
