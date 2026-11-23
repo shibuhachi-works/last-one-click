@@ -36,10 +36,11 @@ export type ArticlePayload = {
 
 /** selectors/note.json の形(検査は shared/selectors-schema.ts) */
 import type { SelectorsJson } from "../../../shared/selectors-schema";
+import type { CurrentUser } from "../../../shared/current-user";
 export type Selectors = SelectorsJson;
 
 /** popup ⇄ content script ⇄ service worker のメッセージ */
-export type Message = { type: "diagnose" } | { type: "whoami" } | { type: "selectors" };
+export type Message = { type: "diagnose" } | { type: "whoami" } | { type: "selectors" } | { type: "account" };
 export type WhoAmIResponse = { tabId: number | null };
 /**
  * content script → service worker。content script は note.com の origin で動くので、
@@ -48,6 +49,11 @@ export type WhoAmIResponse = { tabId: number | null };
 export type SelectorsResponse =
   | { ok: true; selectors: Selectors; source: "remote" | "cache" | "bundled"; warning?: string }
   | { ok: false; error: string };
+/**
+ * popup → content script の「ログイン中のアカウント」の答え(#106)。読めなければ null。
+ * 名前・ID・アイコンの URL は画面に出すだけ。chrome.storage には入れない
+ */
+export type AccountResponse = { account: CurrentUser | null };
 export type DiagnoseResponse = { ok: true; report: string } | { ok: false; error: string };
 
 /** chrome.storage.local のキー */

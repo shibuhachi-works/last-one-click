@@ -1,7 +1,8 @@
 // 診断の節「ログイン中のアカウントの手がかり」。
 // note の画面のどこから「ログイン中のアカウント」が分かるかを調べるための節。
 // 診断の結果は公開の Issue に貼ってもらうので、名前・ID・アイコンの URL などの中身は出さない。
-// 「どこに・何があるか」(道筋・件数・文字数・形)だけを出す。読むだけで、押さない・開かない・問い合わせない。
+// 「どこに・何があるか」(道筋・件数・文字数・形)だけを出す。読むだけで、押さない・開かない。
+// ログイン中のユーザーの問い合わせ(#106)は content script が済ませて、結果だけを渡す。
 
 const MAX_ITEMS = 20;
 const MAX_DATA_PATHS = 40;
@@ -39,7 +40,15 @@ export type AccountHints = {
   secrets: Set<string>;
 };
 
-export function accountHints(pathOf: (el: Element) => string, visible: (el: HTMLElement) => boolean): AccountHints {
+/**
+ * extra は、ログイン中のユーザーの問い合わせの結果(shared/current-user.ts の diagnoseCurrentUser。#106)。
+ * 問い合わせは content script が先に済ませて渡す(この関数は画面を読むだけ)
+ */
+export function accountHints(
+  pathOf: (el: Element) => string,
+  visible: (el: HTMLElement) => boolean,
+  extra?: { lines: string[]; secrets: Set<string> },
+): AccountHints {
   const lines: string[] = [];
   const secrets = new Set<string>();
   const addSecret = (s: string | null | undefined) => {
@@ -145,6 +154,12 @@ export function accountHints(pathOf: (el: Element) => string, visible: (el: HTML
     lines.push(
       `- ${el.tagName.toLowerCase()} 言葉: ${words.join("・") || "(aria-haspopup)"}${popup} ${visible(el) ? "(visible)" : "(hidden)"} path: ${pathOf(el)}`,
     );
+  }
+
+  // 5. ログイン中のユーザーの問い合わせ(値は出さない。読めた値はレポート全体から伏せる)
+  if (extra) {
+    lines.push(...extra.lines);
+    for (const s of extra.secrets) addSecret(s);
   }
   lines.push(``);
   return { lines, secrets };
