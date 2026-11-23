@@ -2,6 +2,8 @@
 // note のエディタを新しいタブで開く。実際の入力は content.ts が行う。
 import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../shared/article";
+import type { CurrentUser } from "../../shared/current-user";
+import { sameNoteAccount } from "../../shared/note-account";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
@@ -73,6 +75,10 @@ let bodyImageFiles: File[] = [];
 /** 記事のフォルダ・ZIP のとき、本文に書いた参照先(相対パス)ごとの画像 */
 let bodyImagesBySrc = new Map<string, File>();
 let baseUrl: string | undefined; // GitHub から読んだ場合の、相対 thumbnail の基準
+/** ポップアップを開いたときに読めた、ログイン中のアカウント(#106)。この画面に出すためだけに持つ(保存しない) */
+let loggedInAccount: CurrentUser | null = null;
+/** 読み込んだ記事の front matter の note_account(#102)。無ければ undefined */
+let articleNoteAccount: string | undefined;
 
 // 「ウィンドウで開く」から来た場合は、元のポップアップの入力状態を復元する(受け取ったら消す)
 if (isWindow) {
@@ -295,6 +301,8 @@ async function showAccount(): Promise<void> {
   const res = (await chrome.tabs.sendMessage(tab.id, { type: "account" } satisfies Message).catch(() => null)) as AccountResponse | null;
   const account = res?.account;
   if (!account || typeof account.name !== "string" || !account.name) return;
+  loggedInAccount = account;
+  renderAccountTarget();
   const el = $<HTMLParagraphElement>("account");
   const nodes: Node[] = [document.createTextNode("ログイン中:")];
   if (typeof account.iconUrl === "string" && account.iconUrl.startsWith("https://")) {
@@ -313,6 +321,25 @@ async function showAccount(): Promise<void> {
   el.hidden = false;
 }
 void showAccount();
+
+/**
+ * 記事が note_account を指定していれば、「記事の指定: ◯◯」を「note の下書きを作成」の近くに出す(#102)。
+ * ログイン中のアカウントが読めていて違うときは、注意に変える。ボタンは押せるままにする(止めるかどうかは、
+ * note のタブの content script が工程を始める前に比べて決める)
+ */
+function renderAccountTarget(): void {
+  const el = $<HTMLParagraphElement>("account-target");
+  const want = articleNoteAccount;
+  const id = loggedInAccount?.id;
+  const mismatch = Boolean(want && id && !sameNoteAccount(id, want));
+  el.hidden = !want;
+  el.classList.toggle("mismatch", mismatch);
+  el.textContent = !want
+    ? ""
+    : mismatch
+      ? `⚠️ ログイン中のアカウント(${id})が、記事の指定(${want})と違います。note でアカウントを切り替えてから作成してください。`
+      : `記事の指定: ${want}`;
+}
 
 // GitHub から md を読み込んで textarea に入れる
 $("github-load").addEventListener("click", async () => {
@@ -513,8 +540,10 @@ function fillFieldsFromMarkdown(md: string, opts: { newSource: boolean }): { tit
   let hashtags: string[] = [];
   let magazine = "";
   let price = "";
+  articleNoteAccount = undefined;
   try {
     const { data, content } = parseFrontMatter(md, parseYaml);
+    articleNoteAccount = data.noteAccount;
     title = data.title ?? content.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "";
     hashtags = data.hashtags ?? [];
     magazine = data.magazine ?? "";
@@ -529,6 +558,7 @@ function fillFieldsFromMarkdown(md: string, opts: { newSource: boolean }): { tit
   if (!fieldsEdited.magazine) magazineEl.value = magazine;
   if (!fieldsEdited.price) priceEl.value = price;
   fieldsEl.hidden = false;
+  renderAccountTarget();
   const titleMissing = !titleEl.value.trim();
   titleEl.classList.toggle("missing", titleMissing);
   return { titleMissing };

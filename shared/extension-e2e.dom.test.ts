@@ -678,4 +678,69 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       await editor.close();
     });
   });
+
+  // 記事の note_account と、ログイン中のアカウントを比べる(#102)
+  const SAMPLE_USER = { data: { id: 1234, nickname: "見本の書き手", urlname: "sample_writer", profile_image_path: "https://note.com/e2e-icon.png" } };
+  const withAccount = (account: string) => ARTICLE.replace("hashtags: [テスト]\n", `hashtags: [テスト]\nnote_account: ${account}\n`);
+  const bannerText = (editor: Page) =>
+    editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? "");
+
+  it("記事の note_account がログイン中のアカウントと同じなら、今までどおり最後まで進む(大文字と小文字は区別しない)(#102)", async () => {
+    await withCurrentUser({ status: 200, contentType: "application/json", body: JSON.stringify(SAMPLE_USER) }, async () => {
+      const { editor, errors } = await draftFromPopup(async () => {}, withAccount("Sample_Writer"));
+      assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
+      assert.match(await editor.locator("#body").innerHTML(), /<h2[^>]*>見出しです<\/h2>/);
+      assert.doesNotMatch(await bannerText(editor), /アカウント/);
+      assert.deepEqual(await accountIn(editor, "banner"), { text: "このアカウントで作りました:見本の書き手(@sample_writer)", icon: "https://note.com/e2e-icon.png" });
+      assert.deepEqual(errors, []);
+      await editor.close();
+    });
+  });
+
+  it("記事の note_account がログイン中のアカウントと違えば、タイトルも本文も入れずに、バナーで違うと知らせる。ポップアップにも注意を出す(#102)", async () => {
+    await withCurrentUser({ status: 200, contentType: "application/json", body: JSON.stringify(SAMPLE_USER) }, async () => {
+      const md = withAccount("other_writer");
+      const { editor, errors } = await draftFromPopup(async () => {}, md, "記事の指定(other_writer)と違います");
+      assert.equal(
+        (await bannerText(editor)).split("\n")[0],
+        "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。note でアカウントを切り替えてから、もう一度作成してください。",
+      );
+      // 工程は始めていない(少し待っても、タイトルも本文も入らない)
+      await editor.waitForTimeout(1_000);
+      assert.equal(await editor.locator("#title").inputValue(), "");
+      assert.equal(await editor.locator("#body").textContent(), "");
+      assert.deepEqual(errors, []);
+
+      // ポップアップで同じ記事を読むと、「note の下書きを作成」の近くに注意が出る(ボタンは押せるまま)
+      const popup = await context.newPage();
+      await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+      await popup.locator("#account").waitFor({ state: "visible", timeout: 10_000 });
+      await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
+      const target = popup.locator("#account-target");
+      await target.waitFor({ state: "visible" });
+      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。note でアカウントを切り替えてから作成してください。");
+      assert.equal(await target.evaluate((el) => el.classList.contains("mismatch")), true);
+      assert.equal(await popup.locator("#submit").isDisabled(), false);
+      // 同じアカウントの記事を読み直すと、「記事の指定」だけに戻る
+      await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(withAccount("sample_writer")) });
+      await popup.waitForFunction(() => document.getElementById("account-target")?.textContent === "記事の指定: sample_writer", null, { timeout: 5_000 });
+      assert.equal(await target.evaluate((el) => el.classList.contains("mismatch")), false);
+      // note_account の無い記事では出さない
+      await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
+      await target.waitFor({ state: "hidden" });
+      await popup.close();
+      await editor.close();
+    });
+  });
+
+  it("記事の note_account があり、ログイン中のアカウントが読めない(401)ときは、止めずに進み、バナーで注意する(#102)", async () => {
+    await withCurrentUser({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { message: "login required" } }) }, async () => {
+      const { editor, errors } = await draftFromPopup(async () => {}, withAccount("sample_writer"));
+      assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
+      assert.match(await editor.locator("#body").innerHTML(), /<h2[^>]*>見出しです<\/h2>/);
+      assert.match((await bannerText(editor)).split("\n")[0], /^⚠️ アカウントを確かめられませんでした\(記事の指定: sample_writer\)/);
+      assert.deepEqual(errors, []);
+      await editor.close();
+    });
+  });
 });

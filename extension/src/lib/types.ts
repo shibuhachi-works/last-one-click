@@ -7,6 +7,11 @@ export type ArticlePayload = {
   price?: number;
   /** 本文の「ここから有料」の印の直前のブロックの文字。あれば「有料エリア設定」で、そのすぐ下にラインを引く */
   paywallAnchor?: string;
+  /**
+   * 記事が指定した note のアカウントの ID(front matter の note_account。#102)。
+   * あれば、工程を始める前にログイン中のアカウントと比べ、違えば何も入れずに止める。無ければ比べない
+   */
+  noteAccount?: string;
   /** note に貼り付ける HTML */
   html: string;
   /** base64 で持ち回る(chrome.storage に入れるため) */
