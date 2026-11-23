@@ -51,3 +51,8 @@ details { margin-top: 10px; }
 summary { cursor: pointer; color: #555; }
 /* 「拡張機能の設定」の中の「診断」は、中にあることが分かるよう少し下げる */
 details details { margin-left: 12px; }
+/* 追加の対応先の案内。そのサイトのエディタを開いてアイコンを押したときだけ出る */
+.extra-site-offer { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; padding: 8px 10px; border: 1px solid #8fd6c9; border-radius: 8px; background: #f3fbf9; font-size: 12px; }
+.extra-site-offer[hidden] { display: none; }
+.extra-site-offer p { margin: 0; flex: 1; }
+#extra-site-row[hidden] { display: none; }

@@ -1,4 +1,4 @@
-// esbuild で popup / content をバンドルし、静的ファイルを dist/ にコピーする。
+// esbuild で popup / content / background / extra-site(追加の対応先の content script)をバンドルし、静的ファイルを dist/ にコピーする。
 //   node build.mjs          → 1回ビルド
 //   node build.mjs --watch  → 変更を監視して再ビルド
 import { build, context } from "esbuild";
@@ -11,7 +11,7 @@ await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
 
 const options = {
-  entryPoints: ["src/popup.ts", "src/content.ts", "src/background.ts"],
+  entryPoints: ["src/popup.ts", "src/content.ts", "src/background.ts", "src/extra-site.ts"],
   bundle: true,
   format: "iife",
   target: "chrome120",

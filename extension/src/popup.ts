@@ -7,6 +7,8 @@ import { articleOptionsLabel } from "../../shared/article-options";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
+import { disableExtraSite, enableExtraSite, shouldOfferExtraSite, syncExtraSite } from "../../shared/extra-site";
+import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
 import { STORAGE, type AccountResponse, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
@@ -136,6 +138,55 @@ embedUrlsEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE
 insertImagesEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.insertImages]: insertImagesEl.checked }));
 // 「記事の最後に『Last One Click で下書きしました』のリンクを入れる」も次回も同じにする
 creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.creditLink]: creditLinkEl.checked }));
+
+// 追加の対応先(library.libecity.com)。そのサイトのエディタを開いてツールバーのアイコンを押した人にだけ案内を出し、
+// 「使えるようにする」を押したときに任意の権限を求める。許可が無い人(note だけを使う人)には何も出さない
+const extraSiteOfferEl = $<HTMLDivElement>("extra-site-offer");
+const extraSiteRowEl = $<HTMLLabelElement>("extra-site-row");
+const extraSiteToggleEl = $<HTMLInputElement>("extra-site-toggle");
+function showExtraSiteSetting(granted: boolean) {
+  extraSiteRowEl.hidden = !granted;
+  extraSiteToggleEl.checked = granted;
+  if (granted) extraSiteOfferEl.hidden = true;
+}
+chromeExtraSiteApi.hasPermission().then(showExtraSiteSetting, () => showExtraSiteSetting(false));
+// 別ウィンドウで開いたときは、今のウィンドウ = この画面なので、ページは見ない
+if (!isWindow) {
+  chrome.tabs
+    .query({ active: true, currentWindow: true })
+    .then(([tab]) => shouldOfferExtraSite(chromeExtraSiteApi, tab))
+    .then((offer) => {
+      extraSiteOfferEl.hidden = !offer;
+    })
+    .catch(() => {
+      extraSiteOfferEl.hidden = true;
+    });
+}
+$("extra-site-enable").addEventListener("click", () => {
+  // 許可を求める呼び出しは、クリックの中で(await より前に)行う
+  enableExtraSite(chromeExtraSiteApi)
+    .then((granted) => {
+      if (!granted) return;
+      showExtraSiteSetting(true);
+      setStatus("このページでも使えるようにしました。切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。");
+    })
+    .catch((e) => setStatus((e as Error).message, true));
+});
+extraSiteToggleEl.addEventListener("change", () => {
+  if (extraSiteToggleEl.checked) return; // 入れ直しは、そのサイトのエディタで「使えるようにする」から
+  disableExtraSite(chromeExtraSiteApi)
+    .then((granted) => {
+      showExtraSiteSetting(granted);
+      if (!granted) setStatus("追加の対応先(library.libecity.com)への許可を外しました。");
+    })
+    .catch((e) => setStatus((e as Error).message, true));
+});
+// Chrome の画面(拡張機能の詳細・サイトへのアクセス)から許可を変えられたときも、表示と登録を合わせる
+const onExtraSitePermissionChanged = () => {
+  syncExtraSite(chromeExtraSiteApi).then(showExtraSiteSetting, () => {});
+};
+chrome.permissions.onRemoved.addListener(onExtraSitePermissionChanged);
+chrome.permissions.onAdded.addListener(onExtraSitePermissionChanged);
 
 // 上級者向け(GitHub から読み込む・貼り付け・selectors の URL・GitHub トークン)は普段は隠す。
 // 「拡張機能の設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
