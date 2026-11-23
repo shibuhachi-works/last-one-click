@@ -11,6 +11,7 @@ import { disableExtraSite, enableExtraSite, shouldOfferExtraSite, syncExtraSite 
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
+import { loadPopupAccount } from "../../shared/popup-account";
 import { STORAGE, type AccountResponse, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -286,15 +287,18 @@ async function findNoteTab(): Promise<chrome.tabs.Tab | undefined> {
 
 /**
  * ログイン中の note アカウントを、「note の下書きを作成」の近くに出す(#106)。
- * 開いている note のタブの content script に 1 回だけ聞く(拡張は Cookie を読まない。問い合わせは note のタブの中で行う)。
+ * 開いている note のタブがあれば、そのタブの content script に 1 回だけ聞く。
+ * タブが無いとき(またはタブから返事が無いとき)だけ、service worker が note.com に 1 回問い合わせる(#127)。
+ * 拡張は Cookie を読まない(ログインの状態はブラウザが付ける)。
  * 読めなければ何も出さない。名前・ID・アイコンの URL は画面に出すだけで、保存しない
  */
 async function showAccount(): Promise<void> {
-  const tab = await findNoteTab().catch(() => undefined);
-  if (tab?.id === undefined) return;
-  const res = (await chrome.tabs.sendMessage(tab.id, { type: "account" } satisfies Message).catch(() => null)) as AccountResponse | null;
-  const account = res?.account;
-  if (!account || typeof account.name !== "string" || !account.name) return;
+  const account = await loadPopupAccount({
+    findNoteTab: async () => (await findNoteTab())?.id,
+    askTab: (tabId) => chrome.tabs.sendMessage(tabId, { type: "account" } satisfies Message) as Promise<AccountResponse | null>,
+    askBackground: () => chrome.runtime.sendMessage({ type: "account" } satisfies Message) as Promise<AccountResponse | null>,
+  });
+  if (!account) return;
   const el = $<HTMLParagraphElement>("account");
   const nodes: Node[] = [document.createTextNode("ログイン中:")];
   if (typeof account.iconUrl === "string" && account.iconUrl.startsWith("https://")) {
@@ -309,7 +313,7 @@ async function showAccount(): Promise<void> {
   nodes.push(name);
   if (account.id && account.id !== account.name) nodes.push(document.createTextNode(`(@${account.id})`));
   el.replaceChildren(...nodes);
-  el.title = "開いている note のタブでログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
+  el.title = "このブラウザの note でログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
   el.hidden = false;
 }
 void showAccount();

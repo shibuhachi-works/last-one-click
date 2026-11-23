@@ -50,7 +50,8 @@ export type SelectorsResponse =
   | { ok: true; selectors: Selectors; source: "remote" | "cache" | "bundled"; warning?: string }
   | { ok: false; error: string };
 /**
- * popup → content script の「ログイン中のアカウント」の答え(#106)。読めなければ null。
+ * popup → content script(note のタブがあるとき)、または popup → service worker(無いとき。#127)の
+ * 「ログイン中のアカウント」の答え(#106)。読めなければ null。
  * 名前・ID・アイコンの URL は画面に出すだけ。chrome.storage には入れない
  */
 export type AccountResponse = { account: CurrentUser | null };
