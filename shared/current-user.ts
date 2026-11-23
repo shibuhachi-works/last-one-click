@@ -6,7 +6,7 @@
 // - 拡張は Cookie を読まない。ユーザーの note のタブ(content script)から fetch し、Cookie はブラウザが付ける
 // - 読んだ名前・ID・アイコンの URL は、画面に出すだけ。保存しない(chrome.storage にも入れない)・外へ送らない
 // - 読めなければ(ログインしていない・応答の形が違う・通信の失敗)null を返す。エラーにしない
-import type { SelectorsJson } from "./selectors-schema";
+import { ALLOWED_NOTE_ORIGINS, type SelectorsJson } from "./selectors-schema";
 
 export type AccountSelectors = SelectorsJson["account"];
 
@@ -29,9 +29,14 @@ export const CURRENT_USER_TIMEOUT_MS = 5_000;
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Pick<Response, "ok" | "status" | "json">>;
 
-/** 問い合わせ先の URL。"/" で始まるときは、いま開いているページ(note.com か editor.note.com)の origin に付ける */
+/**
+ * 問い合わせ先の URL。"/" で始まるときは、いま開いているページ(note.com か editor.note.com)の origin に付ける。
+ * 付けたあとの origin が note のものでなければ投げる(selectors の検査をすり抜けたときの備え)
+ */
 export function resolveCurrentUserUrl(url: string, pageOrigin: string): string {
-  return new URL(url, pageOrigin).href;
+  const u = new URL(url, pageOrigin);
+  if (!ALLOWED_NOTE_ORIGINS.includes(u.origin)) throw new Error(`note の origin ではありません: ${u.origin}`);
+  return u.href;
 }
 
 /** "data.nickname" のような道筋で値を取る */
@@ -80,12 +85,33 @@ export function readCurrentUser(data: unknown, S: AccountSelectors): CurrentUser
   return { name: (name ?? id)!, ...(id ? { id } : {}), ...(icon ? { iconUrl: icon } : {}) };
 }
 
-/** 1 回だけ問い合わせる。GET・Cookie はブラウザに任せる(credentials: "include")・転送はたどらない */
-async function request(S: AccountSelectors, pageOrigin: string, fetchFn: FetchLike, timeoutMs: number) {
+/** 本文の読み取りまで含めて、待つ時間を過ぎたら投げる */
+function withTimeout<T>(p: Promise<T>, ms: number, onTimeout: () => void): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      onTimeout();
+      reject(new DOMException("timeout", "TimeoutError"));
+    }, ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * 1 回だけ問い合わせ、本文の JSON まで読む。GET・Cookie はブラウザに任せる(credentials: "include")・転送はたどらない。
+ * 待つ時間は、応答の頭だけでなく本文を読み終えるまでにかける(本文が止まっても、下書きの案内を待たせないため)。
+ * 通信の失敗は投げる。本文が JSON でなければ json は undefined で、jsonError に印を付ける
+ */
+async function request(
+  S: AccountSelectors,
+  pageOrigin: string,
+  fetchFn: FetchLike,
+  timeoutMs: number,
+): Promise<{ ok: boolean; status: number; json: unknown; jsonError: boolean }> {
+  const url = resolveCurrentUserUrl(S.currentUserUrl, pageOrigin);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetchFn(resolveCurrentUserUrl(S.currentUserUrl, pageOrigin), {
+  const run = async () => {
+    const res = await fetchFn(url, {
       method: "GET",
       credentials: "include",
       cache: "no-store",
@@ -93,9 +119,17 @@ async function request(S: AccountSelectors, pageOrigin: string, fetchFn: FetchLi
       headers: { Accept: "application/json" },
       signal: controller.signal,
     });
-  } finally {
-    clearTimeout(timer);
-  }
+    let json: unknown;
+    let jsonError = false;
+    try {
+      json = await res.json();
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") throw e;
+      jsonError = true;
+    }
+    return { ok: res.ok, status: res.status, json, jsonError };
+  };
+  return withTimeout(run(), timeoutMs, () => controller.abort());
 }
 
 /**
@@ -110,8 +144,8 @@ export async function fetchCurrentUser(
 ): Promise<CurrentUser | null> {
   try {
     const res = await request(S, pageOrigin, fetchFn, timeoutMs);
-    if (!res.ok) return null;
-    return readCurrentUser(await res.json(), S);
+    if (!res.ok || res.jsonError) return null;
+    return readCurrentUser(res.json, S);
   } catch {
     return null;
   }
@@ -136,7 +170,7 @@ export async function diagnoseCurrentUser(
   }
   lines.push(`- 問い合わせ先: ${url.host}${url.pathname}`);
 
-  let res: Awaited<ReturnType<FetchLike>>;
+  let res: Awaited<ReturnType<typeof request>>;
   try {
     res = await request(S, pageOrigin, fetchFn, timeoutMs);
   } catch (e) {
@@ -144,13 +178,11 @@ export async function diagnoseCurrentUser(
     return { lines, secrets };
   }
   lines.push(`- 応答: あり、HTTP ${res.status}`);
-  let data: unknown;
-  try {
-    data = await res.json();
-  } catch {
+  if (res.jsonError) {
     lines.push(`- 本文: JSON として読めません`);
     return { lines, secrets };
   }
+  const data = res.json;
 
   const strings = new Set<string>();
   const collect = (v: unknown, depth: number) => {
@@ -161,19 +193,23 @@ export async function diagnoseCurrentUser(
   };
   collect(data, 0);
 
-  const show = (name: string, paths: readonly string[]) => {
+  // 候補の道筋の値は、使ったものかどうかに関係なく、すべてレポート全体から伏せる。
+  // 出すのは、readCurrentUser が使う道筋(読める値のある最初の候補)だけ
+  const show = (name: string, paths: readonly string[], read: (v: unknown) => unknown) => {
+    let used: string | undefined;
     for (const path of paths) {
       const v = valueAt(data, path);
-      if (v === undefined) continue;
       if (typeof v === "string" || typeof v === "number") secrets.add(String(v));
-      lines.push(`- ${name}: ${path} (${kind(v)})`);
-      return;
+      if (used === undefined && read(v) !== undefined) {
+        used = path;
+        lines.push(`- ${name}: ${path} (${kind(v)})`);
+      }
     }
-    lines.push(`- ${name}: 見つかりません(${paths.join(" / ")})`);
+    if (used === undefined) lines.push(`- ${name}: 見つかりません(${paths.join(" / ")})`);
   };
-  show("名前", S.namePaths);
-  show("ID", S.idPaths);
-  show("アイコン", S.iconPaths);
+  show("名前", S.namePaths, label);
+  show("ID", S.idPaths, label);
+  show("アイコン", S.iconPaths, iconUrl);
 
   // 道筋が合わないときに直せるよう、上から 2 段までのキーの名前と形を出す(値と同じ文字のキーは伏せる)
   const keys: string[] = [];

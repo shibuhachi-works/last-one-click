@@ -94,6 +94,27 @@ describe("fetchCurrentUser(1 回だけ問い合わせる)", () => {
     assert.equal(await fetchCurrentUser(S, "https://note.com", hang, 20), null);
   });
 
+  it("ヘッダーのあと本文が止まっても、待つ時間を過ぎたところで null(本文の読み取りまで待つ時間をかける)", async () => {
+    let aborted = false;
+    const stall = async (_url: string, init: RequestInit) => {
+      init.signal?.addEventListener("abort", () => (aborted = true));
+      return { ok: true, status: 200, json: () => new Promise<never>(() => {}) };
+    };
+    assert.equal(await fetchCurrentUser(S, "https://note.com", stall, 20), null);
+    assert.ok(aborted, "止まった問い合わせを中断していません");
+    const d = await diagnoseCurrentUser(S, "https://note.com", stall, 20);
+    assert.match(d.lines.join("\n"), /- 応答: ありません\(TimeoutError\)/);
+  });
+
+  it("付けたあとの origin が note のものでなければ、問い合わせない", async () => {
+    for (const url of ["/\\outside.example/api/x", "https://outside.example/api/x"]) {
+      assert.throws(() => resolveCurrentUserUrl(url, "https://note.com"), url);
+      const f = fakeFetch({ status: 200, body: SAMPLE });
+      assert.equal(await fetchCurrentUser({ ...S, currentUserUrl: url }, "https://note.com", f.fn), null);
+      assert.equal(f.calls.length, 0, url);
+    }
+  });
+
   it('"/" で始まる URL は、開いている note のページの origin に付ける', () => {
     assert.equal(resolveCurrentUserUrl("/api/v2/current_user", "https://editor.note.com"), "https://editor.note.com/api/v2/current_user");
     assert.equal(resolveCurrentUserUrl(DEFAULT_ACCOUNT.currentUserUrl, "https://editor.note.com"), "https://note.com/api/v2/current_user");
@@ -118,6 +139,16 @@ describe("diagnoseCurrentUser(診断の節。値は出さない)", () => {
     for (const s of hidden) assert.ok(!text.includes(s), `${s} が出ています\n${text}`);
     // 読めた値は、レポート全体から伏せる
     for (const s of [NAME, ID, ICON]) assert.ok(d.secrets.has(s), s);
+  });
+
+  it("使わなかった候補の道筋の値も伏せる(先の候補が null のとき、後の候補を名前に使う)", async () => {
+    const data = { data: { nickname: null, name: "控えの名前テスト", urlname: ID } };
+    assert.equal(readCurrentUser(data, S)?.name, "控えの名前テスト");
+    const d = await diagnoseCurrentUser(S, "https://note.com", fakeFetch({ status: 200, body: data }).fn);
+    const text = d.lines.join("\n");
+    assert.ok(d.secrets.has("控えの名前テスト"));
+    assert.match(text, /- 名前: data\.name \(文字 8 字\)/);
+    assert.ok(!text.includes("控えの名前テスト"), text);
   });
 
   it("401 のときは状態だけ、通信の失敗のときは応答が無いことだけを出す", async () => {

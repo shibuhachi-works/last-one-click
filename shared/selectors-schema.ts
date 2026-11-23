@@ -262,8 +262,16 @@ function currentUserUrl(v: unknown): string {
   } catch {
     fail("account.currentUserUrl が URL として不正");
   }
-  if (!s.startsWith("/") && !isAllowedNoteUrl(s)) fail(`account.currentUserUrl は ${ALLOWED_NOTE_ORIGINS.join(" / ")} のどれかで始まる必要があります: ${s}`);
-  if (s.startsWith("//")) fail("account.currentUserUrl は // で始められません");
+  // 文字の頭だけでなく、URL として読んだあとの origin で確かめる("/\\outside.example/…" のように、/ で始まっても別の origin になるものがあるため)。
+  // "/" で始まる書き方は、どちらの note の origin に付けても、その origin のままでなければならない
+  if (/[\\\s]/.test(s)) fail("account.currentUserUrl にバックスラッシュや空白は使えません");
+  if (s.startsWith("/")) {
+    for (const origin of ALLOWED_NOTE_ORIGINS) {
+      if (new URL(s, origin).origin !== origin) fail(`account.currentUserUrl は note の origin の中を指す必要があります: ${s}`);
+    }
+  } else if (!isAllowedNoteUrl(s) || !ALLOWED_NOTE_ORIGINS.includes(u.origin)) {
+    fail(`account.currentUserUrl は ${ALLOWED_NOTE_ORIGINS.join(" / ")} のどれかで始まる必要があります: ${s}`);
+  }
   if (!u.pathname.startsWith("/api/")) fail(`account.currentUserUrl は /api/ の下である必要があります: ${s}`);
   return s;
 }
