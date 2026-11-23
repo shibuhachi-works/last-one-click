@@ -198,6 +198,9 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.equal((await popup.locator("#submit").textContent())?.trim(), "note の下書きを作成");
     await popup.waitForTimeout(500);
     assert.deepEqual(errors, []);
+    // 追加の対応先の許可が無い状態では、案内もスイッチも出ない(note だけを使う人の見た目は変わらない)
+    assert.equal(await popup.locator("#extra-site-offer").isVisible(), false);
+    assert.equal(await popup.locator("#extra-site-row").isVisible(), false);
     await popup.close();
   });
 

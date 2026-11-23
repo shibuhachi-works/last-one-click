@@ -24,12 +24,17 @@
   },
   "permissions": [
     "storage",
-    "clipboardWrite"
+    "clipboardWrite",
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "https://note.com/*",
     "https://editor.note.com/*",
     "https://raw.githubusercontent.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://library.libecity.com/*"
   ],
   "content_scripts": [
     {

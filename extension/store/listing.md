@@ -119,6 +119,9 @@ note.com のエディタに、ユーザーが選んだ Markdown ファイルの�
 | `storage` | 組み立てた記事(タイトル・本文 HTML・画像)を、ポップアップから note のタブへ渡すために一時的に保存する。任意の GitHub トークンと設定もここに保存する。外部には送らない |
 | `clipboardWrite` | 「診断」ボタンで、note の画面の入力欄・ボタンの一覧(認証情報や本文を含まない)をクリップボードにコピーし、不具合の報告に使えるようにする |
 | ホスト権限 `https://note.com/*`, `https://editor.note.com/*` | note のエディタのページで content script を動かし、タイトル・本文・画像・ハッシュタグ・マガジンを入力するため |
+| `activeTab` | ユーザーがツールバーのアイコンを押したタブ(追加の対応先 `https://library.libecity.com/*` のページのときだけ)で、エディタの入力欄があるかを 1 回だけ読んで確かめ、許可を求める案内を出すため。ボタンは押さず、入力もせず、外へも送らない |
+| `scripting` | 上の確かめを `chrome.scripting.executeScript` で動かすためと、ユーザーが追加の対応先を許可したときだけ、そのサイトのページに content script を登録するため(`registerContentScripts`) |
+| 任意のホスト権限 `https://library.libecity.com/*`(`optional_host_permissions`) | 追加の対応先。入れるときには求めず、そのサイトのエディタでユーザーが「使えるようにする」を押したときだけ求める。ポップアップの「記事の設定」のスイッチでいつでも外せる |
 | ホスト権限 `https://raw.githubusercontent.com/*` | (1) 記事の Markdown・見出し画像・本文の画像を GitHub から読む(ユーザーが URL を渡したときだけ)、(2) note の画面構成の変更に追従するためのセレクタ定義(JSON。コードではない)を読む |
 
 ## リモートコード(Remote code)
