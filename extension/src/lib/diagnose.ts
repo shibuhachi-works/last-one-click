@@ -143,13 +143,13 @@ export function rect(el: HTMLElement): string {
   return `@(${Math.round(r.left + scrollX)},${Math.round(r.top + scrollY)} ${Math.round(r.width)}x${Math.round(r.height)})`;
 }
 
-function isVisible(el: HTMLElement): boolean {
+export function isVisible(el: HTMLElement): boolean {
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
 }
 
 /** 短めの CSS パス(id があればそこで打ち切る) */
-function cssPath(el: Element): string {
+export function cssPath(el: Element): string {
   const parts: string[] = [];
   let cur: Element | null = el;
   while (cur && cur !== document.body && parts.length < 6) {

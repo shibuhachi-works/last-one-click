@@ -5,12 +5,18 @@
 //
 // chrome の API は ExtraSiteApi として外から渡す(テストでは偽物を渡す。ルートの tsconfig には chrome の型が無い)
 
+/** extension/build.mjs が esbuild の define で置き換える。開発用のビルド(EXTRA_SITE=1 npm run build)のときだけ true */
+declare const __EXTRA_SITE__: boolean | undefined;
+
 /**
- * 追加の対応先を拡張で使うか。下書きの入力ができるまでは false にして、ストアの版には入口(案内・スイッチ・登録)を出さない。
- * true に戻すときは、extension/manifest.json に activeTab・scripting と optional_host_permissions を足し、
+ * 追加の対応先を拡張で使うか。下書きの入力ができるまでは、ストアの版には入口(案内・スイッチ・登録・診断)を出さない。
+ * ふつうのビルド(npm run build・npm run package)とテストでは false。
+ * 開発用のビルド(extension/ で EXTRA_SITE=1 npm run build)でだけ true になり、dist/manifest.json に
+ * activeTab・scripting と optional_host_permissions を足す(extension/extra-site-manifest.mjs。#118)。
+ * ストアの版でも使えるようにするときは、extension/manifest.json に 3 つを足し、
  * shared/manifest-permissions.test.ts と extension/store/listing.md の権限の理由も同じ PR で戻す(v0.1.7 で外した。#120)
  */
-export const EXTRA_SITE_ENABLED = false;
+export const EXTRA_SITE_ENABLED: boolean = typeof __EXTRA_SITE__ !== "undefined" && __EXTRA_SITE__ === true;
 
 export const EXTRA_SITE_HOST = "library.libecity.com";
 /** optional_host_permissions と、content script の matches に使う */
