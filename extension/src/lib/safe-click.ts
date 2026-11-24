@@ -4,8 +4,11 @@
 import { collectClickLabels } from "../../../shared/click-labels";
 import { assertClickAllowed } from "../../../shared/forbidden-click";
 
-export function safeClick(el: HTMLElement, context: string, opts: { at?: { x: number; y: number } } = {}) {
-  assertClickAllowed(collectClickLabels(el), context);
+/**
+ * forbid: そのページでだけ、さらに押さない文字(部分一致)。追加の対応先では EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS を渡す
+ */
+export function safeClick(el: HTMLElement, context: string, opts: { at?: { x: number; y: number }; forbid?: readonly string[] } = {}) {
+  assertClickAllowed(collectClickLabels(el), context, opts.forbid);
   if (opts.at) {
     // 実際のクリックと同じ座標・detail を持つ click を起こす(el.click() は座標 0,0・detail 0 で、
     // 座標で当たり判定する部品や detail 0 を無視する部品には効かない)

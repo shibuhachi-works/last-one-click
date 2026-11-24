@@ -32,6 +32,7 @@ const FEATURES: [string, RegExp, RegExp][] = [
   ["目次の説明", /目次/, /目次/],
   ["最後の 1 行(下書きしました)の説明", /下書きしました/, /下書きしました/],
   ["チェックで入るハッシュタグ #LastOneClick の説明", /ハッシュタグ #LastOneClick/, /ハッシュタグ #LastOneClick/],
+  ["自分用のメモ(<!-- … -->)の説明", /`<!-- … -->` で囲んだ所は/, /<code>&lt;!-- … --&gt;<\/code> で囲んだ所は/],
 ];
 
 /** 見本の front matter にコメントで入れておく書き方(先頭の「# 」を消すと使える)。[名前, md に含まれること] */
@@ -40,6 +41,7 @@ const FRONT_MATTER_FEATURES: [string, RegExp][] = [
   ["記事を作るアカウント(note_account)", /^# note_account: /m],
   ["有料記事の価格(price)", /^# price: 300\b/m],
   ["有料の境目の印(<!-- ここから有料 -->)の説明", /^# .*「<!-- ここから有料 -->」だけの行/m],
+  ["入れる先(target)", /^# target: note\b/m],
 ];
 
 describe("templates/note/article.md(見本)", () => {
@@ -58,6 +60,12 @@ describe("templates/note/article.md(見本)", () => {
       assert.match(src, inMd, `見本の md に「${name}」が無い`);
       assert.match(html, inHtml, `見本の HTML に「${name}」が無い`);
     }
+  });
+
+  it("自分用のメモ(<!-- … -->)の行は、見本の md にあり、変換後の本文には入らない", async () => {
+    assert.match(src, /^<!-- この行は自分用のメモです。/m, "見本の md に自分用のメモの行が無い");
+    const { html } = await renderArticle(src, convert);
+    assert.doesNotMatch(html, /この行は自分用のメモです/);
   });
 
   it("front matter の省略できる項目を、コメントで見せている。先頭の「# 」を消すと、その値が入る", async () => {

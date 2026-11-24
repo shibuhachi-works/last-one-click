@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Marked } from "marked";
 import { parse as parseYaml } from "yaml";
-import { parseFrontMatter, parsePrice, renderArticle, resolveArticleUrl, splitList } from "./article.js";
+import { checkTarget, parseFrontMatter, parsePrice, renderArticle, resolveArticleUrl, splitList } from "./article.js";
 import { SAFE_RENDERER } from "./markdown-safe.js";
 
 const md = new Marked({ gfm: true, breaks: true, renderer: SAFE_RENDERER as never });
@@ -166,5 +166,26 @@ describe("price(有料記事の価格)", () => {
     await assert.rejects(() => renderArticle(bad, convert, { title: "t", price: "300円", final: true }), /price は 1 以上の整数/);
     await assert.rejects(() => renderArticle(bad, convert), /price は 1 以上の整数/);
     assert.equal((await renderArticle(bad, convert, { price: "500" })).price, 500);
+  });
+});
+
+describe("target(入れる先)", () => {
+  it("front matter の target を読み、renderArticle が返す。書かなければ無い", async () => {
+    assert.equal(parseFrontMatter("---\ntarget: library\n---\n本文", parseYaml).data.target, "library");
+    assert.equal(parseFrontMatter("---\ntitle: T\n---\n本文", parseYaml).data.target, undefined);
+    const conv = { markdown: (b: string) => md.parse(b) as string, yaml: parseYaml };
+    assert.equal((await renderArticle("---\ntitle: T\ntarget: library\n---\n本文", conv)).target, "library");
+    assert.equal((await renderArticle("---\ntitle: T\n---\n本文", conv)).target, undefined);
+  });
+
+  it("note に入れるとき: target が無い・note(大文字小文字・前後の空白は問わない)なら通す。それ以外は止め、直し方を出す", () => {
+    for (const t of [undefined, "", "note", "Note", " NOTE "]) assert.doesNotThrow(() => checkTarget(t, "note"), String(t));
+    assert.throws(() => checkTarget("library", "note"), /target: library」と書いてあるので、note の下書きは作りません/);
+    assert.throws(() => checkTarget("other", "note"), /target の行を消すか「target: note」/);
+  });
+
+  it("今開いている追加の対応先のページに入れるとき: target: note だけ止める。無い・ほかの値は通す", () => {
+    for (const t of [undefined, "", "library", "other"]) assert.doesNotThrow(() => checkTarget(t, "extra-site"), String(t));
+    assert.throws(() => checkTarget("note", "extra-site"), /target: note」と書いてあるので、今開いているページには入れません/);
   });
 });

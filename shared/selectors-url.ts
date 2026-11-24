@@ -3,7 +3,7 @@
 // 空は「既定値を使う」なので通す。
 
 export const SELECTORS_URL_ARTICLE_MESSAGE =
-  "この欄は、note の画面の定義ファイル(selectors の .json)の URL です。記事の URL は、上の「GitHub から読み込む」に貼ってください。";
+  "「selectors/note.json の URL」の欄は、note の画面の定義ファイル(selectors の .json)の URL です。記事の URL は、上の「GitHub から読み込む」に貼ってください。";
 
 /** 問題がなければ null、あれば利用者に見せる文言を返す */
 export function checkSelectorsUrl(input: string): string | null {

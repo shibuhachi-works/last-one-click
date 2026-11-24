@@ -12,6 +12,7 @@
 - `selectors/note.json` に足す項目は、無くても動くようにする(`shared/selectors-schema.ts` で省略できるようにし、既定値を持つ。`magazineAddButtonText` と同じ形)
 - このリポジトリは公開。記事・トークン・Cookie(`.profile/`)・個人の情報・社内の運用の情報を置かない。記事はこのリポジトリの外に置く
 - Issue・PR の本文とコメントも公開される。製品の内容だけを書き、ほかのリポジトリや事業の名前・社内の連絡先や運用の情報を書かない
+- 追加の対応先(`shared/extra-site.ts`)は、サービス名をどこにも書かない。ドメインを書いてよいのはコードの中(定数・manifest・テスト・`selectors/`)だけで、Issue・PR・コミット・README・リリースノートには書かず「追加の対応先」と呼ぶ。相手の画面の診断レポートも Issue・PR に貼らない(2026-11-24)
 
 ## 機能を足すとき
 
@@ -22,7 +23,7 @@
 main の README・見本は、マージした時点で新しい機能を説明する。ストアで新しい版が公開されるまでは、ストアから入れた拡張では動かないので、次のようにする。
 
 - 拡張の動きを変える PR は、同じ PR で `docs/releases/next.md` に 1 行足す(見張り役(`tools/`)・テストだけの変更は書かない)
-- `README.md`・`extension/README.md`・`templates/note/` で、まだ出していない機能を説明するときは「(v0.1.6 から)」のように版を付ける。版は `extension/manifest.json` の今の版の次
+- `README.md`・`extension/README.md`・`templates/note/` で、まだ出していない機能を説明するときは「(v0.1.8 から)」のように版を付ける。版は `extension/manifest.json` の今の版の次
 - リリースの PR で、`docs/releases/next.md` を `docs/releases/v0.1.x.md` にし、空の `next.md` を作り直す。README などの「(v0.1.x から)」は、その版がストアで公開されたあとに外す(手順は `docs/store-submission.md`)
 
 ## PR の決まり(org 共通)

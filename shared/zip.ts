@@ -30,7 +30,7 @@ export async function readZip(buf: Uint8Array, keep: (path: string) => boolean =
   const count = view.getUint16(eocd + 10, true);
   const cdSize = view.getUint32(eocd + 12, true);
   const cdOffset = view.getUint32(eocd + 16, true);
-  if (count === 0xffff || cdOffset === 0xffffffff) throw new Error("この ZIP(ZIP64)は読めません。フォルダのままドロップしてください。");
+  if (count === 0xffff || cdOffset === 0xffffffff) throw new Error("ドロップした ZIP は ZIP64 の形式なので読めません。フォルダのままドロップしてください。");
   if (count > MAX_ZIP_ENTRIES) throw new Error(`ZIP の中のファイルが多すぎます(${count} 個。${MAX_ZIP_ENTRIES} 個まで)。`);
   if (cdOffset + cdSize > buf.byteLength) throw new Error("ZIP ファイルが壊れています。");
 

@@ -5,10 +5,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { validateSelectorsJson as validateReleased } from "./released/selectors-schema.v0.1.5.js";
+import { validateSelectorsJson as validateReleased } from "./released/selectors-schema.v0.1.7.js";
 import { validateSelectorsJson as validateCurrent } from "./selectors-schema.js";
 
-const RELEASED = "v0.1.5";
+const RELEASED = "v0.1.7";
 const noteJson = JSON.parse(readFileSync(new URL("../selectors/note.json", import.meta.url), "utf8"));
 const releasedNoteJson = JSON.parse(readFileSync(new URL(`./released/note.${RELEASED}.json`, import.meta.url), "utf8"));
 

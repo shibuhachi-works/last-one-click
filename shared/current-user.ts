@@ -4,6 +4,7 @@
 // 決まり:
 // - 問い合わせるのは、ログイン中のユーザーの情報を返す 1 か所だけ(selectors/note.json の account.currentUserUrl)。GET だけ
 // - 拡張は Cookie を読まない。ユーザーの note のタブ(content script)から fetch し、Cookie はブラウザが付ける
+//   (ポップアップを開いたときに note のタブが無ければ、拡張の service worker から 1 回だけ fetch する。#127。Cookie はやはりブラウザが付ける)
 // - 読んだ名前・ID・アイコンの URL は、画面に出すだけ。保存しない(chrome.storage にも入れない)・外へ送らない
 // - 読めなければ(ログインしていない・応答の形が違う・通信の失敗)null を返す。エラーにしない
 import { ALLOWED_NOTE_ORIGINS, type SelectorsJson } from "./selectors-schema";

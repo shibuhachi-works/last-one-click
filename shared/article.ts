@@ -22,6 +22,8 @@ export type FrontMatter = {
   priceError?: string;
   /** price が正しくないときの、書かれていた値(ポップアップの欄にそのまま出して直してもらう) */
   priceRaw?: string;
+  /** 入れる先(target)。書かなければ note。note 以外の値は、note には入れない(checkTarget) */
+  target?: string;
   /**
    * 記事を作る note のアカウントの ID(front matter の note_account。note.com/<ID> の部分)。先頭の @ は外す。
    * あれば、拡張が工程を始める前にログイン中のアカウントと比べ、違えば止める(#102)。無ければ比べない
@@ -65,7 +67,7 @@ export function resolveArticleUrl(input: string): { mdUrl: string; baseUrl: stri
 
 /**
  * front matter(先頭の "---" で囲まれたブロック)を YAML として読む。
- * 使うキーは title / hashtags / magazine / thumbnail / price / note_account だけで、他は無視する。
+ * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account だけで、他は無視する。
  * - 値は文字列に揃える(数値などもそのまま文字列に)。null や空は「無し」
  * - hashtags は配列でも "a, b" / "#a #b" の文字列でもよい。`#` は外す
  * - `hashtags: #AI #個人開発`(引用符なし)は YAML ではコメントになるが、README で許している書き方なので
@@ -89,7 +91,7 @@ export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: Fron
 
   const obj = raw as Record<string, unknown>;
   const data: FrontMatter = {};
-  for (const key of ["title", "magazine", "thumbnail"] as const) {
+  for (const key of ["title", "magazine", "thumbnail", "target"] as const) {
     const v = scalarToString(obj[key]);
     if (v !== undefined) data[key] = v;
   }
@@ -161,9 +163,36 @@ export type RenderedArticle = {
    * 有料エリア設定の画面で、この文字のブロックのすぐ下にラインを引く。印が無ければ無い
    */
   paywallAnchor?: string;
+  /** front matter の target(入れる先)。書かなければ無い(= note) */
+  target?: string;
   /** front matter の note_account(記事を作る note のアカウントの ID)。無ければ比べない(#102) */
   noteAccount?: string;
 };
+
+/** 下書きを入れる先。note の新しいタブか、今開いている追加の対応先の編集画面か */
+export type Destination = "note" | "extra-site";
+
+/**
+ * front matter の target が、入れる先と合うか確かめる。合わなければ、直し方を書いたエラーにする(タブを開く前に止める)。
+ * - target を書かない・target: note … note に入れる記事(今までどおり)
+ * - それ以外の値 … note 以外に入れる記事。note の下書きは作らない。値の決め方は書く人に任せる(拡張は note かどうかだけを見る)
+ */
+export function checkTarget(target: string | undefined, destination: Destination): void {
+  const t = target?.trim();
+  const forNote = !t || t.toLowerCase() === "note";
+  if (destination === "note" && !forNote) {
+    throw new Error(
+      `この記事は front matter に「target: ${t}」と書いてあるので、note の下書きは作りません。` +
+        "入れる先のエディタを開いてから、ツールバーのアイコンを押してください。note に入れるときは、target の行を消すか「target: note」にしてください。",
+    );
+  }
+  if (destination === "extra-site" && t?.toLowerCase() === "note") {
+    throw new Error(
+      "この記事は front matter に「target: note」と書いてあるので、今開いているページには入れません。" +
+        "note の下書きを作るときは、note か、ほかのサイトのタブでツールバーのアイコンを押してください。入れるときは、target の行を消すか、note 以外の値にしてください。",
+    );
+  }
+}
 
 export type ArticleOverride = {
   title?: string;
@@ -245,6 +274,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
     magazine,
     html,
     thumbnail: fm.thumbnail,
+    ...(fm.target !== undefined ? { target: fm.target } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(paywallAnchor !== undefined ? { paywallAnchor } : {}),
     ...(fm.noteAccount ? { noteAccount: fm.noteAccount } : {}),

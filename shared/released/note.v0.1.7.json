@@ -18,11 +18,25 @@
     "magazineToggleText": ["マガジン"],
     "magazineItem": "label, [role=\"option\"]",
     "magazineAddButtonText": ["追加"],
-    "publishButtonText": ["投稿する", "公開する"]
+    "publishButtonText": ["投稿する", "公開する"],
+    "paidRadio": "input#paid[name=\"is_paid\"]",
+    "paidLabelText": ["有料"],
+    "priceInput": "input#price",
+    "paidAreaButtonText": ["有料エリア設定"],
+    "paywallContainer": ".ProseMirror.paywall-setting",
+    "paywallWidget": ".ProseMirror-widget",
+    "paywallChangeButtonText": ["ラインをこの場所に変更"],
+    "paywallLine": "#paywall-line"
   },
   "toc": {
     "openMenuButton": "button[aria-label=\"メニューを開く\"]",
     "itemSelector": "#toc-setting",
     "itemText": ["目次"]
+  },
+  "account": {
+    "currentUserUrl": "https://note.com/api/v2/current_user",
+    "namePaths": ["data.nickname", "data.name"],
+    "idPaths": ["data.urlname"],
+    "iconPaths": ["data.profile_image_path", "data.user_profile_image_path", "data.profileImagePath"]
   }
 }
