@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Marked } from "marked";
 import { parse as parseYaml } from "yaml";
-import { checkTarget, parseFrontMatter, parsePrice, renderArticle, resolveArticleUrl, splitList } from "./article.js";
+import { checkTarget, parseFrontMatter, targetProblem, parsePrice, renderArticle, resolveArticleUrl, splitList } from "./article.js";
 import { SAFE_RENDERER } from "./markdown-safe.js";
 
 const md = new Marked({ gfm: true, breaks: true, renderer: SAFE_RENDERER as never });
@@ -187,5 +187,29 @@ describe("target(入れる先)", () => {
   it("今開いている追加の対応先のページに入れるとき: target: note だけ止める。無い・ほかの値は通す", () => {
     for (const t of [undefined, "", "library", "other"]) assert.doesNotThrow(() => checkTarget(t, "extra-site"), String(t));
     assert.throws(() => checkTarget("note", "extra-site"), /target: note」と書いてあるので、今開いているページには入れません/);
+  });
+});
+
+describe("targetProblem(読み込んだ時点の target の確かめ)", () => {
+  it("入れる先と合わなければ直し方の文を、合えば null を返す。front matter が読めないときは null", () => {
+    assert.match(targetProblem("---\ntarget: library\n---\n本文", "note", parseYaml) ?? "", /note の下書きは作りません/);
+    assert.equal(targetProblem("---\ntarget: library\n---\n本文", "extra-site", parseYaml), null);
+    assert.match(targetProblem("---\ntarget: note\n---\n本文", "extra-site", parseYaml) ?? "", /今開いているページには入れません/);
+    assert.equal(targetProblem("# 見出しだけ\n本文", "note", parseYaml), null);
+    assert.equal(targetProblem("---\ntitle: [壊れた\n---\n本文", "note", parseYaml), null);
+  });
+});
+
+describe("ignorePaywall(有料の区切りを使わない入れる先)", () => {
+  it("「ここから有料」の印があっても価格が無くて止めず、印の行は本文から取り除き、paywallAnchor は返さない", async () => {
+    const conv = { markdown: (b: string) => md.parse(b) as string, yaml: parseYaml };
+    const src = "---\ntitle: T\nprice: 300\n---\n\n無料の段落\n\n<!-- ここから有料 -->\n\n有料の段落\n";
+    const a = await renderArticle(src, conv, { title: "T", price: "", final: true, ignorePaywall: true });
+    assert.equal(a.paywallAnchor, undefined);
+    assert.equal(a.price, undefined);
+    assert.doesNotMatch(a.html, /ここから有料/);
+    assert.match(a.html, /有料の段落/);
+    // 使うとき(note)は、今までどおり価格が無ければ止める
+    await assert.rejects(renderArticle(src, conv, { title: "T", price: "", final: true }), /price がありません/);
   });
 });
