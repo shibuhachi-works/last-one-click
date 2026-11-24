@@ -265,6 +265,47 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     return { editor, errors };
   }
 
+  it("target が note 以外の記事は、読み込んだ時点で知らせてボタンを押せなくする。target を消すと押せるようになる", async () => {
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    const md = "---\ntitle: 図書館の記事\ntarget: library\n---\n\n本文\n";
+    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
+    await popup.locator("#fields").waitFor({ state: "visible" });
+    assert.equal(await popup.locator("#submit").isDisabled(), true);
+    assert.match((await popup.locator("#status").textContent()) ?? "", /target: library/);
+    // note に入れるときは、目次・埋め込みなどの設定は今までどおり押せる
+    assert.equal(await popup.locator("#insert-toc").isDisabled(), false);
+    const plain = "---\ntitle: note の記事\n---\n\n本文\n";
+    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(plain) });
+    await popup.waitForFunction(() => !(document.getElementById("submit") as HTMLButtonElement).disabled);
+    assert.doesNotMatch((await popup.locator("#status").textContent()) ?? "", /target/);
+    await popup.close();
+  });
+
+  it("記事の ZIP やファイルをまとめてドロップしたときも、受け取りの知らせのあとに target の知らせを残す", async () => {
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    const md = "---\ntitle: 図書館の記事\ntarget: library\n---\n\n本文\n";
+    const zip = makeZip([{ name: "post/article.md", data: md }]);
+    await popup.evaluate(async (bytes) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([new Uint8Array(bytes)], "post.zip", { type: "application/zip" }));
+      document.body.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, [...zip]);
+    await popup.waitForFunction(() => /target: library/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 5_000 });
+    assert.equal(await popup.locator("#submit").isDisabled(), true);
+    // md と画像をばらばらにドロップしたとき(loadLooseFiles)も同じ
+    await popup.evaluate((text) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([text], "article.md", { type: "text/markdown" }));
+      dt.items.add(new File([new Uint8Array([137, 80, 78, 71])], "fig.png", { type: "image/png" }));
+      document.body.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, md);
+    await popup.waitForFunction(() => /target: library/.test(document.getElementById("status")?.textContent ?? "") && !/受け取りました/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 5_000 });
+    assert.equal(await popup.locator("#submit").isDisabled(), true);
+    await popup.close();
+  });
+
   it("md ファイルを選んで「note の下書きを作成」を押すと、エディタにタイトルと本文が入って止まる", async () => {
     const { editor, errors } = await draftFromPopup();
     assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");

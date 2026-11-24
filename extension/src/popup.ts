@@ -1,7 +1,7 @@
 // ポップアップ。入力を ArticlePayload に組み立てて chrome.storage に置き、
 // note のエディタを新しいタブで開く。実際の入力は content.ts が行う。
 import { parse as parseYaml } from "yaml";
-import { parseFrontMatter } from "../../shared/article";
+import { parseFrontMatter, targetProblem, type Destination } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
@@ -204,7 +204,60 @@ function refreshExtraSiteFillTarget() {
     .then((id) => {
       extraSiteFillTabId = id;
       submitEl.textContent = id !== undefined ? EXTRA_SITE_SUBMIT_LABEL : noteSubmitText;
+      applyDestination();
     });
+}
+
+/**
+ * note にだけある設定(目次・埋め込み・マガジン・価格・最後のクレジット)。
+ * 入れる先が追加の対応先の編集画面のときは押せなくし、「(このページでは使えません)」を添える。チェックや欄の値は変えない
+ */
+const NOTE_ONLY_CONTROLS = [insertTocEl, embedUrlsEl, creditLinkEl, magazineEl, priceEl];
+const UNAVAILABLE_NOTE = "(このページでは使えません)";
+/** 入れる先。ポップアップを開いたタブで決まる(追加の対応先の編集画面なら extra-site) */
+function destination(): Destination {
+  return extraSiteFillTabId !== undefined ? "extra-site" : "note";
+}
+/** 前に出した「target が合わない」の知らせ。合うようになったら、この知らせだけ消す */
+let targetProblemShown: string | null = null;
+let submitting = false;
+/** 入れる先に合わせて、note にだけある設定の押せる・押せないと、target の確かめを今の状態にする */
+function applyDestination() {
+  const toExtraSite = destination() === "extra-site";
+  for (const el of NOTE_ONLY_CONTROLS) {
+    el.disabled = toExtraSite;
+    const label = el.closest("label");
+    if (!label) continue;
+    label.classList.toggle("unavailable", toExtraSite);
+    let note = label.querySelector<HTMLSpanElement>(".unavailable-note");
+    if (toExtraSite && !note) {
+      note = document.createElement("span");
+      note.className = "unavailable-note";
+      note.textContent = UNAVAILABLE_NOTE;
+      label.append(note);
+    }
+    if (note) note.hidden = !toExtraSite;
+  }
+  checkTargetNow();
+}
+/**
+ * 記事の target が入れる先と合わなければ、読み込んだ時点で知らせてボタンを止める(押してから止めるより先に分かる)。
+ * 知らせは、押せなくした「note の下書きを作成」のすぐ下(#status)に出す。押せない理由がボタンのそばで分かるように
+ */
+function checkTargetNow() {
+  if (submitting) return;
+  const problem = markdownEl.value.trim() ? targetProblem(markdownEl.value, destination(), parseYaml) : null;
+  submitEl.disabled = problem !== null;
+  const submitStatusEl = document.getElementById(STATUS_IDS.submit);
+  if (problem) {
+    setStatus(problem, { error: true, near: "submit" });
+    targetProblemShown = problem;
+  } else if (submitStatusEl && targetProblemShown !== null && submitStatusEl.textContent === targetProblemShown.replace(/。(?=.)/g, "。\n")) {
+    submitStatusEl.hidden = true;
+    submitStatusEl.textContent = "";
+    submitStatusEl.removeAttribute("role");
+    targetProblemShown = null;
+  }
 }
 function showExtraSiteSetting(granted: boolean) {
   extraSiteRowEl.hidden = !granted;
@@ -422,6 +475,7 @@ $("github-load").addEventListener("click", async () => {
     baseUrl = r.baseUrl;
     fillFieldsFromMarkdown(r.markdown, { newSource: true });
     setStatus(`読み込みました。内容を確認して「${submitLabel()}」を押してください。`, { near: "github" });
+    checkTargetNow(); // target が入れる先と合わなければ、読み込みの知らせより先にこちらを出す
   } catch (e) {
     setStatus((e as Error).message, { error: true, near: "github" });
   }
@@ -440,6 +494,7 @@ markdownEl.addEventListener("paste", () => {
 });
 markdownEl.addEventListener("input", () => {
   if (!markdownEl.value.trim()) forgetSource();
+  checkTargetNow();
 });
 markdownEl.addEventListener("change", () => {
   // 上級者向けの貼り付け・編集後(フォーカスが外れたとき)。ユーザーが直した欄は上書きしない
@@ -470,6 +525,7 @@ async function loadMarkdownFile(file: File) {
       (hasThumbnail ? "\n見出し画像はファイルからは辿れないので、ドロップするか「画像を選ぶ」で画像を選んでください。" : ""),
     { error: titleMissing, near: "drop" },
   );
+  checkTargetNow(); // target が入れる先と合わなければ、読み込みの知らせより先にこちらを出す
   if (titleMissing) titleEl.focus();
 }
 markdownFileEl.addEventListener("change", async () => {
@@ -544,6 +600,7 @@ async function loadLooseFiles(files: File[]) {
   const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
   if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
   setStatus(`${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。`, { near: "drop" });
+  checkTargetNow(); // target が入れる先と合わなければ、受け取りの知らせより先にこちらを出す
 }
 
 const MAX_ZIP_FILE_BYTES = 60 * 1024 * 1024;
@@ -592,6 +649,7 @@ async function loadBundle(items: Array<{ path: string; file: File }>, label: str
   if (body.length) got.push(`本文の画像: ${body.length} 枚`);
   const missingThumb = thumbName && !thumb ? `\nfront matter の見出し画像(${thumbName})が見つかりませんでした。ドロップするか「画像を選ぶ」で選んでください。` : "";
   setStatus(`${label} から ${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。${missingThumb}`, { near: "drop" });
+  checkTargetNow(); // target が入れる先と合わなければ、受け取りの知らせより先にこちらを出す
 }
 
 // 「md ファイルを選ぶ」「画像を選ぶ」は本物の button(キーボードでも押せる)。隠した file input を開く。
@@ -627,6 +685,7 @@ function fillFieldsFromMarkdown(md: string, opts: { newSource: boolean }): { tit
   if (!fieldsEdited.magazine) magazineEl.value = magazine;
   if (!fieldsEdited.price) priceEl.value = price;
   fieldsEl.hidden = false;
+  checkTargetNow();
   const titleMissing = !titleEl.value.trim();
   titleEl.classList.toggle("missing", titleMissing);
   return { titleMissing };
@@ -664,6 +723,7 @@ function renderPicked() {
 // 本体
 submitEl.addEventListener("click", async () => {
   submitEl.disabled = true;
+  submitting = true;
   try {
     if (!markdownEl.value.trim()) throw new Error("記事の md ファイルをドロップするか、「md ファイルを選ぶ」で選んでください。");
 
@@ -673,8 +733,18 @@ submitEl.addEventListener("click", async () => {
       thumbnailFile: thumbnailEl.files?.[0] ?? null,
       baseUrl,
       // 欄の値が「送る内容」。空にしたら front matter に戻らず「なし」(final)
-      override: { title: titleEl.value, hashtags: hashtagsEl.value, magazine: magazineEl.value, price: priceEl.value, final: true },
-      creditLink: creditLinkEl.checked,
+      // マガジン・価格は note にだけある設定。追加の対応先に入れるときは押せなくしてあるので、値を渡さず確かめもしない
+      override: {
+        title: titleEl.value,
+        hashtags: hashtagsEl.value,
+        magazine: destination() === "note" ? magazineEl.value : "",
+        price: destination() === "note" ? priceEl.value : "",
+        final: true,
+        // 有料の区切りも note にだけある設定。追加の対応先では、印の行を取り除くだけで、価格が無くても止めない
+        ignorePaywall: destination() !== "note",
+      },
+      // 追加の対応先の編集画面には、最後のクレジットは入れない(note にだけある設定。押せなくしてある)
+      creditLink: destination() === "note" && creditLinkEl.checked,
       insertImages: insertImagesEl.checked,
       bodyImageFiles,
       bodyImagesBySrc,
@@ -714,7 +784,9 @@ submitEl.addEventListener("click", async () => {
   } catch (e) {
     setStatus((e as Error).message, { error: true, near: "submit" });
   } finally {
+    submitting = false;
     submitEl.disabled = false;
+    checkTargetNow();
   }
 });
 
@@ -723,12 +795,11 @@ submitEl.addEventListener("click", async () => {
  * 入れ終わるのは待たない(結果はそのページのバナーに出る)。このページでは入らない書き方は、入れる前にここで知らせる
  */
 async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeof buildArticle>>) {
+  // 目次・埋め込み・マガジン・価格は、このページでは押せなくしてあるので知らせない。本文の書き方と画像だけ知らせる
   const notes = extraSiteUnsupportedNotes({
     html: article.html,
-    insertToc: insertTocEl.checked,
-    embedUrls: embedUrlsEl.checked,
-    magazine: article.magazine,
-    price: article.price,
+    insertToc: false,
+    embedUrls: false,
     images: article.images,
   });
   const message: Message = {
