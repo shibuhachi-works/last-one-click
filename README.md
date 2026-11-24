@@ -100,6 +100,7 @@ Markdown(GFM)を note のエディタが受け付ける形に変換して貼り�
 | 表 | `\| a \| b \|` | **入らない**(note 非対応)。記事を書く側で「表は箇条書きに展開する」と決めておく |
 | 斜体 | `*文字*` | note に斜体が無いため文字だけ残る |
 | 生の HTML | `<img …>` など | 文字としてそのまま表示(安全のため実行しない) |
+| HTML コメント | `<!-- メモ -->` | (v0.1.8 から)取り除く(自分用のメモが本文に入らない。コードの中に書いたものは残す。「ここから有料」の印は有料のラインに使い、印として読めない書き方のときは文字のまま出す) |
 | 脚注・チェックボックス | `[^1]` / `- [ ]` | 文字として残る |
 
 ## 使い方
@@ -140,7 +141,7 @@ tools/
     selectors.ts    # selectors/note.json を読んで Playwright 用セレクタに変換
 shared/             # 拡張と Playwright 版で共通の純粋ロジック(テストもここ)
   article.ts        # GitHub URL の正規化・front matter・タイトルの決定・md→HTML
-  markdown-safe.ts  # 生の HTML を通さない renderer と、DOM を使わない text/plain 化
+  markdown-safe.ts  # 生の HTML を通さない(HTML コメントは取り除く)renderer と、DOM を使わない text/plain 化
   github-url.ts     # トークンを付けてよい送り先の判定
   forbidden-click.ts  # 「投稿する」「公開する」を押さない安全装置
   selectors-schema.ts # selectors/note.json の検査
