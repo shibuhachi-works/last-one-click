@@ -53,10 +53,10 @@ describe("本文の「ここから有料」の印", () => {
     assert.equal(a.html, "<p>無料の 1 行目<br>無料の 2 行目</p>\n<p>有料</p>\n");
   });
 
-  it("印の前後のほかの文字が付いた行や、ほかの HTML コメントは、これまでどおり文字として出す", async () => {
+  it("印の前後にほかの文字が付いた行は、これまでどおり文字として出す(印として読めなかったと気づける)。ほかの HTML コメントは取り除く", async () => {
     const a = await render(`<!-- メモ -->\n\n無料 ${PAYWALL_MARKER}\n`, "---\ntitle: T\n---\n");
     assert.equal(a.paywallAnchor, undefined);
-    assert.match(a.html, /&lt;!-- メモ --&gt;/);
+    assert.doesNotMatch(a.html, /メモ/);
     assert.match(a.html, /無料 &lt;!-- ここから有料 --&gt;/);
   });
 
