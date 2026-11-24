@@ -263,7 +263,7 @@ describe("acceptsFile", () => {
   });
 });
 
-describe("extraSiteUnsupportedNotes(このページでは入らない書き方)", () => {
+describe("extraSiteUnsupportedNotes(追加の対応先のエディタでは入らない書き方)", () => {
   it("ふつうの段落・見出し・太字・リンク・引用だけなら、何も出さない", () => {
     const html = "<h2>見出し</h2><p><strong>太字</strong> <a href=\"https://example.com\">リンク</a></p><blockquote><p>引用</p></blockquote>";
     assert.deepEqual(extraSiteUnsupportedNotes({ html }), []);

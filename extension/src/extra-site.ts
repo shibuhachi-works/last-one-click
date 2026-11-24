@@ -3,7 +3,7 @@
 // 開発用のビルド(EXTRA_SITE=1 npm run build)でだけ登録される(shared/extra-site.ts の EXTRA_SITE_ENABLED)。
 // 受けるのは 2 つ:
 //   1. ポップアップの「DOM 情報を取得」に、診断のレポートを返す(読むだけ。#118)
-//   2. ポップアップの「このページに下書きを入れる」で、このタブの編集画面に記事を入れて止まる(#120。./lib/extra-site-fill.ts)。
+//   2. ポップアップの「今開いているページに下書きを入れる」で、このタブの編集画面に記事を入れて止まる(#120。./lib/extra-site-fill.ts)。
 //      「確認画面へ」「下書き保存」は押さない
 import { isExtraSiteUrl } from "../../shared/extra-site";
 import { buildExtraSiteReport } from "./lib/diagnose-extra-site";
@@ -24,11 +24,11 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: D
   }
   if (msg?.type === "extraSiteFill") {
     if (!isExtraSiteUrl(location.href)) {
-      sendResponse({ ok: false, error: "このページには入れられません。" });
+      sendResponse({ ok: false, error: "今開いているページは記事の編集画面ではないので、入れられません。" });
       return;
     }
     if (filling) {
-      sendResponse({ ok: false, error: "このページには、いま入れている途中です。終わるまで待ってください。" });
+      sendResponse({ ok: false, error: "今開いているページには、いま下書きを入れている途中です。終わるまで待ってください。" });
       return;
     }
     filling = true;

@@ -176,7 +176,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
     assert.equal(r.result!.ok, true);
     assert.ok(r.result!.lines.some((l) => l === "✓ タグ: 2 個"), r.result!.lines.join("\n"));
-    assert.ok(r.result!.lines.includes("⚠ このページでは入らない書き方: 見本の知らせ"));
+    assert.ok(r.result!.lines.includes("⚠ 追加の対応先のエディタでは入らない書き方: 見本の知らせ"));
   });
 
   it("gif は入れずに目印を残し、知らせる", async () => {
