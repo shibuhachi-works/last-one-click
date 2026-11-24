@@ -30,6 +30,27 @@ describe("SAFE_RENDERER", () => {
     const out = render('a <script>alert(1)</script> b');
     assert.ok(!/<script/i.test(out), out);
   });
+  it("HTML コメント(<!-- … -->)は取り除く。複数行のメモの枠も、段落の中のコメントも本文に出ない", () => {
+    const memo = "<!--\n自分用のメモ(この枠は貼らない)\n- 内部のメモ\n-->\n\n本文の 1 行目";
+    assert.equal(render(memo), "<p>本文の 1 行目</p>\n");
+    assert.equal(render("前<!-- 途中のメモ -->後"), "<p>前後</p>\n");
+    assert.ok(!render(memo).includes("内部のメモ"));
+  });
+
+  it("コメントの外の生の HTML は、今までどおり文字として出す", () => {
+    assert.equal(render("<!-- メモ --><b>x</b>"), "&lt;b&gt;x&lt;/b&gt;");
+  });
+
+  it("コードの中の <!-- … --> は取り除かない(使い方の説明に書いたものを残す)", () => {
+    assert.equal(render("```\n<!-- ここから有料 -->\n```\n"), "<pre><code>&lt;!-- ここから有料 --&gt;</code></pre>\n");
+    assert.equal(render("文の中の `<!-- x -->` です"), "<p>文の中の <code>&lt;!-- x --&gt;</code> です</p>\n");
+  });
+
+  it("閉じていない <!-- は取り除かず、文字のまま出す(本文を失わない)", () => {
+    assert.match(render("<!-- 閉じていない\n\n本文"), /&lt;!-- 閉じていない/);
+    assert.match(render("<!-- 閉じていない\n\n本文"), /本文/);
+  });
+
   it("javascript: のリンクは文字だけになる", () => {
     const out = render("[押す](javascript:alert(1))");
     assert.ok(!/javascript:/i.test(out), out);

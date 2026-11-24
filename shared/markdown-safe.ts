@@ -1,6 +1,6 @@
 // Markdown → HTML を安全側に寄せるための部品。拡張(ブラウザ)と Playwright 版(Node)で共通。
 //
-// - 記事に書かれた生の HTML(<img onerror=...> など)は通さず、文字として見せる
+// - 記事に書かれた生の HTML(<img onerror=...> など)は通さず、文字として見せる。HTML コメント(<!-- … -->)は取り除く
 // - リンク・画像の URL は http(s) / mailto だけ。javascript: や data: は落とす
 // - text/plain 用のテキスト化は DOM(innerHTML)を使わずに行う
 //
@@ -59,10 +59,26 @@ function attr(s: string): string {
   return escapeHtml(decodeEntities(s));
 }
 
+/**
+ * 閉じた HTML コメント(`<!-- … -->`)を取り除く。
+ * 「ここから有料」の印(shared/paywall.ts の PAYWALL_MARKER)だけは残す: 印の行は変換の前に取り除かれるので、
+ * ここまで来たのは印として読めなかった書き方(行の途中に書いたなど)。文字として見せて、気づけるようにする
+ */
+export function stripHtmlComments(s: string): string {
+  return s.replace(/<!--[\s\S]*?-->/g, (c) => (/^<!--\s*ここから有料\s*-->$/.test(c) ? c : ""));
+}
+
 export const SAFE_RENDERER = {
-  /** 生の HTML(ブロック・インライン)は文字として出す */
+  /**
+   * 生の HTML(ブロック・インライン)は文字として出す。
+   * ただし HTML コメント(`<!-- … -->`)は取り除く。md に書いた自分用のメモの枠が、下書きの本文に文字として
+   * 入って公開されないようにするため。コードの中のコメントは、ここを通らないのでそのまま残る。
+   * 閉じていない `<!--` は取り除かず、文字のまま出す(どこまでがメモか分からないので、消して本文を失わない)
+   */
   html(token: HtmlToken): string {
-    return escapeHtml(token.text);
+    const rest = stripHtmlComments(token.text);
+    if (rest.trim() === "") return "";
+    return escapeHtml(rest);
   },
   link(this: { parser: { parseInline(tokens: unknown[]): string } }, token: LinkToken): string {
     const text = this.parser.parseInline(token.tokens);
