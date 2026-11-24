@@ -5,6 +5,7 @@
 // 記事のタイトル・本文・アカウントの名前や ID は出さない(レポートは公開の Issue に貼ってもらう)
 import { EXTRA_SITE_EDITOR_PROBE } from "../../../shared/extra-site";
 import { isForbiddenClickText } from "../../../shared/forbidden-click";
+import { redact } from "./diagnose-account";
 import { cssPath, isVisible } from "./diagnose";
 
 const MAX_PER_GROUP = 60;
@@ -40,12 +41,21 @@ const TITLE_HINTS = ["タイトル", "題名", "見出し", "title", "subject", 
 /** 画像を入れるためのボタンらしいものの手がかり(ボタンの文字・aria-label・title) */
 const IMAGE_HINTS = ["画像", "写真", "image", "img", "photo", "picture", "アップロード", "upload", "ファイル", "file", "サムネイル", "アイキャッチ", "thumbnail", "cover"];
 
+/** 人の名前が入ることのある属性 */
+const FREE_TEXT_ATTRS = ["placeholder", "data-placeholder", "aria-label", "title"];
+
 const FIELD_SELECTOR = "input:not([type=hidden]):not([type=file]), textarea, [contenteditable]:not([contenteditable='false'])";
 const BUTTON_SELECTOR = "button, [role='button'], input[type='submit'], input[type='button']";
+
+/** アカウントの表示(アイコン・メニュー)らしい要素の class・id の手がかり */
+const ACCOUNT_HINT = /avatar|account|profile|user|member|mypage/i;
+/** アカウントの表示らしい要素。画像(アイコン)を含むか、class・id がアカウントらしい。その中も含む */
+const ACCOUNT_SELECTOR = "img, picture, svg image";
 
 export function buildExtraSiteReport(): string {
   const lines: string[] = [];
   lines.push(`# Last One Click 診断レポート(追加の対応先)`);
+  lines.push(`(貼る前に、名前・ID・記事の中身が入っていないか目で確かめてください)`);
   lines.push(`url: ${location.origin}${maskPath(location.pathname)}`); // クエリは除く。記事ごと・人ごとに変わる部分は *** にする
   // ページのタイトル(document.title)は出さない。記事のタイトルが入ることがある
   lines.push(``);
@@ -89,7 +99,35 @@ export function buildExtraSiteReport(): string {
   // 6. 入力欄の一覧(タイトルらしいもの以外も)
   list(lines, "入力欄 (input / textarea / contenteditable)", fields);
 
-  return lines.join("\n");
+  // アカウントの表示らしい要素の文字・aria-label・title と、画像の alt を、レポート全体から伏せる
+  // (要素ごとの行では出さないが、ほかの要素の aria-label などに同じ名前が入ることがある)
+  return redact(lines.join("\n"), accountSecrets());
+}
+
+/** アカウントの表示らしい要素か(自分か祖先が、画像を含むボタン・リンクか、class・id がアカウントらしい) */
+export function isAccountLike(el: HTMLElement): boolean {
+  for (let cur: Element | null = el; cur && cur !== document.body; cur = cur.parentElement) {
+    if (ACCOUNT_HINT.test(`${cur.id} ${cur.getAttribute("class") ?? ""}`)) return true;
+    if (cur.matches("button, a, [role='button']") && cur.querySelector(ACCOUNT_SELECTOR)) return true;
+  }
+  return false;
+}
+
+/** 伏せる文字列: アカウントの表示らしい要素の文字(テキストのかたまりごと)・aria-label・title と、画像の alt */
+function accountSecrets(): Set<string> {
+  const secrets = new Set<string>();
+  const add = (v: string | null | undefined) => {
+    const t = (v ?? "").replace(/\s+/g, " ").trim();
+    if (t.length >= 2 && t.length <= 60) secrets.add(t);
+  };
+  for (const img of all("img[alt]")) add(img.getAttribute("alt"));
+  for (const el of all("body *")) {
+    if (!isAccountLike(el)) continue;
+    add(el.getAttribute("aria-label"));
+    add(el.getAttribute("title"));
+    for (const node of Array.from(el.childNodes)) if (node.nodeType === Node.TEXT_NODE) add(node.textContent);
+  }
+  return secrets;
 }
 
 function list(lines: string[], name: string, els: HTMLElement[]) {
@@ -101,7 +139,9 @@ function list(lines: string[], name: string, els: HTMLElement[]) {
 /**
  * 要素を 1 行で書く。note の診断の describe より控えめにする(相手の画面のことはまだ分からないため):
  * - data-* は名前だけ(値に人や記事の ID が入ることがある)
- * - 入力欄・書ける欄とその中、画像の入ったボタン(アイコンに名前が付くことがある)は、文字の長さだけ
+ * - 入力欄・書ける欄とその中は、文字の長さだけ
+ * - アカウントの表示らしい要素(画像の入ったボタン・リンクとその中、class・id がアカウントらしいもの)は、
+ *   文字も aria-label・title・placeholder も長さだけ
  * - 4 桁以上の数字・メールアドレスの形は伏せる
  */
 export function describeSafe(el: HTMLElement): string {
@@ -110,17 +150,22 @@ export function describeSafe(el: HTMLElement): string {
   const cls = Array.from(el.classList).slice(0, 4).map(mask).join(".");
   if (cls) parts.push(`.${cls}`);
 
+  // アカウントの表示らしい要素は、文字の入る属性(aria-label・title・placeholder)も長さだけにする
+  const account = isAccountLike(el);
   const attrs: string[] = [];
   for (const a of ["type", "name", "placeholder", "data-placeholder", "aria-label", "title", "role", "accept", "multiple", "contenteditable", "aria-haspopup", "aria-expanded"]) {
     const v = el.getAttribute(a);
-    if (v !== null) attrs.push(v ? `${a}="${mask(v.slice(0, TEXT_LEN))}"` : a);
+    if (v === null) continue;
+    if (!v) attrs.push(a);
+    else if (account && FREE_TEXT_ATTRS.includes(a)) attrs.push(`${a}=(${v.length} 字)`);
+    else attrs.push(`${a}="${mask(v.slice(0, TEXT_LEN))}"`);
   }
   const data = Array.from(el.attributes).filter((a) => a.name.startsWith("data-") && a.name !== "data-placeholder").map((a) => a.name);
   if (data.length) attrs.push(`data: ${data.slice(0, 6).join(",")}`);
   if (attrs.length) parts.push(`[${attrs.join(" ")}]`);
 
   const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-  if (text && (holdsArticleText(el) || el.querySelector("img, svg image, picture"))) parts.push(`(文字 ${text.length} 字は出しません)`);
+  if (text && (holdsArticleText(el) || account)) parts.push(`(文字 ${text.length} 字は出しません)`);
   else if (text) parts.push(`"${mask(text.slice(0, TEXT_LEN))}${text.length > TEXT_LEN ? "…" : ""}"`);
 
   parts.push(isVisible(el) ? "(visible)" : "(hidden)");

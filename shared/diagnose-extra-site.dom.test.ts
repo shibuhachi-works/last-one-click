@@ -9,6 +9,9 @@ const PAGE = `<!doctype html><html><head><title>ひみつの記事タイトル</
   <header>
     <button type="button" class="user-menu" data-user-id="9876543"><img src="https://example.com/me.png" alt="">ひみつの名前</button>
     <a href="/users/9876543">ひみつの名前</a>
+    <button type="button" aria-label="ひみつの名前のメニュー" title="ひみつの名前"><img src="https://example.com/me.png" alt="ひみつの別名"></button>
+    <div class="avatar-area"><button type="button" aria-label="ひみつの愛称">▼</button></div>
+    <button type="button" aria-label="ひみつの愛称の設定">⚙</button>
   </header>
   <main class="editor-page">
     <input type="text" id="post-title" placeholder="タイトルを入力" value="ひみつの記事タイトル">
@@ -119,6 +122,12 @@ describe("追加の対応先の診断 (DOM)", () => {
     assert.doesNotMatch(report, /ひみつ/);
     assert.doesNotMatch(report, /9876543/);
     assert.match(report, /data: data-user-id/); // data-* は名前だけ
+    // アカウントの表示らしい要素の aria-label・title は長さだけ
+    assert.match(report, /aria-label=\(11 字\) title=\(6 字\)/);
+  });
+
+  it("ほかの要素の aria-label に入った同じ名前も伏せる", () => {
+    assert.match(report, /aria-label="\*\*\*の設定"/);
   });
 
   it("読むだけ: 押さない・入力しない・フォーカスを動かさない・ページを変えない", () => {
