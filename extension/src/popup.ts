@@ -58,7 +58,7 @@ $("open-window").addEventListener("click", async () => {
     await chrome.windows.create({ url: chrome.runtime.getURL("popup.html?window=1"), type: "popup", width: 520, height: 760 });
     window.close();
   } catch (e) {
-    setStatus((e as Error).message, true);
+    setStatus((e as Error).message, { error: true, near: "window" });
   }
 });
 /** storage.session の上限(10 MB)に収めるため、画像はこのサイズまで引き継ぐ */
@@ -73,7 +73,6 @@ const thumbnailEl = $<HTMLInputElement>("thumbnail");
 const githubUrlEl = $<HTMLInputElement>("github-url");
 const markdownFileEl = $<HTMLInputElement>("markdown-file");
 const markdownBoxEl = $<HTMLDivElement>("markdown-box");
-const statusEl = $<HTMLParagraphElement>("status");
 const submitEl = $<HTMLButtonElement>("submit");
 const skipReviewEl = $<HTMLInputElement>("skip-review");
 const insertTocEl = $<HTMLInputElement>("insert-toc");
@@ -108,18 +107,48 @@ if (isWindow) {
     if (h.thumbnail) setThumbnailFile(payloadToFile(h.thumbnail));
     renderPicked();
     if (h.skippedImageName) {
-      setStatus(`入力途中の内容を引き継ぎましたが、見出し画像「${h.skippedImageName}」は大きいので渡せませんでした。もう一度ドロップするか「画像を選ぶ」で選んでください。`, true);
+      setStatus(`入力途中の内容を引き継ぎましたが、見出し画像「${h.skippedImageName}」は大きいので渡せませんでした。もう一度ドロップするか「画像を選ぶ」で選んでください。`, { error: true, near: "drop" });
     } else if (h.markdown || h.thumbnail) {
-      setStatus("入力途中の内容を引き継ぎました。");
+      setStatus("入力途中の内容を引き継ぎました。", { near: "drop" });
     }
   });
 }
 
-function setStatus(msg: string, isError = false) {
-  statusEl.hidden = false;
-  // 可読性のため、一文ごとに改行して出す(CSS の white-space: pre-line で改行を効かせる)
-  statusEl.textContent = msg.replace(/。(?=.)/g, "。\n");
-  statusEl.classList.toggle("error", isError);
+/**
+ * 知らせを出す場所。押したボタン(操作した所)のすぐそばに出す(#141)。
+ * 「note の下書きを作成」の知らせは、今までどおり #status(ボタンのすぐ下)
+ */
+const STATUS_IDS = {
+  submit: "status",
+  window: "status-window",
+  drop: "status-drop",
+  github: "status-github",
+  diagnose: "status-diagnose",
+  settings: "status-settings",
+  advanced: "status-advanced",
+  extraSiteOffer: "status-extra-site-offer",
+  extraSiteToggle: "status-extra-site-toggle",
+} as const;
+type StatusPlace = keyof typeof STATUS_IDS;
+
+/** 知らせを near の場所に出す。同時に出すのは 1 か所だけ(前の知らせは消す) */
+function setStatus(msg: string, { error = false, near }: { error?: boolean; near: StatusPlace }) {
+  for (const [place, id] of Object.entries(STATUS_IDS)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (place !== near) {
+      el.hidden = true;
+      el.textContent = "";
+      el.removeAttribute("role");
+      continue;
+    }
+    el.hidden = false;
+    // 読み上げにも届くように、エラーは alert、それ以外は status
+    el.setAttribute("role", error ? "alert" : "status");
+    // 可読性のため、一文ごとに改行して出す(CSS の white-space: pre-line で改行を効かせる)
+    el.textContent = msg.replace(/。(?=.)/g, "。\n");
+    el.classList.toggle("error", error);
+  }
 }
 
 // 設定の読み書き
@@ -213,9 +242,10 @@ if (EXTRA_SITE_ENABLED) {
             ? "今開いているサイト(library.libecity.com)でも使えるようにしました。下書きを入れる前に、今開いているページを再読み込みしてください。"
             : "今開いているサイト(library.libecity.com)でも使えるようにしました。新規記事エディタを開いてから、もう一度ツールバーのアイコンを押してください。") +
             "切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。",
+          { near: "extraSiteOffer" },
         );
       })
-      .catch((e) => setStatus((e as Error).message, true));
+      .catch((e) => setStatus((e as Error).message, { error: true, near: "extraSiteOffer" }));
   });
   extraSiteToggleEl.addEventListener("change", () => {
     if (extraSiteToggleEl.checked) return; // 入れ直しは、そのサイトのページで「使えるようにする」から
@@ -223,9 +253,9 @@ if (EXTRA_SITE_ENABLED) {
       .then((granted) => {
         showExtraSiteSetting(granted);
         refreshExtraSiteFillTarget();
-        if (!granted) setStatus("追加の対応先(library.libecity.com)への許可を外しました。");
+        if (!granted) setStatus("追加の対応先(library.libecity.com)への許可を外しました。", { near: "extraSiteToggle" });
       })
-      .catch((e) => setStatus((e as Error).message, true));
+      .catch((e) => setStatus((e as Error).message, { error: true, near: "extraSiteToggle" }));
   });
   // Chrome の画面(拡張機能の詳細・サイトへのアクセス)から許可を変えられたときも、表示と登録を合わせる
   const onExtraSitePermissionChanged = () => {
@@ -255,13 +285,13 @@ advancedToggle.addEventListener("change", async () => {
   const next = advancedToggle.checked;
   await chrome.storage.local.set({ [STORAGE.advancedMode]: next });
   applyAdvanced(next);
-  setStatus(next ? "GitHub 連携と上級者向けの設定を表示しました。" : "GitHub 連携と上級者向けの設定を隠しました。");
+  setStatus(next ? "GitHub 連携と上級者向けの設定を表示しました。" : "GitHub 連携と上級者向けの設定を隠しました。", { near: "advanced" });
 });
 $("save-settings").addEventListener("click", async () => {
   // 記事の URL をこの欄に入れる間違いがあったので、保存する前に確かめる(保存はしない)
   const selectorsUrlProblem = checkSelectorsUrl($<HTMLInputElement>("selectors-url").value);
   if (selectorsUrlProblem) {
-    setStatus(selectorsUrlProblem, true);
+    setStatus(selectorsUrlProblem, { error: true, near: "settings" });
     return;
   }
   await chrome.storage.local.set({
@@ -269,7 +299,7 @@ $("save-settings").addEventListener("click", async () => {
     [STORAGE.githubToken]: $<HTMLInputElement>("github-token").value.trim(),
   });
   await chrome.storage.local.remove(STORAGE.selectorsCache);
-  setStatus("設定を保存しました。");
+  setStatus("設定を保存しました。", { near: "settings" });
 });
 
 // 診断:アクティブなタブ(note)の content script にレポートを作らせてコピーする。
@@ -295,9 +325,9 @@ $("diagnose").addEventListener("click", async () => {
     // 取得と同時にコピーも試す(別ウィンドウ等でクリップボードが使えないことがあるので、失敗しても結果は欄に残す)
     const copied = await navigator.clipboard.writeText(res.report).then(() => true, () => false);
     if (copied) showCopied();
-    setStatus(copied ? "診断結果を取得してコピーしました。そのまま貼り付けて共有してください。" : "診断結果を取得しました。「コピー」を押すか、欄の中を選んでコピーしてください。");
+    setStatus(copied ? "診断結果を取得してコピーしました。そのまま貼り付けて共有してください。" : "診断結果を取得しました。「コピー」を押すか、欄の中を選んでコピーしてください。", { near: "diagnose" });
   } catch (e) {
-    setStatus((e as Error).message, true);
+    setStatus((e as Error).message, { error: true, near: "diagnose" });
   }
 });
 $("diagnose-copy").addEventListener("click", async () => {
@@ -309,12 +339,12 @@ $("diagnose-copy").addEventListener("click", async () => {
     out.focus();
     out.select();
   }
-  setStatus(copied ? "診断結果をコピーしました。" : "クリップボードに書けなかったので、欄の中を選択しました。Cmd+C でコピーしてください。", !copied);
+  setStatus(copied ? "診断結果をコピーしました。" : "クリップボードに書けなかったので、欄の中を選択しました。Cmd+C でコピーしてください。", { error: !copied, near: "diagnose" });
 });
 
 /**
- * コピーできたことを、「コピー」ボタンの上で見せる。案内の文(#status)は画面の上のほうにあり、
- * 診断の欄を開いているときは目に入りにくいため。少したつと元の「コピー」に戻す
+ * コピーできたことを、「コピー」ボタンの上でも見せる(案内の文は、診断のボタンのすぐ下に出る)。
+ * 少したつと元の「コピー」に戻す
  */
 let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 function showCopied() {
@@ -385,15 +415,15 @@ void showAccount();
 // GitHub から md を読み込んで textarea に入れる
 $("github-load").addEventListener("click", async () => {
   try {
-    setStatus("GitHub から取得中...");
+    setStatus("GitHub から取得中...", { near: "github" });
     const r = await fetchMarkdownFromGitHub(githubUrlEl.value.trim());
     markdownEl.value = r.markdown;
     forgetSource(); // 手元の md と一緒にドロップした本文の画像は、GitHub の記事には使わない
     baseUrl = r.baseUrl;
     fillFieldsFromMarkdown(r.markdown, { newSource: true });
-    setStatus(`読み込みました。内容を確認して「${submitLabel()}」を押してください。`);
+    setStatus(`読み込みました。内容を確認して「${submitLabel()}」を押してください。`, { near: "github" });
   } catch (e) {
-    setStatus((e as Error).message, true);
+    setStatus((e as Error).message, { error: true, near: "github" });
   }
 });
 // GitHub から読んだ記事を少し直しても、見出し画像・本文の画像は同じフォルダから取る(baseUrl を残す)。
@@ -438,7 +468,7 @@ async function loadMarkdownFile(file: File) {
     `${file.name} を読み込みました。` +
       (titleMissing ? "md ファイルにタイトルが無いので「タイトル」に入力してください。" : `内容を確認して「${submitLabel()}」を押してください。`) +
       (hasThumbnail ? "\n見出し画像はファイルからは辿れないので、ドロップするか「画像を選ぶ」で画像を選んでください。" : ""),
-    titleMissing,
+    { error: titleMissing, near: "drop" },
   );
   if (titleMissing) titleEl.focus();
 }
@@ -449,7 +479,7 @@ markdownFileEl.addEventListener("change", async () => {
     if (isZip(file)) await loadBundle(await zipItems(file), file.name);
     else await loadMarkdownFile(file);
   } catch (e) {
-    setStatus((e as Error).message, true);
+    setStatus((e as Error).message, { error: true, near: "drop" });
   }
 });
 // ポップアップのどこにドロップしても md として読む(テキストのドロップは既定の挙動に任せる)
@@ -482,7 +512,7 @@ document.body.addEventListener("drop", async (e) => {
     }
     await loadLooseFiles(files);
   } catch (err) {
-    setStatus((err as Error).message, true);
+    setStatus((err as Error).message, { error: true, near: "drop" });
   }
 });
 
@@ -513,7 +543,7 @@ async function loadLooseFiles(files: File[]) {
   }
   const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
   if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
-  setStatus(`${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。`);
+  setStatus(`${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。`, { near: "drop" });
 }
 
 const MAX_ZIP_FILE_BYTES = 60 * 1024 * 1024;
@@ -561,7 +591,7 @@ async function loadBundle(items: Array<{ path: string; file: File }>, label: str
   renderPicked();
   if (body.length) got.push(`本文の画像: ${body.length} 枚`);
   const missingThumb = thumbName && !thumb ? `\nfront matter の見出し画像(${thumbName})が見つかりませんでした。ドロップするか「画像を選ぶ」で選んでください。` : "";
-  setStatus(`${label} から ${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。${missingThumb}`);
+  setStatus(`${label} から ${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。${missingThumb}`, { near: "drop" });
 }
 
 // 「md ファイルを選ぶ」「画像を選ぶ」は本物の button(キーボードでも押せる)。隠した file input を開く。
@@ -637,7 +667,7 @@ submitEl.addEventListener("click", async () => {
   try {
     if (!markdownEl.value.trim()) throw new Error("記事の md ファイルをドロップするか、「md ファイルを選ぶ」で選んでください。");
 
-    setStatus("記事を組み立て中...");
+    setStatus("記事を組み立て中...", { near: "submit" });
     const article = await buildArticle({
       markdown: markdownEl.value,
       thumbnailFile: thumbnailEl.files?.[0] ?? null,
@@ -679,10 +709,10 @@ submitEl.addEventListener("click", async () => {
         (skipBodyReview ? "入力が終わったら、「投稿する」を自分で押してください。" : "続きは右下のバナーで案内します。") +
         (source === "remote" ? "" : `\n(selectors: ${source})`) +
         (warning ? `\n注意: GitHub 上の selectors が使えなかったので同梱の値を使っています(${warning})` : ""),
-      Boolean(warning),
+      { error: Boolean(warning), near: "submit" },
     );
   } catch (e) {
-    setStatus((e as Error).message, true);
+    setStatus((e as Error).message, { error: true, near: "submit" });
   } finally {
     submitEl.disabled = false;
   }
@@ -719,6 +749,6 @@ async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeo
   setStatus(
     "今開いているページに入れ始めました。続きはページの右下に出ます。\n中身を確かめてから、ページの「下書き保存」を自分で押してください。" +
       (notes.length ? `\n\n${EXTRA_SITE_HOST} のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : ""),
-    notes.length > 0,
+    { error: notes.length > 0, near: "submit" },
   );
 }
