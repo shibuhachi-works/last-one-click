@@ -647,6 +647,8 @@ submitEl.addEventListener("click", async () => {
       insertImages: insertImagesEl.checked,
       bodyImageFiles,
       bodyImagesBySrc,
+      // front matter の target と入れる先が合わなければ、ここで止まる(タブを開く前)
+      destination: extraSiteFillTabId !== undefined ? "extra-site" : "note",
     });
 
     if (extraSiteFillTabId !== undefined) {

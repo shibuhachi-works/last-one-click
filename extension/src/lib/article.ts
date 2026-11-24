@@ -3,7 +3,7 @@
 // ここに残るのは、ブラウザの fetch(トークンは chrome.storage)と、サムネイルを base64 で持つ部分だけ。
 import { Marked, marked } from "marked";
 import { parse as parseYaml } from "yaml";
-import { renderArticle, resolveArticleUrl } from "../../../shared/article";
+import { checkTarget, renderArticle, resolveArticleUrl, type Destination } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
 import { appendCreditHtml, withCreditHashtag } from "../../../shared/credit";
@@ -32,6 +32,8 @@ export type BuildInput = {
   bodyImageFiles?: File[];
   /** 記事のフォルダ・ZIP から、本文に書いた参照先(相対パス)ごとに見つけた画像。bodyImageFiles より先に使う */
   bodyImagesBySrc?: Map<string, File>;
+  /** 入れる先。front matter の target と合わなければ、画像を取りに行く前に止める(checkTarget) */
+  destination?: Destination;
 };
 
 /** 本文の画像を目印にする変換。refs に、どの画像をどこに入れるかが集まる */
@@ -68,6 +70,7 @@ export async function buildArticle(input: BuildInput): Promise<Omit<ArticlePaylo
     },
     input.override,
   );
+  checkTarget(a.target, input.destination ?? "note");
 
   let thumbnail: ArticlePayload["thumbnail"];
   if (input.thumbnailFile) {
