@@ -16,6 +16,7 @@ import {
   isExtraSiteUrl,
   shouldFillExtraSite,
   shouldOfferExtraSite,
+  type ExtraSiteOffer,
   syncExtraSite,
 } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
@@ -150,9 +151,11 @@ insertImagesEl.addEventListener("change", () => chrome.storage.local.set({ [STOR
 // 「記事の最後に『Last One Click で下書きしました』のリンクを入れる」も次回も同じにする
 creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.creditLink]: creditLinkEl.checked }));
 
-// 追加の対応先(library.libecity.com)。そのサイトのエディタを開いてツールバーのアイコンを押した人にだけ案内を出し、
+// 追加の対応先(library.libecity.com)。そのサイトのページ(エディタ以外でも)を開いてツールバーのアイコンを押した人にだけ案内を出し、
 // 「使えるようにする」を押したときに任意の権限を求める。許可が無い人(note だけを使う人)には何も出さない
 const extraSiteOfferEl = $<HTMLDivElement>("extra-site-offer");
+/** 案内の種類(エディタか、それ以外の追加の対応先のページか)。許可したあとの知らせの文を変える */
+let extraSiteOffer: ExtraSiteOffer = null;
 const extraSiteRowEl = $<HTMLLabelElement>("extra-site-row");
 const extraSiteToggleEl = $<HTMLInputElement>("extra-site-toggle");
 /** 下書きを入れる追加の対応先のタブ(今のタブがその編集画面のときだけ。それ以外は note のタブを開く) */
@@ -186,7 +189,10 @@ if (EXTRA_SITE_ENABLED) {
     chrome.tabs
       .query({ active: true, currentWindow: true })
       .then(async ([tab]) => {
-        extraSiteOfferEl.hidden = !(await shouldOfferExtraSite(chromeExtraSiteApi, tab));
+        extraSiteOffer = await shouldOfferExtraSite(chromeExtraSiteApi, tab);
+        $("extra-site-offer-editor").hidden = extraSiteOffer !== "editor";
+        $("extra-site-offer-site").hidden = extraSiteOffer !== "site";
+        extraSiteOfferEl.hidden = extraSiteOffer === null;
       })
       .catch(() => {
         extraSiteOfferEl.hidden = true;
@@ -200,14 +206,18 @@ if (EXTRA_SITE_ENABLED) {
         if (!granted) return;
         showExtraSiteSetting(true);
         refreshExtraSiteFillTarget();
+        extraSiteOfferEl.hidden = true;
         setStatus(
-          "このページでも使えるようにしました。下書きを入れる前に、このページを再読み込みしてください。切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。",
+          (extraSiteOffer === "editor"
+            ? "追加の対応先でも使えるようにしました。下書きを入れる前に、今開いているページを再読み込みしてください。"
+            : "追加の対応先でも使えるようにしました。新規記事エディタを開いてから、もう一度ツールバーのアイコンを押してください。") +
+            "切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。",
         );
       })
       .catch((e) => setStatus((e as Error).message, true));
   });
   extraSiteToggleEl.addEventListener("change", () => {
-    if (extraSiteToggleEl.checked) return; // 入れ直しは、そのサイトのエディタで「使えるようにする」から
+    if (extraSiteToggleEl.checked) return; // 入れ直しは、そのサイトのページで「使えるようにする」から
     disableExtraSite(chromeExtraSiteApi)
       .then((granted) => {
         showExtraSiteSetting(granted);
@@ -268,7 +278,7 @@ $("diagnose").addEventListener("click", async () => {
   try {
     const extraTab = await findExtraSiteTab();
     if (extraTab && !(await chromeExtraSiteApi.hasPermission())) {
-      throw new Error("このページでは、まだ使えるようにしていません。ツールバーのアイコンを押し、案内の「使えるようにする」を押してから、ページを再読み込みしてください。");
+      throw new Error("追加の対応先では、まだ使えるようにしていません。ツールバーのアイコンを押し、案内の「使えるようにする」を押してから、ページを再読み込みしてください。");
     }
     const tab = extraTab ?? (await findNoteTab());
     if (!tab?.id) throw new Error("note のタブが見つかりません。note のエディタを開いてから押してください。");
@@ -276,7 +286,7 @@ $("diagnose").addEventListener("click", async () => {
       | DiagnoseResponse
       | null;
     if (!res) {
-      throw new Error(extraTab ? "このページを再読み込みしてから、もう一度押してください。" : "note のタブで実行してください(開いたままなら、タブを再読み込みしてから)。");
+      throw new Error(extraTab ? "今開いているページを再読み込みしてから、もう一度押してください。" : "note のタブで実行してください(開いたままなら、タブを再読み込みしてから)。");
     }
     if (!res.ok) throw new Error(res.error);
     out.value = res.report;
@@ -366,7 +376,7 @@ async function showAccount(): Promise<void> {
   nodes.push(name);
   if (account.id && account.id !== account.name) nodes.push(document.createTextNode(`(@${account.id})`));
   el.replaceChildren(...nodes);
-  el.title = "このブラウザの note でログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
+  el.title = "お使いの Chrome で note にログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
   el.hidden = false;
 }
 void showAccount();
@@ -701,11 +711,11 @@ async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeo
     notes,
   };
   const res = (await chrome.tabs.sendMessage(tabId, message).catch(() => null)) as ExtraSiteFillResponse | null;
-  if (!res) throw new Error("このページを再読み込みしてから、もう一度押してください。");
+  if (!res) throw new Error("今開いているページを再読み込みしてから、もう一度押してください。");
   if (!res.ok) throw new Error(res.error);
   setStatus(
-    "このページに入れ始めました。続きはページの右下に出ます。\n中身を確かめてから、ページの「下書き保存」を自分で押してください。" +
-      (notes.length ? `\n\nこのページでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : ""),
+    "今開いているページに入れ始めました。続きはページの右下に出ます。\n中身を確かめてから、ページの「下書き保存」を自分で押してください。" +
+      (notes.length ? `\n\n追加の対応先のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : ""),
     notes.length > 0,
   );
 }

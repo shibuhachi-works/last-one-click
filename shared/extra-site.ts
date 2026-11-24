@@ -1,6 +1,6 @@
 // 追加の対応先(library.libecity.com)を使えるようにする仕組み。
 // 入れるときの権限の警告を増やさないため、このホストは optional_host_permissions に置き、
-// そのページのエディタを開いてツールバーのアイコンを押した人にだけ、ポップアップで許可を求める。
+// そのサイトのページ(エディタ以外でも)を開いてツールバーのアイコンを押した人にだけ、ポップアップで許可を求める。
 // 下書きの入力は、今開いているそのページのタブにだけ入れて止まる(#120。extension/src/lib/extra-site-fill.ts)。
 //
 // chrome の API は ExtraSiteApi として外から渡す(テストでは偽物を渡す。ルートの tsconfig には chrome の型が無い)
@@ -100,7 +100,7 @@ export function fillProbe(selectors: ExtraSiteSelectors = extraSiteSelectors()):
 }
 
 /** ポップアップのボタンの文字。今のタブが追加の対応先の編集画面のとき、「note の下書きを作成」の代わりに出す */
-export const EXTRA_SITE_SUBMIT_LABEL = "このページに下書きを入れる";
+export const EXTRA_SITE_SUBMIT_LABEL = "今開いているページに下書きを入れる";
 
 /** 本文の画像として入れられる種類(ファイルの欄の accept が無いとき。#119 の診断では png・jpg・jpeg) */
 export const EXTRA_SITE_IMAGE_ACCEPT = ".png,.jpg,.jpeg,image/png,image/jpeg";
@@ -149,13 +149,13 @@ export function extraSiteUnsupportedNotes(input: {
 }): string[] {
   const notes: string[] = [];
   const has = (re: RegExp) => re.test(input.html);
-  if (has(/<(?:ul|ol)[\s>]/i)) notes.push("箇条書き・番号付きリスト(このページのエディタにはボタンが無いので、そのまま入らないことがあります)");
-  if (has(/<pre[\s>]/i) || has(/<code[\s>]/i)) notes.push("コード(このページのエディタにはボタンが無いので、ふつうの文字で入ることがあります)");
+  if (has(/<(?:ul|ol)[\s>]/i)) notes.push("箇条書き・番号付きリスト(追加の対応先のエディタにはボタンが無いので、そのまま入らないことがあります)");
+  if (has(/<pre[\s>]/i) || has(/<code[\s>]/i)) notes.push("コード(追加の対応先のエディタにはボタンが無いので、ふつうの文字で入ることがあります)");
   if (has(/<table[\s>]/i)) notes.push("表(そのまま入らないことがあります)");
-  if (input.insertToc) notes.push("目次(このページでは入れません)");
-  if (input.embedUrls) notes.push("URL だけの行の埋め込み(このページでは入れません。URL の文字のまま入ります)");
-  if (input.magazine?.trim()) notes.push("マガジン(このページでは入れません)");
-  if (input.price !== undefined) notes.push("有料の価格(このページでは入れません)");
+  if (input.insertToc) notes.push("目次(追加の対応先では入れません)");
+  if (input.embedUrls) notes.push("URL だけの行の埋め込み(追加の対応先では入れません。URL の文字のまま入ります)");
+  if (input.magazine?.trim()) notes.push("マガジン(追加の対応先では入れません)");
+  if (input.price !== undefined) notes.push("有料の価格(追加の対応先では入れません)");
   const skipped = (input.images ?? []).filter((i) => !acceptsFile(null, i)).map((i) => i.name);
   if (skipped.length) notes.push(`png・jpg 以外の本文の画像(${skipped.join(", ")}。入れずに目印を残します)`);
   const captioned = (input.images ?? []).filter((i) => i.caption?.trim() && acceptsFile(null, i)).map((i) => i.name);
@@ -209,22 +209,26 @@ export type ExtraSiteApi = {
   probe(tabId: number, probe?: EditorProbe): Promise<boolean>;
 };
 
+/** ポップアップの案内をどう出すか。"editor" は今のタブがエディタ、"site" はそれ以外の追加の対応先のページ。null は出さない */
+export type ExtraSiteOffer = "editor" | "site" | null;
+
 /**
- * ポップアップに案内を出すか。今のタブが追加の対応先のページで、まだ許可が無く、エディタの入力欄があるときだけ。
+ * ポップアップに案内を出すか。今のタブが追加の対応先のページで、まだ許可が無いとき。
+ * エディタを開いていなくても(記事の一覧などでも)出す。エディタかどうかは、案内の文を変えるためだけに見る。
  * ホストが違うとき(note のページを含む)は、ページの中では何も動かさない
  */
-export async function shouldOfferExtraSite(api: ExtraSiteApi, tab: { id?: number; url?: string } | undefined): Promise<boolean> {
-  if (tab?.id === undefined || !isExtraSiteUrl(tab.url)) return false;
-  if (await api.hasPermission()) return false;
+export async function shouldOfferExtraSite(api: ExtraSiteApi, tab: { id?: number; url?: string } | undefined): Promise<ExtraSiteOffer> {
+  if (tab?.id === undefined || !isExtraSiteUrl(tab.url)) return null;
+  if (await api.hasPermission()) return null;
   try {
-    return await api.probe(tab.id);
+    return (await api.probe(tab.id)) ? "editor" : "site";
   } catch {
-    return false; // ページに入れなかった(読み込み中・エラーのページなど)ときは出さない
+    return "site"; // ページに入れなかった(読み込み中・エラーのページなど)ときも、ドメインが合えば出す
   }
 }
 
 /**
- * 今のタブに下書きを入れるか(ポップアップのボタンを「このページに下書きを入れる」にするか)。
+ * 今のタブに下書きを入れるか(ポップアップのボタンを「今開いているページに下書きを入れる」にするか)。
  * 今のタブが追加の対応先のページで、許可があり、タイトルと本文の欄があるときだけ。
  * そのときは、新しいタブを開かずに、このタブに入れる
  */

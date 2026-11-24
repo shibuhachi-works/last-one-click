@@ -437,7 +437,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         const banner = editor.locator("#lastclick-pigeon-banner");
         assert.equal(await banner.locator(".spin").count(), 2, "回る印が出ていません");
         // 進めているあいだは、操作を控えてもらうお願いを出す
-        assert.match((await banner.locator("#wait").textContent()) ?? "", /終わるまで、この画面は操作せずにお待ちください/);
+        assert.match((await banner.locator("#wait").textContent()) ?? "", /終わるまで、note の編集画面は操作せずにお待ちください/);
         // たたんでも、秒数が進むあいだ、たたんだままになっている(バナーを作り直さない)
         await banner.getByRole("button", { name: "バナーをたたむ" }).click();
         const first = await seconds();
@@ -645,7 +645,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     const sample = { data: { id: 1234, nickname: "見本の書き手", urlname: "sample_writer", profile_image_path: "https://note.com/e2e-icon.png" } };
     await withCurrentUser({ status: 200, contentType: "application/json", body: JSON.stringify(sample) }, async (requests) => {
       const { editor, errors } = await draftFromPopup();
-      assert.deepEqual(await accountIn(editor, "banner"), { text: "このアカウントで作りました:見本の書き手(@sample_writer)", icon: "https://note.com/e2e-icon.png" });
+      assert.deepEqual(await accountIn(editor, "banner"), { text: "作成に使ったnoteのアカウント:見本の書き手(@sample_writer)", icon: "https://note.com/e2e-icon.png" });
       // ポップアップを開くと、開いている note のタブから読んで「note の下書きを作成」の上に出す
       const popup = await context.newPage();
       await popup.goto(`chrome-extension://${extensionId}/popup.html`);

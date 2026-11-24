@@ -122,7 +122,7 @@ async function main() {
       (failed
         ? `⚠️ 一部は入力できませんでした。画面で確かめ、足りないものは手で入れてから「公開設定を入れる」を押してください。\n\n`
         : `✅ タイトル・本文・見出し画像を入れました。本文を確かめて、よければ「公開設定を入れる」を押してください。\n\n`) +
-        `下書き保存・プレビューはこの画面で済ませてください。\n「公開設定を入れる」を押すと、拡張が「公開に進む」を押し、ハッシュタグとマガジンを入れて止まります。\n${results.join("\n")}`,
+        `下書き保存・プレビューは、note の編集画面で済ませてください。\n「公開設定を入れる」を押すと、拡張が「公開に進む」を押し、ハッシュタグとマガジンを入れて止まります。\n${results.join("\n")}`,
       failed ? "warn" : "ok",
       [proceed],
       account,
@@ -1094,7 +1094,7 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
   // 進めているあいだは、操作を控えてもらう。拡張が文字を選んで画像を貼ったり、目印を消したりしている途中に
   // 文字を打ったりクリックしたりすると、目印が残ったり、違う場所に入ったりする。note のダイアログ(OK を押すもの)だけは押してもらう
   // (この関数は main() から最初の await より前に呼ばれるので、文はファイルの先頭の const にせず、ここに置く)
-  const waitNotice = "処理中です。終わるまで、この画面は操作せずにお待ちください(note のダイアログが出たときは「OK」を押してください)";
+  const waitNotice = "処理中です。終わるまで、note の編集画面は操作せずにお待ちください(note のダイアログが出たときは「OK」を押してください)";
   const spin = (size: number) =>
     working
       ? `<span class="spin" aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;margin-right:6px;vertical-align:-1px;
@@ -1116,7 +1116,7 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
       background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">${spin(10)}Last One Click ▴</button>`;
   const root = host.shadowRoot!;
   const accountEl = root.getElementById("account");
-  if (account && accountEl) accountEl.append(...accountNodes("このアカウントで作りました:", account));
+  if (account && accountEl) accountEl.append(...accountNodes("作成に使った note のアカウント:", account));
   const box = root.getElementById("box")!;
   const pill = root.getElementById("pill")!;
   root.getElementById("min")!.onclick = () => {
