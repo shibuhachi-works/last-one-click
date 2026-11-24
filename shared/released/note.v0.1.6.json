@@ -18,7 +18,15 @@
     "magazineToggleText": ["マガジン"],
     "magazineItem": "label, [role=\"option\"]",
     "magazineAddButtonText": ["追加"],
-    "publishButtonText": ["投稿する", "公開する"]
+    "publishButtonText": ["投稿する", "公開する"],
+    "paidRadio": "input#paid[name=\"is_paid\"]",
+    "paidLabelText": ["有料"],
+    "priceInput": "input#price",
+    "paidAreaButtonText": ["有料エリア設定"],
+    "paywallContainer": ".ProseMirror.paywall-setting",
+    "paywallWidget": ".ProseMirror-widget",
+    "paywallChangeButtonText": ["ラインをこの場所に変更"],
+    "paywallLine": "#paywall-line"
   },
   "toc": {
     "openMenuButton": "button[aria-label=\"メニューを開く\"]",
