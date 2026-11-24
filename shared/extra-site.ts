@@ -149,13 +149,13 @@ export function extraSiteUnsupportedNotes(input: {
 }): string[] {
   const notes: string[] = [];
   const has = (re: RegExp) => re.test(input.html);
-  if (has(/<(?:ul|ol)[\s>]/i)) notes.push("箇条書き・番号付きリスト(追加の対応先のエディタにはボタンが無いので、そのまま入らないことがあります)");
-  if (has(/<pre[\s>]/i) || has(/<code[\s>]/i)) notes.push("コード(追加の対応先のエディタにはボタンが無いので、ふつうの文字で入ることがあります)");
+  if (has(/<(?:ul|ol)[\s>]/i)) notes.push(`箇条書き・番号付きリスト(${EXTRA_SITE_HOST} のエディタにはボタンが無いので、そのまま入らないことがあります)`);
+  if (has(/<pre[\s>]/i) || has(/<code[\s>]/i)) notes.push(`コード(${EXTRA_SITE_HOST} のエディタにはボタンが無いので、ふつうの文字で入ることがあります)`);
   if (has(/<table[\s>]/i)) notes.push("表(そのまま入らないことがあります)");
-  if (input.insertToc) notes.push("目次(追加の対応先では入れません)");
-  if (input.embedUrls) notes.push("URL だけの行の埋め込み(追加の対応先では入れません。URL の文字のまま入ります)");
-  if (input.magazine?.trim()) notes.push("マガジン(追加の対応先では入れません)");
-  if (input.price !== undefined) notes.push("有料の価格(追加の対応先では入れません)");
+  if (input.insertToc) notes.push(`目次(${EXTRA_SITE_HOST} では入れません)`);
+  if (input.embedUrls) notes.push(`URL だけの行の埋め込み(${EXTRA_SITE_HOST} では入れません。URL の文字のまま入ります)`);
+  if (input.magazine?.trim()) notes.push(`マガジン(${EXTRA_SITE_HOST} では入れません)`);
+  if (input.price !== undefined) notes.push(`有料の価格(${EXTRA_SITE_HOST} では入れません)`);
   const skipped = (input.images ?? []).filter((i) => !acceptsFile(null, i)).map((i) => i.name);
   if (skipped.length) notes.push(`png・jpg 以外の本文の画像(${skipped.join(", ")}。入れずに目印を残します)`);
   const captioned = (input.images ?? []).filter((i) => i.caption?.trim() && acceptsFile(null, i)).map((i) => i.name);
