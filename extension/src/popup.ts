@@ -564,6 +564,7 @@ async function loadLooseFiles(files: File[]) {
   const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
   if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
   setStatus(`${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。`);
+  checkTargetNow(); // target が入れる先と合わなければ、受け取りの知らせより先にこちらを出す
 }
 
 const MAX_ZIP_FILE_BYTES = 60 * 1024 * 1024;
@@ -612,6 +613,7 @@ async function loadBundle(items: Array<{ path: string; file: File }>, label: str
   if (body.length) got.push(`本文の画像: ${body.length} 枚`);
   const missingThumb = thumbName && !thumb ? `\nfront matter の見出し画像(${thumbName})が見つかりませんでした。ドロップするか「画像を選ぶ」で選んでください。` : "";
   setStatus(`${label} から ${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。${missingThumb}`);
+  checkTargetNow(); // target が入れる先と合わなければ、受け取りの知らせより先にこちらを出す
 }
 
 // 「md ファイルを選ぶ」「画像を選ぶ」は本物の button(キーボードでも押せる)。隠した file input を開く。
@@ -695,7 +697,14 @@ submitEl.addEventListener("click", async () => {
       thumbnailFile: thumbnailEl.files?.[0] ?? null,
       baseUrl,
       // 欄の値が「送る内容」。空にしたら front matter に戻らず「なし」(final)
-      override: { title: titleEl.value, hashtags: hashtagsEl.value, magazine: magazineEl.value, price: priceEl.value, final: true },
+      // マガジン・価格は note にだけある設定。追加の対応先に入れるときは押せなくしてあるので、値を渡さず確かめもしない
+      override: {
+        title: titleEl.value,
+        hashtags: hashtagsEl.value,
+        magazine: destination() === "note" ? magazineEl.value : "",
+        price: destination() === "note" ? priceEl.value : "",
+        final: true,
+      },
       // 追加の対応先の編集画面には、最後のクレジットは入れない(note にだけある設定。押せなくしてある)
       creditLink: destination() === "note" && creditLinkEl.checked,
       insertImages: insertImagesEl.checked,
