@@ -22,7 +22,7 @@
 main の README・見本は、マージした時点で新しい機能を説明する。ストアで新しい版が公開されるまでは、ストアから入れた拡張では動かないので、次のようにする。
 
 - 拡張の動きを変える PR は、同じ PR で `docs/releases/next.md` に 1 行足す(見張り役(`tools/`)・テストだけの変更は書かない)
-- `README.md`・`extension/README.md`・`templates/note/` で、まだ出していない機能を説明するときは「(v0.1.7 から)」のように版を付ける。版は `extension/manifest.json` の今の版の次
+- `README.md`・`extension/README.md`・`templates/note/` で、まだ出していない機能を説明するときは「(v0.1.8 から)」のように版を付ける。版は `extension/manifest.json` の今の版の次
 - リリースの PR で、`docs/releases/next.md` を `docs/releases/v0.1.x.md` にし、空の `next.md` を作り直す。README などの「(v0.1.x から)」は、その版がストアで公開されたあとに外す(手順は `docs/store-submission.md`)
 
 ## PR の決まり(org 共通)

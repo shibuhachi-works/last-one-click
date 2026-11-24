@@ -23,7 +23,7 @@
 | **[extension/](extension/)** Chrome 拡張「Last One Click」 | 配布用。普段の Chrome で動き、認証情報に触れない | md ファイル(貼り付け・GitHub URL は上級者向け) |
 | **tools/** Playwright 版 | 自分用・開発用。壊れた箇所を Inspector で調べられる | GitHub URL |
 
-拡張は(v0.1.7 から)、ポップアップと編集画面の右下のバナーに、ログイン中の note アカウントのアイコンと名前を出します。アカウントを 2 つ持っているときに、違うアカウントで投稿しないためです(Cookie は読みません。名前とアイコンは画面に出すだけで、保存も送信もしません)。
+拡張は、ポップアップと編集画面の右下のバナーに、ログイン中の note アカウントのアイコンと名前を出します。アカウントを 2 つ持っているときに、違うアカウントで投稿しないためです(Cookie は読みません。名前とアイコンは画面に出すだけで、保存も送信もしません)。
 
 どちらも `selectors/note.json`(note の DOM セレクタ)を共有しています。以下は Playwright 版の説明です。拡張は [extension/README.md](extension/README.md) を見てください。
 
