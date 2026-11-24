@@ -1,4 +1,4 @@
-# note の有料記事の見本(v0.1.6 から)
+# note の有料記事の見本
 
 Last One Click(Chrome 拡張)で、note の**有料記事**の下書きを作るときの、md ファイルの見本です。[article.md](article.md) をダウンロードして、中身を書き換えて使えます。
 
