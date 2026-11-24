@@ -7,7 +7,7 @@ import { articleOptionsLabel } from "../../shared/article-options";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
-import { disableExtraSite, enableExtraSite, shouldOfferExtraSite, syncExtraSite } from "../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, disableExtraSite, enableExtraSite, shouldOfferExtraSite, syncExtraSite } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
@@ -150,44 +150,47 @@ function showExtraSiteSetting(granted: boolean) {
   extraSiteToggleEl.checked = granted;
   if (granted) extraSiteOfferEl.hidden = true;
 }
-chromeExtraSiteApi.hasPermission().then(showExtraSiteSetting, () => showExtraSiteSetting(false));
-// 別ウィンドウで開いたときは、今のウィンドウ = この画面なので、ページは見ない
-if (!isWindow) {
-  chrome.tabs
-    .query({ active: true, currentWindow: true })
-    .then(([tab]) => shouldOfferExtraSite(chromeExtraSiteApi, tab))
-    .then((offer) => {
-      extraSiteOfferEl.hidden = !offer;
-    })
-    .catch(() => {
-      extraSiteOfferEl.hidden = true;
-    });
+// 下書きの入力ができるまでは、入口を出さない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
+if (EXTRA_SITE_ENABLED) {
+  chromeExtraSiteApi.hasPermission().then(showExtraSiteSetting, () => showExtraSiteSetting(false));
+  // 別ウィンドウで開いたときは、今のウィンドウ = この画面なので、ページは見ない
+  if (!isWindow) {
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(([tab]) => shouldOfferExtraSite(chromeExtraSiteApi, tab))
+      .then((offer) => {
+        extraSiteOfferEl.hidden = !offer;
+      })
+      .catch(() => {
+        extraSiteOfferEl.hidden = true;
+      });
+  }
+  $("extra-site-enable").addEventListener("click", () => {
+    // 許可を求める呼び出しは、クリックの中で(await より前に)行う
+    enableExtraSite(chromeExtraSiteApi)
+      .then((granted) => {
+        if (!granted) return;
+        showExtraSiteSetting(true);
+        setStatus("このページでも使えるようにしました。切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。");
+      })
+      .catch((e) => setStatus((e as Error).message, true));
+  });
+  extraSiteToggleEl.addEventListener("change", () => {
+    if (extraSiteToggleEl.checked) return; // 入れ直しは、そのサイトのエディタで「使えるようにする」から
+    disableExtraSite(chromeExtraSiteApi)
+      .then((granted) => {
+        showExtraSiteSetting(granted);
+        if (!granted) setStatus("追加の対応先(library.libecity.com)への許可を外しました。");
+      })
+      .catch((e) => setStatus((e as Error).message, true));
+  });
+  // Chrome の画面(拡張機能の詳細・サイトへのアクセス)から許可を変えられたときも、表示と登録を合わせる
+  const onExtraSitePermissionChanged = () => {
+    syncExtraSite(chromeExtraSiteApi).then(showExtraSiteSetting, () => {});
+  };
+  chrome.permissions.onRemoved.addListener(onExtraSitePermissionChanged);
+  chrome.permissions.onAdded.addListener(onExtraSitePermissionChanged);
 }
-$("extra-site-enable").addEventListener("click", () => {
-  // 許可を求める呼び出しは、クリックの中で(await より前に)行う
-  enableExtraSite(chromeExtraSiteApi)
-    .then((granted) => {
-      if (!granted) return;
-      showExtraSiteSetting(true);
-      setStatus("このページでも使えるようにしました。切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。");
-    })
-    .catch((e) => setStatus((e as Error).message, true));
-});
-extraSiteToggleEl.addEventListener("change", () => {
-  if (extraSiteToggleEl.checked) return; // 入れ直しは、そのサイトのエディタで「使えるようにする」から
-  disableExtraSite(chromeExtraSiteApi)
-    .then((granted) => {
-      showExtraSiteSetting(granted);
-      if (!granted) setStatus("追加の対応先(library.libecity.com)への許可を外しました。");
-    })
-    .catch((e) => setStatus((e as Error).message, true));
-});
-// Chrome の画面(拡張機能の詳細・サイトへのアクセス)から許可を変えられたときも、表示と登録を合わせる
-const onExtraSitePermissionChanged = () => {
-  syncExtraSite(chromeExtraSiteApi).then(showExtraSiteSetting, () => {});
-};
-chrome.permissions.onRemoved.addListener(onExtraSitePermissionChanged);
-chrome.permissions.onAdded.addListener(onExtraSitePermissionChanged);
 
 // 上級者向け(GitHub から読み込む・貼り付け・selectors の URL・GitHub トークン)は普段は隠す。
 // 「拡張機能の設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える

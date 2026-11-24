@@ -9,7 +9,7 @@
 //      読んだ名前・ID・アイコンの URL はポップアップに返すだけで、保存しない・note.com 以外へ送らない
 // 記事の中身には触らない。
 import { fetchCurrentUser } from "../../shared/current-user";
-import { syncExtraSite } from "../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, syncExtraSite } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { loadSelectors } from "./lib/selectors";
 import type { AccountResponse, Message, SelectorsResponse, WhoAmIResponse } from "./lib/types";
@@ -42,7 +42,10 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse: (r: Wh
 const syncExtraSiteScript = () => {
   syncExtraSite(chromeExtraSiteApi).catch((e) => console.warn("追加の対応先の登録を合わせられませんでした", e));
 };
-syncExtraSiteScript();
-chrome.runtime.onStartup.addListener(syncExtraSiteScript);
-chrome.permissions.onAdded.addListener(syncExtraSiteScript);
-chrome.permissions.onRemoved.addListener(syncExtraSiteScript);
+// 下書きの入力ができるまでは、登録しない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
+if (EXTRA_SITE_ENABLED) {
+  syncExtraSiteScript();
+  chrome.runtime.onStartup.addListener(syncExtraSiteScript);
+  chrome.permissions.onAdded.addListener(syncExtraSiteScript);
+  chrome.permissions.onRemoved.addListener(syncExtraSiteScript);
+}
