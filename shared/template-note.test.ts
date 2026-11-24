@@ -40,6 +40,7 @@ const FRONT_MATTER_FEATURES: [string, RegExp][] = [
   ["マガジン(magazine)", /^# magazine: /m],
   ["有料記事の価格(price)", /^# price: 300\b/m],
   ["有料の境目の印(<!-- ここから有料 -->)の説明", /^# .*「<!-- ここから有料 -->」だけの行/m],
+  ["入れる先(target)", /^# target: note\b/m],
 ];
 
 describe("templates/note/article.md(見本)", () => {

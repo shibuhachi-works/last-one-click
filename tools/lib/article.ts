@@ -3,7 +3,7 @@
 // ここに残るのは Node の fetch(トークンは環境変数)と、サムネイルを Buffer で持つ部分だけ。
 import { marked } from "marked";
 import { parse as parseYaml } from "yaml";
-import { renderArticle } from "../../shared/article.js";
+import { checkTarget, renderArticle } from "../../shared/article.js";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../shared/github-url.js";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../shared/cjk-emphasis.js";
 import { SAFE_RENDERER } from "../../shared/markdown-safe.js";
@@ -48,6 +48,7 @@ export async function loadArticle(input: string): Promise<Article> {
   const { mdUrl, baseUrl } = resolveArticleUrl(input);
   const md = await (await fetchRaw(mdUrl)).text();
   const a = await renderArticle(md, { markdown: (body) => marked.parse(body, { gfm: true, breaks: true }), yaml: parseYaml });
+  checkTarget(a.target, "note"); // Playwright 版は note にだけ入れる
 
   let thumbnail: Article["thumbnail"];
   if (a.thumbnail) {
