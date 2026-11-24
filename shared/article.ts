@@ -217,6 +217,11 @@ export type ArticleOverride = {
    * false / 省略なら従来どおり「空は front matter を使う」上書き(Playwright 版の引数)
    */
   final?: boolean;
+  /**
+   * true なら、有料の区切り(「ここから有料」の印)を使わない。印の行は今までどおり本文から取り除くが、
+   * 価格が無くても止めず、paywallAnchor も返さない。有料の設定が無い入れる先(追加の対応先)で使う
+   */
+  ignorePaywall?: boolean;
 };
 
 /** 各パッケージから渡す変換関数 */
@@ -272,6 +277,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
   else if (override.price?.trim()) price = parsePrice(override.price);
   else if (fm.priceError) throw new Error(fm.priceError);
   else price = fm.price;
+  if (override.ignorePaywall) paywallAnchor = undefined;
   if (paywallAnchor !== undefined && price === undefined) {
     throw new Error(
       `本文に「${PAYWALL_MARKER}」がありますが、price がありません。front matter に price: 300 のように価格を書くか(ポップアップでは「価格(有料)」の欄に入れる)、印の行を消してください。`,

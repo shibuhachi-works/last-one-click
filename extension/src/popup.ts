@@ -704,6 +704,8 @@ submitEl.addEventListener("click", async () => {
         magazine: destination() === "note" ? magazineEl.value : "",
         price: destination() === "note" ? priceEl.value : "",
         final: true,
+        // 有料の区切りも note にだけある設定。追加の対応先では、印の行を取り除くだけで、価格が無くても止めない
+        ignorePaywall: destination() !== "note",
       },
       // 追加の対応先の編集画面には、最後のクレジットは入れない(note にだけある設定。押せなくしてある)
       creditLink: destination() === "note" && creditLinkEl.checked,

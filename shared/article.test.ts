@@ -199,3 +199,17 @@ describe("targetProblem(読み込んだ時点の target の確かめ)", () => {
     assert.equal(targetProblem("---\ntitle: [壊れた\n---\n本文", "note", parseYaml), null);
   });
 });
+
+describe("ignorePaywall(有料の区切りを使わない入れる先)", () => {
+  it("「ここから有料」の印があっても価格が無くて止めず、印の行は本文から取り除き、paywallAnchor は返さない", async () => {
+    const conv = { markdown: (b: string) => md.parse(b) as string, yaml: parseYaml };
+    const src = "---\ntitle: T\nprice: 300\n---\n\n無料の段落\n\n<!-- ここから有料 -->\n\n有料の段落\n";
+    const a = await renderArticle(src, conv, { title: "T", price: "", final: true, ignorePaywall: true });
+    assert.equal(a.paywallAnchor, undefined);
+    assert.equal(a.price, undefined);
+    assert.doesNotMatch(a.html, /ここから有料/);
+    assert.match(a.html, /有料の段落/);
+    // 使うとき(note)は、今までどおり価格が無ければ止める
+    await assert.rejects(renderArticle(src, conv, { title: "T", price: "", final: true }), /price がありません/);
+  });
+});
