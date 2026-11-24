@@ -1,6 +1,6 @@
 // 追加の対応先(library.libecity.com)を使えるようにする仕組み。
 // 入れるときの権限の警告を増やさないため、このホストは optional_host_permissions に置き、
-// そのページのエディタを開いてツールバーのアイコンを押した人にだけ、ポップアップで許可を求める。
+// そのサイトのページ(エディタ以外でも)を開いてツールバーのアイコンを押した人にだけ、ポップアップで許可を求める。
 // 下書きの入力は、今開いているそのページのタブにだけ入れて止まる(#120。extension/src/lib/extra-site-fill.ts)。
 //
 // chrome の API は ExtraSiteApi として外から渡す(テストでは偽物を渡す。ルートの tsconfig には chrome の型が無い)
@@ -209,17 +209,21 @@ export type ExtraSiteApi = {
   probe(tabId: number, probe?: EditorProbe): Promise<boolean>;
 };
 
+/** ポップアップの案内をどう出すか。"editor" は今のタブがエディタ、"site" はそれ以外の追加の対応先のページ。null は出さない */
+export type ExtraSiteOffer = "editor" | "site" | null;
+
 /**
- * ポップアップに案内を出すか。今のタブが追加の対応先のページで、まだ許可が無く、エディタの入力欄があるときだけ。
+ * ポップアップに案内を出すか。今のタブが追加の対応先のページで、まだ許可が無いとき。
+ * エディタを開いていなくても(記事の一覧などでも)出す。エディタかどうかは、案内の文を変えるためだけに見る。
  * ホストが違うとき(note のページを含む)は、ページの中では何も動かさない
  */
-export async function shouldOfferExtraSite(api: ExtraSiteApi, tab: { id?: number; url?: string } | undefined): Promise<boolean> {
-  if (tab?.id === undefined || !isExtraSiteUrl(tab.url)) return false;
-  if (await api.hasPermission()) return false;
+export async function shouldOfferExtraSite(api: ExtraSiteApi, tab: { id?: number; url?: string } | undefined): Promise<ExtraSiteOffer> {
+  if (tab?.id === undefined || !isExtraSiteUrl(tab.url)) return null;
+  if (await api.hasPermission()) return null;
   try {
-    return await api.probe(tab.id);
+    return (await api.probe(tab.id)) ? "editor" : "site";
   } catch {
-    return false; // ページに入れなかった(読み込み中・エラーのページなど)ときは出さない
+    return "site"; // ページに入れなかった(読み込み中・エラーのページなど)ときも、ドメインが合えば出す
   }
 }
 

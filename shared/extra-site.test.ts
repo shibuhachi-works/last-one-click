@@ -79,44 +79,45 @@ describe("isExtraSiteUrl", () => {
 });
 
 describe("shouldOfferExtraSite(ポップアップの案内)", () => {
-  it("そのサイトのエディタで、許可が無く、入力欄があるときだけ出す", async () => {
+  it("そのサイトのエディタで、許可が無く、入力欄があるときは、エディタ向けの案内を出す", async () => {
     const api = fakeApi();
-    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), true);
+    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), "editor");
     assert.deepEqual(api.calls, ["contains", "probe"]);
   });
 
   it("ホストが違うとき(note のページ・ほかのページ)は出さず、ページの中で何も動かさない", async () => {
     for (const url of ["https://editor.note.com/notes/new", "https://note.com/", "https://example.com/", undefined]) {
       const api = fakeApi();
-      assert.equal(await shouldOfferExtraSite(api, { id: 1, url }), false, String(url));
+      assert.equal(await shouldOfferExtraSite(api, { id: 1, url }), null, String(url));
       assert.deepEqual(api.calls, [], String(url));
     }
   });
 
   it("タブが無いときは出さない", async () => {
     const api = fakeApi();
-    assert.equal(await shouldOfferExtraSite(api, undefined), false);
-    assert.equal(await shouldOfferExtraSite(api, { url: EDITOR_TAB.url }), false);
+    assert.equal(await shouldOfferExtraSite(api, undefined), null);
+    assert.equal(await shouldOfferExtraSite(api, { url: EDITOR_TAB.url }), null);
     assert.deepEqual(api.calls, []);
   });
 
-  it("入力欄が無いときは出さない", async () => {
+  it("入力欄が無い(エディタ以外の)ページでも、ドメインが合えば、エディタを開くよう促す案内を出す", async () => {
     const api = fakeApi({ editor: false });
-    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), false);
+    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), "site");
+    assert.deepEqual(api.calls, ["contains", "probe"]);
   });
 
   it("もう許可があるときは出さず、ページも見ない", async () => {
     const api = fakeApi({ granted: true });
-    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), false);
+    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), null);
     assert.deepEqual(api.calls, ["contains"]);
   });
 
-  it("ページに入れなかったときは出さない", async () => {
+  it("ページに入れなかったとき(読み込み中など)も、ドメインが合えば、エディタを開くよう促す案内を出す", async () => {
     const api = fakeApi();
     api.probe = async () => {
       throw new Error("Cannot access contents of the page");
     };
-    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), false);
+    assert.equal(await shouldOfferExtraSite(api, EDITOR_TAB), "site");
   });
 });
 
