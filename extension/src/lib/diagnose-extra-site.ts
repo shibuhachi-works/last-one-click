@@ -139,7 +139,7 @@ function list(lines: string[], name: string, els: HTMLElement[]) {
 /**
  * 要素を 1 行で書く。note の診断の describe より控えめにする(相手の画面のことはまだ分からないため):
  * - data-* は名前だけ(値に人や記事の ID が入ることがある)
- * - 入力欄・書ける欄とその中は、文字の長さだけ
+ * - 入力欄・書ける欄とその中、それを包む要素(エディタの外枠など)は、文字の長さだけ
  * - アカウントの表示らしい要素(画像の入ったボタン・リンクとその中、class・id がアカウントらしいもの)は、
  *   文字も aria-label・title・placeholder も長さだけ
  * - 4 桁以上の数字・メールアドレスの形は伏せる
@@ -173,9 +173,11 @@ export function describeSafe(el: HTMLElement): string {
   return parts.join(" ");
 }
 
-/** 記事の文字が入る欄か、その中の要素か(入力欄・書ける欄) */
+const EDITABLE = "[contenteditable]:not([contenteditable='false']), textarea, input, select";
+
+/** 記事の文字が入る欄か、その中の要素か、それを包む要素か(入力欄・書ける欄。エディタの外枠も本文を含む) */
 function holdsArticleText(el: HTMLElement): boolean {
-  return el.isContentEditable || !!el.closest("[contenteditable]:not([contenteditable='false']), textarea, input, select");
+  return el.isContentEditable || !!el.closest(EDITABLE) || !!el.querySelector(EDITABLE);
 }
 
 /** 公開・投稿のボタンか(押さない文字の一覧 shared/forbidden-click.ts で見る) */

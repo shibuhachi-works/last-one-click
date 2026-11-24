@@ -24,6 +24,7 @@ const PAGE = `<!doctype html><html><head><title>ひみつの記事タイトル</
       <p>ひみつの本文です。まだ公開していません。</p>
       <figure><img src="https://example.com/a.png"><figcaption>ひみつのキャプション</figcaption></figure>
     </div>
+    <div class="ql-container"><div class="ql-editor" contenteditable="true">ひみつの二つめの本文</div></div>
     <footer><button type="button">投稿する</button><button type="button" aria-label="公開する"></button></footer>
   </main>
 </body></html>`;
@@ -94,12 +95,14 @@ describe("追加の対応先の診断 (DOM)", () => {
     const hints = sectionOf("エディタの種類の手がかり");
     assert.match(hints, /- ProseMirror: 1 件/);
     assert.match(hints, /- tiptap: 1 件/);
+    // 書ける欄を包む外枠も、文字は長さだけ
+    assert.match(hints, /- ql-container: 1 件\n  - div \.ql-container \(文字 10 字は出しません\)/);
   });
 
   it("仮のセレクタのマッチ数が出る", () => {
     const section = sectionOf("仮のセレクタのマッチ数");
     assert.match(section, /- title: 1 件  `input\[placeholder\*="タイトル"\]`/);
-    assert.match(section, /- body: 1 件  `\[contenteditable="true"\]`/);
+    assert.match(section, /- body: 2 件  `\[contenteditable="true"\]`/);
   });
 
   it("画像のボタンと file input の道筋が出る", () => {
