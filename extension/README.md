@@ -33,6 +33,10 @@ npm run build        # → dist/ ができる
 2. 右上の「デベロッパーモード」を ON
 3. 「パッケージ化されていない拡張機能を読み込む」→ `extension/dist/` を選ぶ
 
+### 開発用のビルド(追加の対応先を試すとき)
+
+追加の対応先(`https://library.libecity.com/`)の入口(エディタでの案内・「記事の設定」のスイッチ・content script の登録・そのエディタでの診断)は、下書きの入力ができるまで、ストアの版とふつうのビルドには入っていません。試すときだけ、`extension/` で `EXTRA_SITE=1 npm run build` として、できた `dist/` を読み込み直してください。この開発用のビルドだけ、`dist/manifest.json` に `activeTab`・`scripting` と `optional_host_permissions`(このホストだけ)が足され、chrome://extensions の版に「開発用」と出ます(`host_permissions` は増やしません)。ふつうの `npm run build` と、ストアに出す ZIP を作る `npm run package` は、`EXTRA_SITE` を付けても入口と権限の無いまま作ります。開発用のビルドの dist/ を読み込んでいる間は、`shared/manifest-permissions.test.ts` の dist/manifest.json の検査が落ちるので、テストの前にふつうのビルドで作り直してください。
+
 ## 使い方
 
 1. note.com に普通にログインしておく
@@ -110,19 +114,21 @@ note の DOM が変わる
 
 ```
 manifest.json          # MV3。権限は storage・clipboardWrite と note.com / raw.githubusercontent.com(追加の対応先の入口は、下書きの入力ができるまで外している)
-build.mjs              # esbuild でバンドル → dist/
+build.mjs              # esbuild でバンドル → dist/(EXTRA_SITE=1 のときは開発用のビルド)
+extra-site-manifest.mjs # 開発用のビルドで dist/manifest.json に足す、追加の対応先の権限
 package.mjs            # dist/ を ZIP にする(ストアに上げる用)
 icons/                 # icon.svg(全サイズ共通の元)と PNG(render.mjs で生成)
 store/                 # ストアの掲載文(listing.md)・スクリーンショット・生成スクリプト
 src/
   popup.html/css/ts    # 入力 UI。記事を組み立てて chrome.storage に置き、note を開く
   content.ts           # note.com のタブで動く。pending の記事をエディタに入力して止まる
-  background.ts        # service worker。content script に自分のタブ ID を教える(ポップアップが開いたタブでだけ動かすため)。追加の対応先の登録を許可に合わせる(まだ使っていない。shared/extra-site.ts の EXTRA_SITE_ENABLED)
-  extra-site.ts        # 追加の対応先のページで動く content script の受け口(まだ使っていない。許可されたときだけ登録する。中身はまだ無い)
+  background.ts        # service worker。content script に自分のタブ ID を教える(ポップアップが開いたタブでだけ動かすため)。追加の対応先の登録を許可に合わせる(開発用のビルドだけ。shared/extra-site.ts の EXTRA_SITE_ENABLED)
+  extra-site.ts        # 追加の対応先のページで動く content script(開発用のビルドだけ。許可されたときだけ登録する。今は診断のレポートを返すだけ)
   lib/
     article.ts         # md → ArticlePayload(GitHub 取得・サムネイルの base64 化。front matter などは ../shared/article.ts)
     selectors.ts       # selectors/note.json の読み込み(remote → cache → bundled)
-    extra-site.ts      # 追加の対応先の許可・登録・確かめを chrome の API につなぐ(まだ使っていない。中身は ../shared/extra-site.ts)
+    extra-site.ts      # 追加の対応先の許可・登録・確かめを chrome の API につなぐ(開発用のビルドだけ。中身は ../shared/extra-site.ts)
+    diagnose-extra-site.ts # 追加の対応先のエディタの診断(読むだけ。中身・名前・ID は出さない)
     types.ts           # 型と storage キー
 ../shared/                  # Playwright 版と共通の純粋ロジック(front matter、URL、安全装置 など)
 ../selectors/note.json      # note のセレクタ(Playwright 版と共有)

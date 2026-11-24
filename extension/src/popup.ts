@@ -7,7 +7,7 @@ import { articleOptionsLabel } from "../../shared/article-options";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
-import { EXTRA_SITE_ENABLED, disableExtraSite, enableExtraSite, shouldOfferExtraSite, syncExtraSite } from "../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, disableExtraSite, enableExtraSite, isExtraSiteUrl, shouldOfferExtraSite, syncExtraSite } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
@@ -228,16 +228,23 @@ $("save-settings").addEventListener("click", async () => {
   setStatus("設定を保存しました。");
 });
 
-// 診断:アクティブなタブ(note)の content script にレポートを作らせてコピーする
+// 診断:アクティブなタブ(note)の content script にレポートを作らせてコピーする。
+// 開発用のビルドでは、今のタブが追加の対応先のページなら、そちらの content script にレポートを作らせる(#118)
 $("diagnose").addEventListener("click", async () => {
   const out = $<HTMLTextAreaElement>("diagnose-out");
   try {
-    const tab = await findNoteTab();
+    const extraTab = await findExtraSiteTab();
+    if (extraTab && !(await chromeExtraSiteApi.hasPermission())) {
+      throw new Error("このページでは、まだ使えるようにしていません。ツールバーのアイコンを押し、案内の「使えるようにする」を押してから、ページを再読み込みしてください。");
+    }
+    const tab = extraTab ?? (await findNoteTab());
     if (!tab?.id) throw new Error("note のタブが見つかりません。note のエディタを開いてから押してください。");
     const res = (await chrome.tabs.sendMessage(tab.id, { type: "diagnose" } satisfies Message).catch(() => null)) as
       | DiagnoseResponse
       | null;
-    if (!res) throw new Error("note のタブで実行してください(開いたままなら、タブを再読み込みしてから)。");
+    if (!res) {
+      throw new Error(extraTab ? "このページを再読み込みしてから、もう一度押してください。" : "note のタブで実行してください(開いたままなら、タブを再読み込みしてから)。");
+    }
     if (!res.ok) throw new Error(res.error);
     out.value = res.report;
     $<HTMLButtonElement>("diagnose-copy").disabled = false;
@@ -275,6 +282,16 @@ function showCopied() {
     button.textContent = "コピー";
     button.classList.remove("copied");
   }, 2000);
+}
+
+/**
+ * 診断の相手にする追加の対応先のタブ。開発用のビルドで、ツールバーのポップアップの今のタブがそのページのときだけ。
+ * (独立したウィンドウでは今のタブ = この画面なので、見ない)
+ */
+async function findExtraSiteTab(): Promise<chrome.tabs.Tab | undefined> {
+  if (!EXTRA_SITE_ENABLED || isWindow) return undefined;
+  const [current] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return current?.id !== undefined && isExtraSiteUrl(current.url) ? current : undefined;
 }
 
 /** 診断の相手にする note のタブ。アクティブなものを優先し、無ければ最後に見たもの(URL の照合は host_permissions の範囲) */

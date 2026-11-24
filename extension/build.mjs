@@ -1,10 +1,14 @@
 // esbuild で popup / content / background / extra-site(追加の対応先の content script)をバンドルし、静的ファイルを dist/ にコピーする。
 //   node build.mjs          → 1回ビルド
 //   node build.mjs --watch  → 変更を監視して再ビルド
+//   EXTRA_SITE=1 node build.mjs → 開発用のビルド。追加の対応先の入口と、その 3 つの権限を有効にする(#118)。
+//                               ストアに出す ZIP(package.mjs)は、いつもふつうのビルドで作る
 import { build, context } from "esbuild";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { isExtraSiteBuild, withExtraSite } from "./extra-site-manifest.mjs";
 
 const watch = process.argv.includes("--watch");
+const extraSite = isExtraSiteBuild(process.env);
 const outdir = "dist";
 
 await rm(outdir, { recursive: true, force: true });
@@ -18,10 +22,17 @@ const options = {
   outdir,
   sourcemap: watch ? "inline" : false,
   logLevel: "info",
+  // shared/extra-site.ts の EXTRA_SITE_ENABLED。ふつうのビルドでは false のまま
+  define: { __EXTRA_SITE__: extraSite ? "true" : "false" },
 };
 
 const copyStatic = async () => {
-  await cp("manifest.json", `${outdir}/manifest.json`);
+  if (extraSite) {
+    const manifest = JSON.parse(await readFile("manifest.json", "utf8"));
+    await writeFile(`${outdir}/manifest.json`, `${JSON.stringify(withExtraSite(manifest), null, 2)}\n`);
+  } else {
+    await cp("manifest.json", `${outdir}/manifest.json`);
+  }
   await cp("src/popup.html", `${outdir}/popup.html`);
   await cp("src/popup.css", `${outdir}/popup.css`);
   // アイコンは PNG だけ(icon.svg と render.mjs は元データなので ZIP に入れない)
@@ -37,5 +48,6 @@ if (watch) {
 } else {
   await build(options);
   await copyStatic();
+  if (extraSite) console.log("開発用のビルド: 追加の対応先の入口と権限を有効にしました(ストアには出さない)");
   console.log(`built → ${outdir}/  (chrome://extensions で「パッケージ化されていない拡張機能を読み込む」→ このフォルダ)`);
 }

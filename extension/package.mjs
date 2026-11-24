@@ -7,7 +7,12 @@ import { mkdirSync, readFileSync, rmSync, existsSync } from "node:fs";
 const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
 const out = `release/last-one-click-${manifest.version}.zip`;
 
-execFileSync("node", ["build.mjs"], { stdio: "inherit" });
+// ストアに出す ZIP は、いつもふつうのビルドで作る(EXTRA_SITE を外す。開発用のビルドの入口と権限を入れない。#118)
+const { EXTRA_SITE: _ignored, ...env } = process.env;
+execFileSync("node", ["build.mjs"], { stdio: "inherit", env });
+if (readFileSync("dist/manifest.json", "utf8") !== readFileSync("manifest.json", "utf8")) {
+  throw new Error("dist/manifest.json が manifest.json と違います(開発用のビルドの権限が入っていないか確かめてください)");
+}
 mkdirSync("release", { recursive: true });
 if (existsSync(out)) rmSync(out);
 // -X: 余計なメタデータを入れない。-r: 再帰。dist の中で実行して manifest.json を直下にする
