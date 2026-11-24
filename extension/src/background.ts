@@ -42,7 +42,7 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse: (r: Wh
 const syncExtraSiteScript = () => {
   syncExtraSite(chromeExtraSiteApi).catch((e) => console.warn("追加の対応先の登録を合わせられませんでした", e));
 };
-// 下書きの入力ができるまでは、登録しない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
+// 実機で下書きの入力を確かめるまでは、ふつうのビルドでは登録しない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
 if (EXTRA_SITE_ENABLED) {
   syncExtraSiteScript();
   chrome.runtime.onStartup.addListener(syncExtraSiteScript);

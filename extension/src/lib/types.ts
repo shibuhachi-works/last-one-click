@@ -37,10 +37,19 @@ export type ArticlePayload = {
 /** selectors/note.json の形(検査は shared/selectors-schema.ts) */
 import type { SelectorsJson } from "../../../shared/selectors-schema";
 import type { CurrentUser } from "../../../shared/current-user";
+import type { ExtraSiteArticle } from "../../../shared/extra-site";
 export type Selectors = SelectorsJson;
 
 /** popup ⇄ content script ⇄ service worker のメッセージ */
-export type Message = { type: "diagnose" } | { type: "whoami" } | { type: "selectors" } | { type: "account" };
+export type Message =
+  | { type: "diagnose" }
+  | { type: "whoami" }
+  | { type: "selectors" }
+  | { type: "account" }
+  /** popup → 追加の対応先の content script(#120)。今開いているタブに下書きを入れる。notes は入らない書き方の知らせ */
+  | { type: "extraSiteFill"; article: ExtraSiteArticle; notes: string[] };
+/** 追加の対応先の content script の返事。入れ始めたら ok(入れ終わるのは待たない。結果はページのバナーに出す) */
+export type ExtraSiteFillResponse = { ok: true } | { ok: false; error: string };
 export type WhoAmIResponse = { tabId: number | null };
 /**
  * content script → service worker。content script は note.com の origin で動くので、

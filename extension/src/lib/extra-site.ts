@@ -21,8 +21,8 @@ export const chromeExtraSiteApi: ExtraSiteApi = {
     ]),
   unregister: () => chrome.scripting.unregisterContentScripts({ ids: [EXTRA_SITE_SCRIPT_ID] }),
   // activeTab で、ツールバーのアイコンを押したタブにだけ入れる。読むだけの関数を 1 回動かす
-  probe: async (tabId) => {
-    const [r] = await chrome.scripting.executeScript({ target: { tabId }, func: probeEditor, args: [EXTRA_SITE_EDITOR_PROBE] });
+  probe: async (tabId, probe = EXTRA_SITE_EDITOR_PROBE) => {
+    const [r] = await chrome.scripting.executeScript({ target: { tabId }, func: probeEditor, args: [probe] });
     return r?.result === true;
   },
 };

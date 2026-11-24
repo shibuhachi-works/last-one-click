@@ -7,12 +7,22 @@ import { articleOptionsLabel } from "../../shared/article-options";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
-import { EXTRA_SITE_ENABLED, disableExtraSite, enableExtraSite, isExtraSiteUrl, shouldOfferExtraSite, syncExtraSite } from "../../shared/extra-site";
+import {
+  EXTRA_SITE_ENABLED,
+  EXTRA_SITE_SUBMIT_LABEL,
+  disableExtraSite,
+  enableExtraSite,
+  extraSiteUnsupportedNotes,
+  isExtraSiteUrl,
+  shouldFillExtraSite,
+  shouldOfferExtraSite,
+  syncExtraSite,
+} from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
 import { loadPopupAccount } from "../../shared/popup-account";
-import { STORAGE, type AccountResponse, type DiagnoseResponse, type Message, type WindowHandoff } from "./lib/types";
+import { STORAGE, type AccountResponse, type DiagnoseResponse, type ExtraSiteFillResponse, type Message, type WindowHandoff } from "./lib/types";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 /**
@@ -145,21 +155,27 @@ creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAG
 const extraSiteOfferEl = $<HTMLDivElement>("extra-site-offer");
 const extraSiteRowEl = $<HTMLLabelElement>("extra-site-row");
 const extraSiteToggleEl = $<HTMLInputElement>("extra-site-toggle");
+/** 下書きを入れる追加の対応先のタブ(今のタブがその編集画面のときだけ。それ以外は note のタブを開く) */
+let extraSiteFillTabId: number | undefined;
 function showExtraSiteSetting(granted: boolean) {
   extraSiteRowEl.hidden = !granted;
   extraSiteToggleEl.checked = granted;
   if (granted) extraSiteOfferEl.hidden = true;
 }
-// 下書きの入力ができるまでは、入口を出さない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
+// 実機で下書きの入力を確かめるまでは、ふつうのビルドでは入口を出さない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
 if (EXTRA_SITE_ENABLED) {
   chromeExtraSiteApi.hasPermission().then(showExtraSiteSetting, () => showExtraSiteSetting(false));
   // 別ウィンドウで開いたときは、今のウィンドウ = この画面なので、ページは見ない
   if (!isWindow) {
     chrome.tabs
       .query({ active: true, currentWindow: true })
-      .then(([tab]) => shouldOfferExtraSite(chromeExtraSiteApi, tab))
-      .then((offer) => {
-        extraSiteOfferEl.hidden = !offer;
+      .then(async ([tab]) => {
+        extraSiteOfferEl.hidden = !(await shouldOfferExtraSite(chromeExtraSiteApi, tab));
+        // 許可があり、今のタブがその編集画面なら、新しいタブを開かずにこのタブに入れる(#120)
+        if (await shouldFillExtraSite(chromeExtraSiteApi, tab)) {
+          extraSiteFillTabId = tab?.id;
+          submitEl.textContent = EXTRA_SITE_SUBMIT_LABEL;
+        }
       })
       .catch(() => {
         extraSiteOfferEl.hidden = true;
@@ -606,6 +622,11 @@ submitEl.addEventListener("click", async () => {
       bodyImagesBySrc,
     });
 
+    if (extraSiteFillTabId !== undefined) {
+      await fillExtraSiteTab(extraSiteFillTabId, article);
+      return;
+    }
+
     const { selectors, source, warning } = await loadSelectors();
     // newNoteUrl は loadSelectors の中で note の origin であることを検査済み
     // 先に pending を置き(tabId: null)、タブを開いたら ID を埋める。content script はこの ID のタブでだけ動く
@@ -636,3 +657,38 @@ submitEl.addEventListener("click", async () => {
     submitEl.disabled = false;
   }
 });
+
+/**
+ * 今開いている追加の対応先の編集画面のタブに、記事を入れる(#120)。新しいタブは開かない。
+ * 入れ終わるのは待たない(結果はそのページのバナーに出る)。このページでは入らない書き方は、入れる前にここで知らせる
+ */
+async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeof buildArticle>>) {
+  const notes = extraSiteUnsupportedNotes({
+    html: article.html,
+    insertToc: insertTocEl.checked,
+    embedUrls: embedUrlsEl.checked,
+    magazine: article.magazine,
+    price: article.price,
+    images: article.images,
+  });
+  const message: Message = {
+    type: "extraSiteFill",
+    article: {
+      title: article.title,
+      hashtags: article.hashtags,
+      html: article.html,
+      thumbnail: article.thumbnail,
+      images: article.images,
+      imageNotes: article.imageNotes,
+    },
+    notes,
+  };
+  const res = (await chrome.tabs.sendMessage(tabId, message).catch(() => null)) as ExtraSiteFillResponse | null;
+  if (!res) throw new Error("このページを再読み込みしてから、もう一度押してください。");
+  if (!res.ok) throw new Error(res.error);
+  setStatus(
+    "このページに入れ始めました。続きはページの右下に出ます。\n中身を確かめてから、ページの「下書き保存」を自分で押してください。" +
+      (notes.length ? `\n\nこのページでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : ""),
+    notes.length > 0,
+  );
+}

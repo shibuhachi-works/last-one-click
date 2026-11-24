@@ -18,6 +18,7 @@ export const FORBIDDEN_CLICK_TEXTS: readonly string[] = [
   "記事を公開",
   "記事を公開する",
   "更新する", // 公開済み記事の再公開
+  "確認画面へ", // 追加の対応先で、公開へ進むボタン
   "Publish",
   "Post",
   "Tweet",
@@ -26,6 +27,13 @@ export const FORBIDDEN_CLICK_TEXTS: readonly string[] = [
 
 /** 部分一致で禁止する文字。「有料で投稿する」「今すぐ公開する」などの派生を拾う */
 export const FORBIDDEN_CLICK_SUBSTRINGS: readonly string[] = ["投稿する", "公開する"];
+
+/**
+ * 追加の対応先(library.libecity.com)のページでだけ、さらに押さない文字(部分一致)。
+ * 「確認画面へ」は公開へ進むボタン、「下書き保存」は人が中身を確かめてから押すボタン。
+ * note では「下書き保存」を Playwright 版(tools/draft.ts の --save)が押すので、全体の一覧には入れない
+ */
+export const EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS: readonly string[] = ["確認画面", "下書き保存"];
 
 export class ForbiddenClickError extends Error {
   constructor(label: string, context?: string) {
@@ -44,19 +52,28 @@ export function normalizeLabel(text: string): string {
 }
 
 export function isForbiddenClickText(text: string | null | undefined): boolean {
+  return isForbiddenClickTextWith(text, []);
+}
+
+/** extraSubstrings は、そのページでだけさらに押さない文字(部分一致。EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS) */
+export function isForbiddenClickTextWith(text: string | null | undefined, extraSubstrings: readonly string[]): boolean {
   if (!text) return false;
   const n = normalizeLabel(text);
   if (!n) return false;
   if (FORBIDDEN_CLICK_TEXTS.some((t) => normalizeLabel(t) === n)) return true;
-  return FORBIDDEN_CLICK_SUBSTRINGS.some((s) => n.includes(normalizeLabel(s)));
+  return [...FORBIDDEN_CLICK_SUBSTRINGS, ...extraSubstrings].some((s) => n.includes(normalizeLabel(s)));
 }
 
 /**
  * クリック対象の表示文字・aria-label・value などをまとめて渡す。
  * 1 つでも禁止文字に当たれば ForbiddenClickError を投げる。
  */
-export function assertClickAllowed(labels: ReadonlyArray<string | null | undefined>, context?: string): void {
+export function assertClickAllowed(
+  labels: ReadonlyArray<string | null | undefined>,
+  context?: string,
+  extraSubstrings: readonly string[] = [],
+): void {
   for (const label of labels) {
-    if (isForbiddenClickText(label)) throw new ForbiddenClickError(label!.trim(), context);
+    if (isForbiddenClickTextWith(label, extraSubstrings)) throw new ForbiddenClickError(label!.trim(), context);
   }
 }
