@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Marked } from "marked";
 import { parse as parseYaml } from "yaml";
-import { checkTarget, parseFrontMatter, parsePrice, renderArticle, resolveArticleUrl, splitList } from "./article.js";
+import { checkTarget, parseFrontMatter, targetProblem, parsePrice, renderArticle, resolveArticleUrl, splitList } from "./article.js";
 import { SAFE_RENDERER } from "./markdown-safe.js";
 
 const md = new Marked({ gfm: true, breaks: true, renderer: SAFE_RENDERER as never });
@@ -187,5 +187,15 @@ describe("target(入れる先)", () => {
   it("今開いている追加の対応先のページに入れるとき: target: note だけ止める。無い・ほかの値は通す", () => {
     for (const t of [undefined, "", "library", "other"]) assert.doesNotThrow(() => checkTarget(t, "extra-site"), String(t));
     assert.throws(() => checkTarget("note", "extra-site"), /target: note」と書いてあるので、今開いているページには入れません/);
+  });
+});
+
+describe("targetProblem(読み込んだ時点の target の確かめ)", () => {
+  it("入れる先と合わなければ直し方の文を、合えば null を返す。front matter が読めないときは null", () => {
+    assert.match(targetProblem("---\ntarget: library\n---\n本文", "note", parseYaml) ?? "", /note の下書きは作りません/);
+    assert.equal(targetProblem("---\ntarget: library\n---\n本文", "extra-site", parseYaml), null);
+    assert.match(targetProblem("---\ntarget: note\n---\n本文", "extra-site", parseYaml) ?? "", /今開いているページには入れません/);
+    assert.equal(targetProblem("# 見出しだけ\n本文", "note", parseYaml), null);
+    assert.equal(targetProblem("---\ntitle: [壊れた\n---\n本文", "note", parseYaml), null);
   });
 });

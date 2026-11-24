@@ -167,6 +167,26 @@ export type Destination = "note" | "extra-site";
  * - target を書かない・target: note … note に入れる記事(今までどおり)
  * - それ以外の値 … note 以外に入れる記事。note の下書きは作らない。値の決め方は書く人に任せる(拡張は note かどうかだけを見る)
  */
+/**
+ * md の front matter の target が、入れる先と合わなければ、その直し方の文を返す(合えば null)。
+ * ポップアップが、記事を読み込んだ時点で知らせてボタンを止めるのに使う。front matter が読めないときは null
+ * (読めないことは、組み立てるときに案内する)
+ */
+export function targetProblem(md: string, destination: Destination, parseYaml: YamlParse): string | null {
+  let target: string | undefined;
+  try {
+    target = parseFrontMatter(md, parseYaml).data.target;
+  } catch {
+    return null;
+  }
+  try {
+    checkTarget(target, destination);
+    return null;
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
 export function checkTarget(target: string | undefined, destination: Destination): void {
   const t = target?.trim();
   const forNote = !t || t.toLowerCase() === "note";

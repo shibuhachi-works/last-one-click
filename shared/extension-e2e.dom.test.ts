@@ -265,6 +265,23 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     return { editor, errors };
   }
 
+  it("target が note 以外の記事は、読み込んだ時点で知らせてボタンを押せなくする。target を消すと押せるようになる", async () => {
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    const md = "---\ntitle: 図書館の記事\ntarget: library\n---\n\n本文\n";
+    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
+    await popup.locator("#fields").waitFor({ state: "visible" });
+    assert.equal(await popup.locator("#submit").isDisabled(), true);
+    assert.match((await popup.locator("#status").textContent()) ?? "", /target: library/);
+    // note に入れるときは、目次・埋め込みなどの設定は今までどおり押せる
+    assert.equal(await popup.locator("#insert-toc").isDisabled(), false);
+    const plain = "---\ntitle: note の記事\n---\n\n本文\n";
+    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(plain) });
+    await popup.waitForFunction(() => !(document.getElementById("submit") as HTMLButtonElement).disabled);
+    assert.doesNotMatch((await popup.locator("#status").textContent()) ?? "", /target/);
+    await popup.close();
+  });
+
   it("md ファイルを選んで「note の下書きを作成」を押すと、エディタにタイトルと本文が入って止まる", async () => {
     const { editor, errors } = await draftFromPopup();
     assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
