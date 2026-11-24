@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { EXTRA_SITE_ENABLED, EXTRA_SITE_ORIGIN } from "./extra-site.js";
 
 const guidance = "権限を変えるときは AGENTS.md の決まりを確かめ、このテストの一覧も同じ PR で直す";
 const expected = {
-  // activeTab と scripting は、入れるときの警告が出ない(追加の対応先の確かめと content script の登録に使う)
-  permissions: ["storage", "clipboardWrite", "activeTab", "scripting"],
+  // activeTab と scripting は、入れるときの警告が出ない(追加の対応先の確かめと content script の登録に使う)。
+  // 追加の対応先は、下書きの入力ができるまで入口ごと外している(EXTRA_SITE_ENABLED)
+  permissions: ["storage", "clipboardWrite", ...(EXTRA_SITE_ENABLED ? ["activeTab", "scripting"] : [])],
   host_permissions: [
     "https://note.com/*",
     "https://editor.note.com/*",
@@ -13,7 +15,7 @@ const expected = {
   ],
   matches: ["https://note.com/*", "https://editor.note.com/*"],
   // 追加の対応先。入れるときには求めず、そのサイトのエディタで「使えるようにする」を押したときに求める
-  optional_host_permissions: ["https://library.libecity.com/*"],
+  optional_host_permissions: EXTRA_SITE_ENABLED ? [EXTRA_SITE_ORIGIN] : [],
 };
 const forbiddenKeys = [
   "optional_permissions",
@@ -24,15 +26,17 @@ const forbiddenKeys = [
 type Manifest = {
   permissions: string[];
   host_permissions: string[];
-  optional_host_permissions: string[];
+  optional_host_permissions?: string[];
   content_scripts: { matches: string[] }[];
 };
 
 function assertPermissions(manifest: Manifest, file: string): void {
   const message = (key: string) => `${file}: ${key} が許可した一覧と異なります。${guidance}`;
   for (const key of ["permissions", "host_permissions", "optional_host_permissions"] as const) {
-    assert.ok(Array.isArray(manifest[key]), message(key));
-    assert.deepEqual([...manifest[key]].sort(), [...expected[key]].sort(), message(key));
+    // optional_host_permissions は、使わないときは書かない(無い = 空)
+    const value = key === "optional_host_permissions" ? (manifest[key] ?? []) : manifest[key];
+    assert.ok(Array.isArray(value), message(key));
+    assert.deepEqual([...value].sort(), [...expected[key]].sort(), message(key));
   }
 
   const matchesMessage = message("content_scripts[].matches");
@@ -53,7 +57,7 @@ describe("拡張の権限を固定する", () => {
   const cases: [string, (m: Manifest) => void][] = [
     ["permissions に tabs を足す", (m) => m.permissions.push("tabs")],
     ["host_permissions に追加の対応先を足す", (m) => m.host_permissions.push("https://library.libecity.com/*")],
-    ["optional_host_permissions にほかのホストを足す", (m) => m.optional_host_permissions.push("https://example.com/*")],
+    ["optional_host_permissions にほかのホストを足す", (m) => (m.optional_host_permissions ??= []).push("https://example.com/*")],
     ["optional_host_permissions を広げる", (m) => (m.optional_host_permissions = ["https://*/*"])],
     ["optional_permissions を足す", (m) => Object.assign(m, { optional_permissions: ["tabs"] })],
     ["content_scripts に追加の対応先を足す", (m) => m.content_scripts[0].matches.push("https://library.libecity.com/*")],

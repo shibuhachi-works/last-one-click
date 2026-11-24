@@ -5,6 +5,13 @@
 //
 // chrome の API は ExtraSiteApi として外から渡す(テストでは偽物を渡す。ルートの tsconfig には chrome の型が無い)
 
+/**
+ * 追加の対応先を拡張で使うか。下書きの入力ができるまでは false にして、ストアの版には入口(案内・スイッチ・登録)を出さない。
+ * true に戻すときは、extension/manifest.json に activeTab・scripting と optional_host_permissions を足し、
+ * shared/manifest-permissions.test.ts と extension/store/listing.md の権限の理由も同じ PR で戻す(v0.1.7 で外した。#120)
+ */
+export const EXTRA_SITE_ENABLED = false;
+
 export const EXTRA_SITE_HOST = "library.libecity.com";
 /** optional_host_permissions と、content script の matches に使う */
 export const EXTRA_SITE_ORIGIN = `https://${EXTRA_SITE_HOST}/*`;

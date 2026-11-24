@@ -109,7 +109,7 @@ note の DOM が変わる
 ## ファイル構成
 
 ```
-manifest.json          # MV3。権限は storage・clipboardWrite・activeTab・scripting と note.com / raw.githubusercontent.com。追加の対応先(library.libecity.com)は任意の権限(v0.1.7 から)
+manifest.json          # MV3。権限は storage・clipboardWrite と note.com / raw.githubusercontent.com(追加の対応先の入口は、下書きの入力ができるまで外している)
 build.mjs              # esbuild でバンドル → dist/
 package.mjs            # dist/ を ZIP にする(ストアに上げる用)
 icons/                 # icon.svg(全サイズ共通の元)と PNG(render.mjs で生成)
@@ -117,12 +117,12 @@ store/                 # ストアの掲載文(listing.md)・スクリーンシ�
 src/
   popup.html/css/ts    # 入力 UI。記事を組み立てて chrome.storage に置き、note を開く
   content.ts           # note.com のタブで動く。pending の記事をエディタに入力して止まる
-  background.ts        # service worker。content script に自分のタブ ID を教える(ポップアップが開いたタブでだけ動かすため)。追加の対応先の登録を許可に合わせる(v0.1.7 から)
-  extra-site.ts        # 追加の対応先のページで動く content script の受け口(v0.1.7 から。許可されたときだけ登録する。中身はまだ無い)
+  background.ts        # service worker。content script に自分のタブ ID を教える(ポップアップが開いたタブでだけ動かすため)。追加の対応先の登録を許可に合わせる(まだ使っていない。shared/extra-site.ts の EXTRA_SITE_ENABLED)
+  extra-site.ts        # 追加の対応先のページで動く content script の受け口(まだ使っていない。許可されたときだけ登録する。中身はまだ無い)
   lib/
     article.ts         # md → ArticlePayload(GitHub 取得・サムネイルの base64 化。front matter などは ../shared/article.ts)
     selectors.ts       # selectors/note.json の読み込み(remote → cache → bundled)
-    extra-site.ts      # 追加の対応先の許可・登録・確かめを chrome の API につなぐ(v0.1.7 から。中身は ../shared/extra-site.ts)
+    extra-site.ts      # 追加の対応先の許可・登録・確かめを chrome の API につなぐ(まだ使っていない。中身は ../shared/extra-site.ts)
     types.ts           # 型と storage キー
 ../shared/                  # Playwright 版と共通の純粋ロジック(front matter、URL、安全装置 など)
 ../selectors/note.json      # note のセレクタ(Playwright 版と共有)
