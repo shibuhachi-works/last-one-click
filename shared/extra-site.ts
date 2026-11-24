@@ -145,7 +145,7 @@ export function extraSiteUnsupportedNotes(input: {
   embedUrls?: boolean;
   magazine?: string;
   price?: number;
-  images?: { name: string; mimeType: string }[];
+  images?: { name: string; mimeType: string; caption?: string }[];
 }): string[] {
   const notes: string[] = [];
   const has = (re: RegExp) => re.test(input.html);
@@ -158,6 +158,8 @@ export function extraSiteUnsupportedNotes(input: {
   if (input.price !== undefined) notes.push("有料の価格(このページでは入れません)");
   const skipped = (input.images ?? []).filter((i) => !acceptsFile(null, i)).map((i) => i.name);
   if (skipped.length) notes.push(`png・jpg 以外の本文の画像(${skipped.join(", ")}。入れずに目印を残します)`);
+  const captioned = (input.images ?? []).filter((i) => i.caption?.trim() && acceptsFile(null, i)).map((i) => i.name);
+  if (captioned.length) notes.push(`本文の画像のキャプション(${captioned.join(", ")}。画像だけを入れます)`);
   return notes;
 }
 

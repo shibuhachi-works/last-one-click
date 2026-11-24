@@ -157,6 +157,22 @@ const extraSiteRowEl = $<HTMLLabelElement>("extra-site-row");
 const extraSiteToggleEl = $<HTMLInputElement>("extra-site-toggle");
 /** 下書きを入れる追加の対応先のタブ(今のタブがその編集画面のときだけ。それ以外は note のタブを開く) */
 let extraSiteFillTabId: number | undefined;
+const noteSubmitText = submitEl.textContent ?? "";
+/**
+ * 入れる先(このタブか、新しい note のタブか)とボタンの文字を決め直す。開いたときと、許可が変わったとき(#120)。
+ * 許可があり、今のタブがその編集画面なら、新しいタブを開かずにこのタブに入れる
+ */
+function refreshExtraSiteFillTarget() {
+  if (!EXTRA_SITE_ENABLED || isWindow) return;
+  chrome.tabs
+    .query({ active: true, currentWindow: true })
+    .then(async ([tab]) => ((await shouldFillExtraSite(chromeExtraSiteApi, tab)) ? tab?.id : undefined))
+    .catch(() => undefined)
+    .then((id) => {
+      extraSiteFillTabId = id;
+      submitEl.textContent = id !== undefined ? EXTRA_SITE_SUBMIT_LABEL : noteSubmitText;
+    });
+}
 function showExtraSiteSetting(granted: boolean) {
   extraSiteRowEl.hidden = !granted;
   extraSiteToggleEl.checked = granted;
@@ -171,15 +187,11 @@ if (EXTRA_SITE_ENABLED) {
       .query({ active: true, currentWindow: true })
       .then(async ([tab]) => {
         extraSiteOfferEl.hidden = !(await shouldOfferExtraSite(chromeExtraSiteApi, tab));
-        // 許可があり、今のタブがその編集画面なら、新しいタブを開かずにこのタブに入れる(#120)
-        if (await shouldFillExtraSite(chromeExtraSiteApi, tab)) {
-          extraSiteFillTabId = tab?.id;
-          submitEl.textContent = EXTRA_SITE_SUBMIT_LABEL;
-        }
       })
       .catch(() => {
         extraSiteOfferEl.hidden = true;
       });
+    refreshExtraSiteFillTarget();
   }
   $("extra-site-enable").addEventListener("click", () => {
     // 許可を求める呼び出しは、クリックの中で(await より前に)行う
@@ -187,7 +199,10 @@ if (EXTRA_SITE_ENABLED) {
       .then((granted) => {
         if (!granted) return;
         showExtraSiteSetting(true);
-        setStatus("このページでも使えるようにしました。切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。");
+        refreshExtraSiteFillTarget();
+        setStatus(
+          "このページでも使えるようにしました。下書きを入れる前に、このページを再読み込みしてください。切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。",
+        );
       })
       .catch((e) => setStatus((e as Error).message, true));
   });
@@ -196,6 +211,7 @@ if (EXTRA_SITE_ENABLED) {
     disableExtraSite(chromeExtraSiteApi)
       .then((granted) => {
         showExtraSiteSetting(granted);
+        refreshExtraSiteFillTarget();
         if (!granted) setStatus("追加の対応先(library.libecity.com)への許可を外しました。");
       })
       .catch((e) => setStatus((e as Error).message, true));
@@ -203,6 +219,7 @@ if (EXTRA_SITE_ENABLED) {
   // Chrome の画面(拡張機能の詳細・サイトへのアクセス)から許可を変えられたときも、表示と登録を合わせる
   const onExtraSitePermissionChanged = () => {
     syncExtraSite(chromeExtraSiteApi).then(showExtraSiteSetting, () => {});
+    refreshExtraSiteFillTarget();
   };
   chrome.permissions.onRemoved.addListener(onExtraSitePermissionChanged);
   chrome.permissions.onAdded.addListener(onExtraSitePermissionChanged);

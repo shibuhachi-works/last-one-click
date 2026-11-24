@@ -294,6 +294,19 @@ describe("extraSiteUnsupportedNotes(このページでは入らない書き方)"
     assert.doesNotMatch(notes[4]!, /a\.png/);
   });
 
+  it("本文の画像のキャプションは入れないと知らせる(png・jpg 以外の画像は、そちらで知らせる)", () => {
+    const notes = extraSiteUnsupportedNotes({
+      html: "<p>a</p>",
+      images: [
+        { name: "a.png", mimeType: "image/png", caption: "説明" },
+        { name: "b.gif", mimeType: "image/gif", caption: "説明" },
+        { name: "c.jpg", mimeType: "image/jpeg" },
+      ],
+    });
+    assert.equal(notes.length, 2);
+    assert.match(notes[1]!, /キャプション\(a\.png。/);
+  });
+
   it("<code> を含まない「codec」などの文字では出さない", () => {
     assert.deepEqual(extraSiteUnsupportedNotes({ html: "<p>&lt;ul&gt; codec preview</p>" }), []);
   });

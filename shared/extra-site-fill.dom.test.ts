@@ -52,9 +52,11 @@ const PAGE = `<!doctype html><html><body>
       const img = document.createElement("img");
       img.src = "https://example.com/uploaded/" + f.name;
       img.dataset.name = f.name;
-      const r = sel.getRangeAt(0);
+      const r = sel.getRangeAt(0).cloneRange();
       r.collapse(false);
-      r.insertNode(img);
+      // 名前が slow で始まる画像は、遅れて入る(アップロードに時間がかかったときのまね)
+      if (f.name.startsWith("slow")) setTimeout(() => r.insertNode(img), 1500);
+      else r.insertNode(img);
     });
     document.getElementById("fileInput").addEventListener("change", (e) => {
       const img = document.createElement("img");
@@ -219,6 +221,36 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
       assert.equal(r.result!.ok, false);
       assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 記事の設定を開く") && l.includes("押しません")), r.result!.lines.join("\n"));
     }
+  });
+
+  it("キャプションは入れず、入れていないことを知らせる", async () => {
+    const r = await run({
+      ...ARTICLE,
+      images: [{ ...ARTICLE.images[0], caption: "見本のキャプション" }],
+      html: `<p>［画像1・ab12: a.png］</p>`,
+    });
+    assert.deepEqual(r.bodyImages, ["a.png"]);
+    const line = r.result!.lines.find((l) => l.includes("本文の画像"));
+    assert.match(line ?? "", /^⚠ 本文の画像: 1 枚は入れました。キャプションは入れていません\(a\.png/);
+  });
+
+  it("アップロードを待ちきれなかったら、それより後の画像は入れず、後の画像の目印も消さない", async () => {
+    const r = await run({
+      ...ARTICLE,
+      html: `<p>［画像1・ab12: slow.png］</p><p>［画像2・ab12: c.png］</p>`,
+      images: [
+        { marker: "［画像1・ab12: slow.png］", name: "slow.png", mimeType: "image/png", base64: B64 },
+        { marker: "［画像2・ab12: c.png］", name: "c.png", mimeType: "image/png", base64: B64 },
+      ],
+    });
+    const line = r.result!.lines.find((l) => l.includes("本文の画像"));
+    assert.match(line ?? "", /^✗ 本文の画像: .*それより後の画像は入れていません.*slow\.png, c\.png/);
+    assert.match(r.body, /［画像2・ab12: c\.png］/);
+    assert.ok(!r.bodyImages.includes("c.png"));
+    // 遅れて入った画像があっても、後の画像の目印は残る
+    await page.waitForTimeout(800);
+    const after = await page.evaluate(() => document.querySelector("[data-lexical-editor]")!.textContent);
+    assert.match(after ?? "", /［画像2・ab12: c\.png］/);
   });
 
   it("本文の欄が無ければ、本文の画像は入れずに ✗ を出す", async () => {

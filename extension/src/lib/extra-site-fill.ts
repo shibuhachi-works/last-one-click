@@ -101,6 +101,9 @@ async function insertBodyImages(S: ExtraSiteSelectors, a: ExtraSiteArticle, imag
   const images = a.images ?? [];
   const failed: string[] = [];
   const skipped: string[] = [];
+  /** 入れたが、キャプションは入れられなかった画像(このページのキャプションの欄は分かっていない) */
+  const captions: string[] = [];
+  let stopped = false;
   let done = 0;
   const input = images.length ? await waitFor<HTMLInputElement>(S.bodyImageInput, fieldWait, { hidden: true }) : null;
   for (const img of images) {
@@ -124,10 +127,14 @@ async function insertBodyImages(S: ExtraSiteSelectors, a: ExtraSiteArticle, imag
     setFiles(input, base64ToFile(img));
     const added = await waitUntil(() => Array.from(body.querySelectorAll("img")).find((i) => !before.has(i)) ?? null, imageWait);
     if (!added) {
-      failed.push(img.name);
-      continue;
+      // 待ちきれなかった画像が、あとで遅れて入ることがある。それを次の画像のものと取り違えて、
+      // 次の画像の目印を消さないよう、残りの画像はここで入れるのをやめる
+      failed.push(img.name, ...images.slice(images.indexOf(img) + 1).map((i) => i.name));
+      stopped = true;
+      break;
     }
     done++;
+    if (img.caption) captions.push(img.name);
     // 目印が残っていれば消す
     const rest = findTextRange(body, img.marker);
     if (rest) {
@@ -140,6 +147,8 @@ async function insertBodyImages(S: ExtraSiteSelectors, a: ExtraSiteArticle, imag
   }
   const problems = [...(a.imageNotes ?? [])];
   if (skipped.length) problems.push(`このページは png・jpg だけを受け付けるので、入れずに目印を残しました(${skipped.join(", ")})`);
+  if (captions.length) problems.push(`キャプションは入れていません(${captions.join(", ")}。画面で入れてください)`);
+  if (stopped) problems.push("アップロードを待ちきれなかった画像があったので、それより後の画像は入れていません");
   if (failed.length) problems.push(`入れられなかった画像があります(${failed.join(", ")}。本文に残っている目印の位置に、画面で入れてください)`);
   if (!problems.length) return `${done} 枚`;
   if (failed.length) throw new Error(`${done ? `${done} 枚は入れました。` : ""}${problems.join("。")}`);
