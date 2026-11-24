@@ -5,11 +5,16 @@
 //                               ストアに出す ZIP(package.mjs)は、いつもふつうのビルドで作る
 import { build, context } from "esbuild";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { isExtraSiteBuild, withExtraSite } from "./extra-site-manifest.mjs";
 
 const watch = process.argv.includes("--watch");
 const extraSite = isExtraSiteBuild(process.env);
 const outdir = "dist";
+// 追加の対応先のセレクタ(#120)。無くても動く(shared/extra-site.ts の既定値を使う)。中身の検査も、そちらで項目ごとに行う
+const EXTRA_SITE_SELECTORS_FILE = "../selectors/extra-site.json";
+const extraSiteSelectors = existsSync(EXTRA_SITE_SELECTORS_FILE) ? await readFile(EXTRA_SITE_SELECTORS_FILE, "utf8") : "null";
+JSON.parse(extraSiteSelectors); // 書き方の誤りは、ビルドで止める
 
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
@@ -23,7 +28,8 @@ const options = {
   sourcemap: watch ? "inline" : false,
   logLevel: "info",
   // shared/extra-site.ts の EXTRA_SITE_ENABLED。ふつうのビルドでは false のまま
-  define: { __EXTRA_SITE__: extraSite ? "true" : "false" },
+  // __EXTRA_SITE_SELECTORS__ は selectors/extra-site.json の中身(無ければ null)
+  define: { __EXTRA_SITE__: extraSite ? "true" : "false", __EXTRA_SITE_SELECTORS__: extraSiteSelectors },
 };
 
 const copyStatic = async () => {

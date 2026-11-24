@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ForbiddenClickError, assertClickAllowed, isForbiddenClickText, normalizeLabel } from "./forbidden-click.js";
+import {
+  EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS,
+  ForbiddenClickError,
+  assertClickAllowed,
+  isForbiddenClickText,
+  isForbiddenClickTextWith,
+  normalizeLabel,
+} from "./forbidden-click.js";
 
 describe("isForbiddenClickText", () => {
   const forbidden = [
@@ -76,5 +83,27 @@ describe("assertClickAllowed", () => {
       assert.match(e.message, /公開する/);
       assert.match(e.message, /test/);
     }
+  });
+});
+
+describe("追加の対応先のページでだけ押さない文字", () => {
+  it("「確認画面へ」は、どのページでも押さない", () => {
+    assert.equal(isForbiddenClickText("確認画面へ"), true);
+    assert.equal(isForbiddenClickText("確認画面へ →"), true);
+  });
+
+  it("「下書き保存」は、note の一覧には入れない(Playwright 版の --save が押す)", () => {
+    assert.equal(isForbiddenClickText("下書き保存"), false);
+  });
+
+  for (const t of ["下書き保存", "下書き保存する", "確認画面へ", "確認画面へ進む", "公開", "投稿する"]) {
+    it(`追加の対応先では禁止: ${t}`, () => {
+      assert.equal(isForbiddenClickTextWith(t, EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS), true);
+      assert.throws(() => assertClickAllowed([t], "test", EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS), ForbiddenClickError);
+    });
+  }
+
+  it("記事の設定を開くボタンなどは押せる", () => {
+    assert.doesNotThrow(() => assertClickAllowed(["記事の設定", "閉じる", null], "test", EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS));
   });
 });

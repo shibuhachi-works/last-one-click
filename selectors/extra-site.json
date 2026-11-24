@@ -1,0 +1,9 @@
+{
+  "title": ["#title", "input[name=\"title\"]"],
+  "body": ["[data-lexical-editor][contenteditable=\"true\"]", ".ContentEditable__root[contenteditable=\"true\"]"],
+  "bodyImageInput": ["#fileInputForEditor"],
+  "settingsMenu": ["#article_setting_menu"],
+  "settingsMenuOpenButton": [".article_setting_menu_index"],
+  "eyecatchInput": ["#fileInput", ".js_dragDropFileInput"],
+  "tagInput": ["input[placeholder*=\"タグ\"]"]
+}

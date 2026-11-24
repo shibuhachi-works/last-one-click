@@ -1,7 +1,7 @@
 // 追加の対応先(library.libecity.com)を使えるようにする仕組み。
 // 入れるときの権限の警告を増やさないため、このホストは optional_host_permissions に置き、
 // そのページのエディタを開いてツールバーのアイコンを押した人にだけ、ポップアップで許可を求める。
-// 下書きの入力はまだ無い(content script は空の受け口)。
+// 下書きの入力は、今開いているそのページのタブにだけ入れて止まる(#120。extension/src/lib/extra-site-fill.ts)。
 //
 // chrome の API は ExtraSiteApi として外から渡す(テストでは偽物を渡す。ルートの tsconfig には chrome の型が無い)
 
@@ -9,7 +9,7 @@
 declare const __EXTRA_SITE__: boolean | undefined;
 
 /**
- * 追加の対応先を拡張で使うか。下書きの入力ができるまでは、ストアの版には入口(案内・スイッチ・登録・診断)を出さない。
+ * 追加の対応先を拡張で使うか。実機で下書きの入力を確かめるまでは、ストアの版には入口(案内・スイッチ・登録・診断・下書きの入力)を出さない。
  * ふつうのビルド(npm run build・npm run package)とテストでは false。
  * 開発用のビルド(extension/ で EXTRA_SITE=1 npm run build)でだけ true になり、dist/manifest.json に
  * activeTab・scripting と optional_host_permissions を足す(extension/extra-site-manifest.mjs。#118)。
@@ -30,13 +30,138 @@ export const EXTRA_SITE_SCRIPT_FILE = "extra-site.js";
 export type EditorProbe = { title: string[]; body: string[] };
 
 /**
- * 仮の値。実機の画面構造はまだ取っていない(別の Issue で取ってから直す)。
- * タイトルは「タイトル」と書かれた入力欄、本文は書き込める欄(contenteditable)を探す
+ * 案内(「使えるようにする」)と診断に使う、広めのセレクタ。
+ * 先頭は #119 の診断で分かった値。下書きを入れるかの確かめは、狭い EXTRA_SITE_FILL_PROBE を使う
  */
 export const EXTRA_SITE_EDITOR_PROBE: EditorProbe = {
-  title: ['input[placeholder*="タイトル"]', 'textarea[placeholder*="タイトル"]', 'input[name="title"]'],
-  body: ['[contenteditable="true"]', ".ProseMirror", ".ql-editor"],
+  title: ["#title", 'input[placeholder*="タイトル"]', 'textarea[placeholder*="タイトル"]', 'input[name="title"]'],
+  body: ['[data-lexical-editor][contenteditable="true"]', '[contenteditable="true"]', ".ProseMirror", ".ql-editor"],
 };
+
+/**
+ * 下書きを入れるときに使うセレクタ(#119 の診断から。selectors/extra-site.json で上書きできる)。
+ * どれも、先頭から順に見て、最初に当たったものを使う
+ */
+export type ExtraSiteSelectors = {
+  /** タイトルの欄 */
+  title: string[];
+  /** 本文のエディタ(書き込める欄) */
+  body: string[];
+  /** 本文に画像を入れる、隠れたファイルの欄 */
+  bodyImageInput: string[];
+  /** 記事の設定(見出し画像・タグの欄がある所) */
+  settingsMenu: string[];
+  /** 記事の設定がたたまれているときに開くボタン(押してよいのはこれだけ) */
+  settingsMenuOpenButton: string[];
+  /** 見出し画像のファイルの欄 */
+  eyecatchInput: string[];
+  /** タグの欄 */
+  tagInput: string[];
+};
+
+/** selectors/extra-site.json が無い・読めないときの値。ファイルがあっても、欠けた項目はこの値を使う */
+export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
+  title: ["#title", 'input[name="title"]'],
+  body: ['[data-lexical-editor][contenteditable="true"]', '.ContentEditable__root[contenteditable="true"]'],
+  bodyImageInput: ["#fileInputForEditor"],
+  settingsMenu: ["#article_setting_menu"],
+  settingsMenuOpenButton: [".article_setting_menu_index"],
+  eyecatchInput: ["#fileInput", ".js_dragDropFileInput"],
+  tagInput: ['input[placeholder*="タグ"]'],
+};
+
+/**
+ * selectors/extra-site.json の中身を、既定値と合わせる。項目ごとに、空でない文字の配列のときだけ使う
+ * (無い・形が違う項目は既定値のまま。知らない項目は無視する)
+ */
+export function resolveExtraSiteSelectors(json: unknown): ExtraSiteSelectors {
+  const out = Object.fromEntries(
+    Object.entries(EXTRA_SITE_DEFAULT_SELECTORS).map(([k, v]) => [k, [...v]]),
+  ) as ExtraSiteSelectors;
+  if (!json || typeof json !== "object" || Array.isArray(json)) return out;
+  for (const key of Object.keys(EXTRA_SITE_DEFAULT_SELECTORS) as (keyof ExtraSiteSelectors)[]) {
+    const v = (json as Record<string, unknown>)[key];
+    if (Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === "string" && s.trim() !== "")) out[key] = [...v];
+  }
+  return out;
+}
+
+/** extension/build.mjs が esbuild の define で、selectors/extra-site.json の中身(無ければ null)に置き換える */
+declare const __EXTRA_SITE_SELECTORS__: unknown;
+
+/** 拡張に同梱した selectors/extra-site.json と既定値を合わせたもの(テストでは既定値) */
+export function extraSiteSelectors(): ExtraSiteSelectors {
+  return resolveExtraSiteSelectors(typeof __EXTRA_SITE_SELECTORS__ !== "undefined" ? __EXTRA_SITE_SELECTORS__ : null);
+}
+
+/** 今のタブに下書きを入れられるか(タイトルと本文の欄がどちらもあるか)の確かめに使う */
+export function fillProbe(selectors: ExtraSiteSelectors = extraSiteSelectors()): EditorProbe {
+  return { title: selectors.title, body: selectors.body };
+}
+
+/** ポップアップのボタンの文字。今のタブが追加の対応先の編集画面のとき、「note の下書きを作成」の代わりに出す */
+export const EXTRA_SITE_SUBMIT_LABEL = "このページに下書きを入れる";
+
+/** 本文の画像として入れられる種類(ファイルの欄の accept が無いとき。#119 の診断では png・jpg・jpeg) */
+export const EXTRA_SITE_IMAGE_ACCEPT = ".png,.jpg,.jpeg,image/png,image/jpeg";
+
+/**
+ * ファイルの欄の accept(".png,.jpg" や "image/png"、"image/*" の形)が、そのファイルを受け付けるか。
+ * accept が空なら EXTRA_SITE_IMAGE_ACCEPT で見る
+ */
+export function acceptsFile(accept: string | null | undefined, file: { name: string; mimeType: string }): boolean {
+  const list = (accept?.trim() ? accept : EXTRA_SITE_IMAGE_ACCEPT)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const name = file.name.toLowerCase();
+  const mime = file.mimeType.toLowerCase();
+  return list.some((a) => {
+    if (a.startsWith(".")) return name.endsWith(a);
+    if (a.endsWith("/*")) return mime.startsWith(a.slice(0, -1));
+    return mime === a;
+  });
+}
+
+/** このページへ入れる記事(ポップアップが組み立てる。ArticlePayload のうち、使うものだけ) */
+export type ExtraSiteArticle = {
+  title: string;
+  hashtags: string[];
+  /** 貼り付ける本文の HTML(本文の画像は目印の文字になっている) */
+  html: string;
+  thumbnail?: { name: string; mimeType: string; base64: string };
+  images?: { marker: string; name: string; mimeType: string; base64: string; caption?: string }[];
+  /** 本文の画像で、ポップアップの時点で入れられないと分かったもの(上限・見つからない・大きすぎる) */
+  imageNotes?: string[];
+};
+
+/**
+ * このページでは入らない(または入るか分からない)書き方の知らせ。入れる前にポップアップに出し、ページのバナーにも出す。
+ * 箇条書き・番号付きリスト・コードは、エディタにボタンが無いので、貼り付けでどう入るかは実機で確かめる(#120)
+ */
+export function extraSiteUnsupportedNotes(input: {
+  html: string;
+  insertToc?: boolean;
+  embedUrls?: boolean;
+  magazine?: string;
+  price?: number;
+  images?: { name: string; mimeType: string; caption?: string }[];
+}): string[] {
+  const notes: string[] = [];
+  const has = (re: RegExp) => re.test(input.html);
+  if (has(/<(?:ul|ol)[\s>]/i)) notes.push("箇条書き・番号付きリスト(このページのエディタにはボタンが無いので、そのまま入らないことがあります)");
+  if (has(/<pre[\s>]/i) || has(/<code[\s>]/i)) notes.push("コード(このページのエディタにはボタンが無いので、ふつうの文字で入ることがあります)");
+  if (has(/<table[\s>]/i)) notes.push("表(そのまま入らないことがあります)");
+  if (input.insertToc) notes.push("目次(このページでは入れません)");
+  if (input.embedUrls) notes.push("URL だけの行の埋め込み(このページでは入れません。URL の文字のまま入ります)");
+  if (input.magazine?.trim()) notes.push("マガジン(このページでは入れません)");
+  if (input.price !== undefined) notes.push("有料の価格(このページでは入れません)");
+  const skipped = (input.images ?? []).filter((i) => !acceptsFile(null, i)).map((i) => i.name);
+  if (skipped.length) notes.push(`png・jpg 以外の本文の画像(${skipped.join(", ")}。入れずに目印を残します)`);
+  const captioned = (input.images ?? []).filter((i) => i.caption?.trim() && acceptsFile(null, i)).map((i) => i.name);
+  if (captioned.length) notes.push(`本文の画像のキャプション(${captioned.join(", ")}。画像だけを入れます)`);
+  return notes;
+}
 
 /** URL が追加の対応先のページか(https で、ホストが完全に一致するときだけ) */
 export function isExtraSiteUrl(url: string | undefined): boolean {
@@ -80,8 +205,8 @@ export type ExtraSiteApi = {
   register(): Promise<void>;
   /** chrome.scripting.unregisterContentScripts */
   unregister(): Promise<void>;
-  /** chrome.scripting.executeScript で probeEditor を 1 回動かす */
-  probe(tabId: number): Promise<boolean>;
+  /** chrome.scripting.executeScript で probeEditor を 1 回動かす。probe を省くと EXTRA_SITE_EDITOR_PROBE */
+  probe(tabId: number, probe?: EditorProbe): Promise<boolean>;
 };
 
 /**
@@ -95,6 +220,21 @@ export async function shouldOfferExtraSite(api: ExtraSiteApi, tab: { id?: number
     return await api.probe(tab.id);
   } catch {
     return false; // ページに入れなかった(読み込み中・エラーのページなど)ときは出さない
+  }
+}
+
+/**
+ * 今のタブに下書きを入れるか(ポップアップのボタンを「このページに下書きを入れる」にするか)。
+ * 今のタブが追加の対応先のページで、許可があり、タイトルと本文の欄があるときだけ。
+ * そのときは、新しいタブを開かずに、このタブに入れる
+ */
+export async function shouldFillExtraSite(api: ExtraSiteApi, tab: { id?: number; url?: string } | undefined): Promise<boolean> {
+  if (tab?.id === undefined || !isExtraSiteUrl(tab.url)) return false;
+  if (!(await api.hasPermission())) return false;
+  try {
+    return await api.probe(tab.id, fillProbe());
+  } catch {
+    return false;
   }
 }
 
