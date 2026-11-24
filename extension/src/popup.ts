@@ -9,6 +9,7 @@ import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
 import {
   EXTRA_SITE_ENABLED,
+  EXTRA_SITE_HOST,
   EXTRA_SITE_SUBMIT_LABEL,
   disableExtraSite,
   enableExtraSite,
@@ -209,8 +210,8 @@ if (EXTRA_SITE_ENABLED) {
         extraSiteOfferEl.hidden = true;
         setStatus(
           (extraSiteOffer === "editor"
-            ? "追加の対応先でも使えるようにしました。下書きを入れる前に、今開いているページを再読み込みしてください。"
-            : "追加の対応先でも使えるようにしました。新規記事エディタを開いてから、もう一度ツールバーのアイコンを押してください。") +
+            ? "今開いているサイト(library.libecity.com)でも使えるようにしました。下書きを入れる前に、今開いているページを再読み込みしてください。"
+            : "今開いているサイト(library.libecity.com)でも使えるようにしました。新規記事エディタを開いてから、もう一度ツールバーのアイコンを押してください。") +
             "切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。",
         );
       })
@@ -278,7 +279,7 @@ $("diagnose").addEventListener("click", async () => {
   try {
     const extraTab = await findExtraSiteTab();
     if (extraTab && !(await chromeExtraSiteApi.hasPermission())) {
-      throw new Error("追加の対応先では、まだ使えるようにしていません。ツールバーのアイコンを押し、案内の「使えるようにする」を押してから、ページを再読み込みしてください。");
+      throw new Error("library.libecity.com では、まだ使えるようにしていません。ツールバーのアイコンを押し、案内の「使えるようにする」を押してから、ページを再読み込みしてください。");
     }
     const tab = extraTab ?? (await findNoteTab());
     if (!tab?.id) throw new Error("note のタブが見つかりません。note のエディタを開いてから押してください。");
@@ -717,7 +718,7 @@ async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeo
   if (!res.ok) throw new Error(res.error);
   setStatus(
     "今開いているページに入れ始めました。続きはページの右下に出ます。\n中身を確かめてから、ページの「下書き保存」を自分で押してください。" +
-      (notes.length ? `\n\n追加の対応先のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : ""),
+      (notes.length ? `\n\n${EXTRA_SITE_HOST} のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : ""),
     notes.length > 0,
   );
 }

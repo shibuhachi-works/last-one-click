@@ -4,7 +4,7 @@
 // 押してよいのは、記事の設定がたたまれているときの開くボタンだけ(safeClick に EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS を渡す)。
 // 記事の設定の「要約」・カテゴリ・公開範囲には触らない(人が入れる)。
 // 画面の作りは #119 の診断から決めた(shared/extra-site.ts の EXTRA_SITE_DEFAULT_SELECTORS)
-import { acceptsFile, extraSiteSelectors, type ExtraSiteArticle, type ExtraSiteSelectors } from "../../../shared/extra-site";
+import { EXTRA_SITE_HOST, acceptsFile, extraSiteSelectors, type ExtraSiteArticle, type ExtraSiteSelectors } from "../../../shared/extra-site";
 import { EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS } from "../../../shared/forbidden-click";
 import { htmlToText } from "../../../shared/markdown-safe";
 import { safeClick } from "./safe-click";
@@ -70,7 +70,7 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   if (article.thumbnail) await step("見出し画像", () => setEyecatch(S, article.thumbnail!, fieldWait));
   if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait));
 
-  for (const n of notes) lines.push(`⚠ 追加の対応先のエディタでは入らない書き方: ${n}`);
+  for (const n of notes) lines.push(`⚠ ${EXTRA_SITE_HOST} のエディタでは入らない書き方: ${n}`);
   return { ok, lines };
 }
 
@@ -146,7 +146,7 @@ async function insertBodyImages(S: ExtraSiteSelectors, a: ExtraSiteArticle, imag
     }
   }
   const problems = [...(a.imageNotes ?? [])];
-  if (skipped.length) problems.push(`追加の対応先のエディタは png・jpg だけを受け付けるので、入れずに目印を残しました(${skipped.join(", ")})`);
+  if (skipped.length) problems.push(`${EXTRA_SITE_HOST} のエディタは png・jpg だけを受け付けるので、入れずに目印を残しました(${skipped.join(", ")})`);
   if (captions.length) problems.push(`キャプションは入れていません(${captions.join(", ")}。画面で入れてください)`);
   if (stopped) problems.push("アップロードを待ちきれなかった画像があったので、それより後の画像は入れていません");
   if (failed.length) problems.push(`入れられなかった画像があります(${failed.join(", ")}。本文に残っている目印の位置に、画面で入れてください)`);
@@ -172,7 +172,7 @@ async function openSettings(S: ExtraSiteSelectors, fieldWait: number): Promise<s
 async function setEyecatch(S: ExtraSiteSelectors, thumb: NonNullable<ExtraSiteArticle["thumbnail"]>, fieldWait: number): Promise<string> {
   const input = await waitFor<HTMLInputElement>(S.eyecatchInput, fieldWait, { hidden: true });
   if (!input) throw new Error("見出し画像の欄が見つかりません。画面で入れてください");
-  if (!acceptsFile(input.accept || "image/*", thumb)) throw new Error(`追加の対応先のエディタでは受け付けない種類の画像です(${thumb.name})。画面で入れてください`);
+  if (!acceptsFile(input.accept || "image/*", thumb)) throw new Error(`${EXTRA_SITE_HOST} のエディタでは受け付けない種類の画像です(${thumb.name})。画面で入れてください`);
   setFiles(input, base64ToFile(thumb));
   return "";
 }
