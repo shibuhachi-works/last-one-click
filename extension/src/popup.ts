@@ -247,6 +247,10 @@ function applyDestination() {
     }
     if (note) note.hidden = !toExtraSite;
   }
+  // 追加の対応先に入れるときは、note のアカウント(「ログイン中」「記事の指定」)を出さない。
+  // 入れる先は note ではないので、note のアカウントを出すと、どのアカウントで入るのかを取り違える
+  $("account").hidden = toExtraSite || !loggedInAccount;
+  renderAccountTarget();
   checkTargetNow();
 }
 /**
@@ -472,7 +476,7 @@ async function showAccount(): Promise<void> {
   if (account.id && account.id !== account.name) nodes.push(document.createTextNode(`(@${account.id})`));
   el.replaceChildren(...nodes);
   el.title = "お使いの Chrome で note にログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
-  el.hidden = false;
+  el.hidden = destination() === "extra-site";
 }
 void showAccount();
 
@@ -495,7 +499,7 @@ function renderAccountTarget(): void {
   const want = articleNoteAccount;
   const id = loggedInAccount?.id;
   const mismatch = Boolean(want && id && !sameNoteAccount(id, want));
-  el.hidden = !want;
+  el.hidden = !want || destination() === "extra-site";
   el.classList.toggle("mismatch", mismatch);
   el.textContent = !want
     ? ""
