@@ -81,8 +81,6 @@ const markdownBoxEl = $<HTMLDivElement>("markdown-box");
 const submitEl = $<HTMLButtonElement>("submit");
 const skipReviewEl = $<HTMLInputElement>("skip-review");
 const insertTocEl = $<HTMLInputElement>("insert-toc");
-const embedUrlsEl = $<HTMLInputElement>("embed-urls");
-const insertImagesEl = $<HTMLInputElement>("insert-images");
 const creditLinkEl = $<HTMLInputElement>("credit-link");
 
 /** 手元の md と一緒にドロップされた、本文の画像(md に ![説明](ファイル名) で書いてあるもの) */
@@ -110,6 +108,7 @@ if (isWindow) {
     hashtagsEl.value = h.hashtags;
     magazineEl.value = h.magazine;
     priceEl.value = h.price ?? "";
+    renderFieldsSummary();
     baseUrl = h.baseUrl;
     pickedMdName = h.mdName ?? "";
     if (h.fieldsEdited) Object.assign(fieldsEdited, { price: false, ...h.fieldsEdited });
@@ -171,8 +170,6 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
   skipReviewEl.checked = Boolean(s[STORAGE.skipBodyReview]);
   // 目次・埋め込み・本文の画像は、一度も触っていなければ(undefined)入れる。外した人は外したまま
   insertTocEl.checked = s[STORAGE.insertToc] === undefined ? true : Boolean(s[STORAGE.insertToc]);
-  embedUrlsEl.checked = s[STORAGE.embedUrls] === undefined ? true : Boolean(s[STORAGE.embedUrls]);
-  insertImagesEl.checked = s[STORAGE.insertImages] === undefined ? true : Boolean(s[STORAGE.insertImages]);
   // 最後のリンクと #LastOneClick は、既定で入れる(何が入るかはチェックの文言に書いてある)。外した人は外したまま
   creditLinkEl.checked = s[STORAGE.creditLink] === undefined ? true : Boolean(s[STORAGE.creditLink]);
   showArticleOptions();
@@ -181,20 +178,14 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
 function showArticleOptions() {
   $("article-options-on").textContent = articleOptionsLabel({
     toc: insertTocEl.checked,
-    embed: embedUrlsEl.checked,
-    images: insertImagesEl.checked,
     skipReview: skipReviewEl.checked,
   });
 }
-for (const el of [insertTocEl, embedUrlsEl, insertImagesEl, skipReviewEl]) el.addEventListener("change", showArticleOptions);
+for (const el of [insertTocEl, skipReviewEl]) el.addEventListener("change", showArticleOptions);
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
 // 「記事の先頭に目次を入れる」も次回も同じにする
 insertTocEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.insertToc]: insertTocEl.checked }));
-// 「URL だけの行を埋め込みにする」も次回も同じにする
-embedUrlsEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.embedUrls]: embedUrlsEl.checked }));
-// 「本文の画像を入れる」も次回も同じにする
-insertImagesEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.insertImages]: insertImagesEl.checked }));
 // 「記事の最後に『Last One Click で下書きしました』のリンクを入れる」も次回も同じにする
 creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.creditLink]: creditLinkEl.checked }));
 
@@ -230,7 +221,7 @@ function refreshExtraSiteFillTarget() {
  */
 // 「本文の確認を飛ばして、公開設定まで進む」は、note の本文と公開設定が別の画面だからある設定。
 // 追加の対応先は記事の設定も 1 回で入れて止まるので、使わない(値も渡していない)
-const NOTE_ONLY_CONTROLS = [insertTocEl, embedUrlsEl, creditLinkEl, magazineEl, priceEl, skipReviewEl];
+const NOTE_ONLY_CONTROLS = [insertTocEl, creditLinkEl, magazineEl, priceEl, skipReviewEl];
 const UNAVAILABLE_NOTE = "(このページでは使えません)";
 /** 追加の対応先の許可があるか(開発用のビルドだけ。showExtraSiteSetting で決まる) */
 let extraSiteGranted = false;
@@ -289,6 +280,8 @@ function applyDestinationControls() {
   }
   // ログイン中のアカウントは、入れる先にかかわらず、読めたものを「(ドメイン): [アイコン] 名前」で並べて出す
   // (ドメインを見出しにするので、どのサイトのアカウントかを取り違えない)。記事の指定(note_account)は note に入れるときだけ
+  // ② の一覧も、入れる先に合わせて出し直す(入れる先は、開いたあとで決まることがある)
+  renderFieldsSummary();
   $("account").hidden = !loggedInAccount;
   $("extra-site-account").hidden = !extraSiteAccountShown;
   renderAccountTarget();
@@ -647,7 +640,10 @@ async function loadMarkdownFile(file: File) {
     { error: titleMissing, near: "drop" },
   );
   checkTargetNow(); // target が入れる先と合わなければ、読み込みの知らせより先にこちらを出す
-  if (titleMissing) titleEl.focus();
+  if (titleMissing) {
+    fieldsEditEl.open = true;
+    titleEl.focus();
+  }
 }
 markdownFileEl.addEventListener("change", async () => {
   const file = markdownFileEl.files?.[0];
@@ -783,6 +779,35 @@ $("pick-image").addEventListener("click", () => safeClick(thumbnailEl, "popup.pi
  * 欄は普段は隠していて、md を読み込んだときだけ出す。送るのは欄の値(ここで直せる)
  */
 const fieldsEl = $<HTMLDivElement>("fields");
+const fieldsEditEl = $<HTMLDetailsElement>("fields-edit");
+/**
+ * 「② 入れる内容を確かめる」の欄は、普段はたたんでおき、入る値を短い一覧で出す(直すときだけ「直す」で開く)。
+ * 値が無いものは「なし」。タイトルが無いときは開いて知らせる
+ */
+function renderFieldsSummary() {
+  // マガジン・価格は note にだけある設定。追加の対応先に入れるときは入らないので、一覧でもそう出す(欄と同じ)
+  const noteOnly = destination() !== "note";
+  const rows: [string, string, boolean][] = [
+    ["タイトル", titleEl.value.trim(), false],
+    ["ハッシュタグ", hashtagsEl.value.trim(), false],
+    ["マガジン", magazineEl.value.trim(), noteOnly],
+    ["価格", priceEl.value.trim() ? `${priceEl.value.trim()} 円` : "", noteOnly],
+  ];
+  const nodes: Node[] = [];
+  for (const [label, value, unavailable] of rows) {
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = unavailable
+      ? `${value ? `${value} ` : ""}${UNAVAILABLE_NOTE}`
+      : value || (label === "タイトル" ? "(ありません。「直す」で入れてください)" : "なし");
+    if (!value && label === "タイトル") dd.classList.add("missing");
+    if (unavailable) dd.classList.add("unavailable");
+    nodes.push(dt, dd);
+  }
+  $("fields-summary").replaceChildren(...nodes);
+}
+for (const el of [titleEl, hashtagsEl, magazineEl, priceEl]) el.addEventListener("input", renderFieldsSummary);
 /** ユーザーが欄を直したか。直した欄は、本文の再読み取りで上書きしない(新しい md を読み込んだときはリセット) */
 const fieldsEdited = { title: false, hashtags: false, magazine: false, price: false };
 function fillFieldsFromMarkdown(md: string, opts: { newSource: boolean }): { titleMissing: boolean } {
@@ -808,6 +833,7 @@ function fillFieldsFromMarkdown(md: string, opts: { newSource: boolean }): { tit
   if (!fieldsEdited.magazine) magazineEl.value = magazine;
   if (!fieldsEdited.price) priceEl.value = price;
   fieldsEl.hidden = false;
+  renderFieldsSummary();
   renderAccountTarget();
   checkTargetNow();
   const titleMissing = !titleEl.value.trim();
@@ -869,7 +895,8 @@ submitEl.addEventListener("click", async () => {
       },
       // 追加の対応先の編集画面には、最後のクレジットは入れない(note にだけある設定。押せなくしてある)
       creditLink: destination() === "note" && creditLinkEl.checked,
-      insertImages: insertImagesEl.checked,
+      // 本文の画像は、いつも入れる(切るチェックは外した。整理のため)
+      insertImages: true,
       bodyImageFiles,
       bodyImagesBySrc,
       // front matter の target と入れる先が合わなければ、ここで止まる(タブを開く前)
@@ -892,7 +919,8 @@ submitEl.addEventListener("click", async () => {
     // 後続の tabId の書き込みが走らないことがある。ID を保存し終えてからアクティブにする
     const skipBodyReview = skipReviewEl.checked;
     const insertToc = insertTocEl.checked;
-    const embedUrls = embedUrlsEl.checked;
+    // URL だけの行は、いつも埋め込みにする(切るチェックは外した。整理のため)
+    const embedUrls = true;
     await chrome.storage.local.set({ [STORAGE.pendingArticle]: { ...article, tabId: null, skipBodyReview, insertToc, embedUrls } });
     const tab = await chrome.tabs.create({ url: selectors.newNoteUrl, active: false });
     if (tab.id === undefined) {
