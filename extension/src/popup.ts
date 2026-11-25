@@ -179,9 +179,14 @@ chrome.storage.local.get([STORAGE.selectorsUrl, STORAGE.githubToken, STORAGE.adv
 });
 // 「記事の設定」はたたんでおき、見出しの横にオンになっているものを出す
 function showArticleOptions() {
-  $("article-options-on").textContent = articleOptionsLabel({ toc: insertTocEl.checked, embed: embedUrlsEl.checked, images: insertImagesEl.checked });
+  $("article-options-on").textContent = articleOptionsLabel({
+    toc: insertTocEl.checked,
+    embed: embedUrlsEl.checked,
+    images: insertImagesEl.checked,
+    skipReview: skipReviewEl.checked,
+  });
 }
-for (const el of [insertTocEl, embedUrlsEl, insertImagesEl]) el.addEventListener("change", showArticleOptions);
+for (const el of [insertTocEl, embedUrlsEl, insertImagesEl, skipReviewEl]) el.addEventListener("change", showArticleOptions);
 // 「本文の確認を飛ばして、公開設定まで進む」は次回も同じにする
 skipReviewEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE.skipBodyReview]: skipReviewEl.checked }));
 // 「記事の先頭に目次を入れる」も次回も同じにする
@@ -428,6 +433,8 @@ function applyAdvanced(on: boolean) {
   // 上級者向けでは textarea を編集(貼り付け)できる。普段はファイルの中身の確認用
   markdownEl.readOnly = !on;
   markdownBoxEl.hidden = !on && !markdownEl.value;
+  // 上級者向けでは貼り付けに使うので、「読み込んだ md を見る」を開いておく。普段はたたむ(確認のためだけの欄なので)
+  $<HTMLDetailsElement>("markdown-fold").open = on;
   $("markdown-note").textContent = on ? "(編集・貼り付け可)" : "(確認用)";
 }
 advancedToggle.addEventListener("change", async () => {
