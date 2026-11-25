@@ -117,6 +117,65 @@ export function fillProbe(selectors: ExtraSiteSelectors = extraSiteSelectors()):
 /** ポップアップのボタンの文字。今のタブが追加の対応先の編集画面のとき、「note の下書きを作成」の代わりに出す */
 export const EXTRA_SITE_SUBMIT_LABEL = "今開いているページに下書きを入れる";
 
+/**
+ * ポップアップのボタンの文字。今のタブが編集画面でなく、記事の target が note 以外で、許可があるとき。
+ * note と同じく、新しいタブで新規記事のエディタを開いて入れる
+ */
+export const EXTRA_SITE_NEW_SUBMIT_LABEL = `${EXTRA_SITE_HOST} の新規記事を開いて下書きを入れる`;
+
+/** 新規記事を作るページ。開くと、番号付きの編集画面(/articles/<番号>/edit)に移る */
+export const EXTRA_SITE_NEW_ARTICLE_URL = `https://${EXTRA_SITE_HOST}/articles/new`;
+
+/** URL が新規記事のページ(移る前)か */
+export function isExtraSiteNewArticleUrl(url: string | undefined): boolean {
+  return isExtraSiteUrl(url) && /^\/articles\/new\/?$/.test(new URL(url!).pathname);
+}
+
+/** URL が記事の編集画面(/articles/<番号>/edit)か */
+export function isExtraSiteEditUrl(url: string | undefined): boolean {
+  return isExtraSiteUrl(url) && /^\/articles\/[^/]+\/edit\/?$/.test(new URL(url!).pathname);
+}
+
+/** 新しく開いたタブの様子を聞くもの(service worker が chrome.tabs と probe でつなぐ。テストでは差し替える) */
+export type NewEditorDeps = {
+  /** タブの今の URL と、読み込み中か */
+  tab(tabId: number): Promise<{ url?: string; loading: boolean } | null>;
+  /** 編集画面の欄(タイトルと本文)が出ているか */
+  probe(tabId: number): Promise<boolean>;
+  sleep(ms: number): Promise<void>;
+  now(): number;
+};
+
+/** 新規記事のエディタが開くのを待つ長さ */
+export const NEW_EDITOR_WAIT_MS = 30_000;
+
+/**
+ * 新しく開いたタブが、新規記事の編集画面になって欄が出るまで待つ。
+ * 読み込み終わったのに編集画面でない(ログインの画面に移ったなど)ときと、待ちきれなかったときはエラー
+ */
+export async function waitForNewEditor(tabId: number, deps: NewEditorDeps, timeoutMs = NEW_EDITOR_WAIT_MS): Promise<void> {
+  const end = deps.now() + timeoutMs;
+  for (;;) {
+    const t = await deps.tab(tabId);
+    if (!t) throw new Error("新規記事のタブが閉じられました。もう一度ポップアップから入れてください。");
+    if (isExtraSiteEditUrl(t.url)) {
+      let ok = false;
+      try {
+        ok = await deps.probe(tabId);
+      } catch {
+        ok = false; // 読み込みの途中など。少し待って確かめ直す
+      }
+      if (ok) return;
+    } else if (!t.loading && t.url && !isExtraSiteNewArticleUrl(t.url) && t.url !== "about:blank") {
+      throw new Error(
+        `${EXTRA_SITE_HOST} の新規記事のエディタが開きませんでした(ログインの画面などに移りました)。${EXTRA_SITE_HOST} にログインしてから、もう一度ポップアップから入れてください。`,
+      );
+    }
+    if (deps.now() >= end) throw new Error(`${EXTRA_SITE_HOST} の新規記事のエディタが ${Math.round(timeoutMs / 1000)} 秒待っても開きませんでした。開いたタブで確かめてください。`);
+    await deps.sleep(300);
+  }
+}
+
 /** 本文の画像として入れられる種類(ファイルの欄の accept が無いとき。#119 の診断では png・jpg・jpeg) */
 export const EXTRA_SITE_IMAGE_ACCEPT = ".png,.jpg,.jpeg,image/png,image/jpeg";
 

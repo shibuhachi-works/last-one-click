@@ -15,6 +15,10 @@ import {
   isExtraSiteUrl,
   shouldOfferExtraSite,
   syncExtraSite,
+  isExtraSiteEditUrl,
+  isExtraSiteNewArticleUrl,
+  waitForNewEditor,
+  type NewEditorDeps,
   type ExtraSiteApi,
 } from "./extra-site.js";
 
@@ -355,5 +359,50 @@ describe("extraSiteUnsupportedNotes(追加の対応先のエディタでは入�
 
   it("<code> を含まない「codec」などの文字では出さない", () => {
     assert.deepEqual(extraSiteUnsupportedNotes({ html: "<p>&lt;ul&gt; codec preview</p>" }), []);
+  });
+});
+
+describe("新規記事のエディタを開いて待つ(waitForNewEditor)", () => {
+  const NEW = "https://library.libecity.com/articles/new";
+  const EDIT = "https://library.libecity.com/articles/01ABC/edit";
+
+  /** 順に返すタブの様子。最後のものを返し続ける */
+  function deps(states: ({ url?: string; loading: boolean } | null)[], probe: (n: number) => boolean = () => true): NewEditorDeps & { probes: number } {
+    let i = 0;
+    let t = 0;
+    const d = {
+      probes: 0,
+      tab: async () => states[Math.min(i++, states.length - 1)] ?? null,
+      probe: async () => probe(++d.probes),
+      sleep: async (ms: number) => {
+        t += ms;
+      },
+      now: () => t,
+    };
+    return d;
+  }
+
+  it("URL の形を見分ける", () => {
+    assert.equal(isExtraSiteNewArticleUrl(NEW), true);
+    assert.equal(isExtraSiteEditUrl(EDIT), true);
+    assert.equal(isExtraSiteEditUrl(NEW), false);
+    assert.equal(isExtraSiteEditUrl("https://library.libecity.com/articles/01ABC"), false);
+    assert.equal(isExtraSiteEditUrl("https://example.com/articles/01ABC/edit"), false);
+  });
+
+  it("新規記事のページから編集画面に移り、欄が出たら終わる", async () => {
+    const d = deps([{ url: NEW, loading: true }, { url: NEW, loading: false }, { url: EDIT, loading: true }, { url: EDIT, loading: false }], (n) => n >= 2);
+    await waitForNewEditor(1, d);
+    assert.equal(d.probes, 2);
+  });
+
+  it("読み込み終わったのに編集画面でなければ(ログインの画面など)、ログインを促して止まる", async () => {
+    const d = deps([{ url: NEW, loading: true }, { url: "https://library.libecity.com/login", loading: false }]);
+    await assert.rejects(waitForNewEditor(1, d), /新規記事のエディタが開きませんでした.*ログインしてから/);
+  });
+
+  it("タブが閉じられたら止まる。待ちきれなければ止まる", async () => {
+    await assert.rejects(waitForNewEditor(1, deps([null])), /タブが閉じられました/);
+    await assert.rejects(waitForNewEditor(1, deps([{ url: EDIT, loading: false }], () => false), 3_000), /3 秒待っても開きませんでした/);
   });
 });

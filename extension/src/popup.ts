@@ -13,6 +13,7 @@ import {
   EXTRA_SITE_ENABLED,
   EXTRA_SITE_HOST,
   EXTRA_SITE_SUBMIT_LABEL,
+  EXTRA_SITE_NEW_SUBMIT_LABEL,
   disableExtraSite,
   enableExtraSite,
   extraSiteUnsupportedNotes,
@@ -212,7 +213,6 @@ function refreshExtraSiteFillTarget() {
     .catch(() => undefined)
     .then((id) => {
       extraSiteFillTabId = id;
-      submitEl.textContent = id !== undefined ? EXTRA_SITE_SUBMIT_LABEL : noteSubmitText;
       applyDestination();
     });
 }
@@ -223,15 +223,43 @@ function refreshExtraSiteFillTarget() {
  */
 const NOTE_ONLY_CONTROLS = [insertTocEl, embedUrlsEl, creditLinkEl, magazineEl, priceEl];
 const UNAVAILABLE_NOTE = "(このページでは使えません)";
-/** 入れる先。ポップアップを開いたタブで決まる(追加の対応先の編集画面なら extra-site) */
+/** 追加の対応先の許可があるか(開発用のビルドだけ。showExtraSiteSetting で決まる) */
+let extraSiteGranted = false;
+/**
+ * 新しいタブで追加の対応先の新規記事を開いて入れるか。今のタブが編集画面でなく、許可があり、
+ * 記事の target が note 以外のとき(note と同じく、別のページからも作れるように)
+ */
+function extraSiteNewMode(): boolean {
+  if (!EXTRA_SITE_ENABLED || !extraSiteGranted || extraSiteFillTabId !== undefined || !markdownEl.value.trim()) return false;
+  try {
+    const t = parseFrontMatter(markdownEl.value, parseYaml).data.target?.trim();
+    return !!t && t.toLowerCase() !== "note";
+  } catch {
+    return false;
+  }
+}
+/** 入れる先。今のタブが追加の対応先の編集画面か、記事の target が note 以外で許可があれば extra-site */
 function destination(): Destination {
-  return extraSiteFillTabId !== undefined ? "extra-site" : "note";
+  return extraSiteFillTabId !== undefined || extraSiteNewMode() ? "extra-site" : "note";
+}
+/** ボタンの文字を、入れる先に合わせる */
+function submitTextFor(): string {
+  if (extraSiteFillTabId !== undefined) return EXTRA_SITE_SUBMIT_LABEL;
+  return extraSiteNewMode() ? EXTRA_SITE_NEW_SUBMIT_LABEL : noteSubmitText;
 }
 /** 前に出した「target が合わない」の知らせ。合うようになったら、この知らせだけ消す */
 let targetProblemShown: string | null = null;
 let submitting = false;
 /** 入れる先に合わせて、note にだけある設定の押せる・押せないと、target の確かめを今の状態にする */
 function applyDestination() {
+  checkTargetNow();
+}
+/**
+ * 入れる先に合わせて、ボタンの文字・note にだけある設定の押せる・押せない・note のアカウントの表示を合わせる。
+ * 入れる先は記事の target でも変わる(新しいタブで追加の対応先を開くとき)ので、記事を読むたびに checkTargetNow から呼ぶ
+ */
+function applyDestinationControls() {
+  submitEl.textContent = submitTextFor();
   const toExtraSite = destination() === "extra-site";
   for (const el of NOTE_ONLY_CONTROLS) {
     el.disabled = toExtraSite;
@@ -251,7 +279,6 @@ function applyDestination() {
   // 入れる先は note ではないので、note のアカウントを出すと、どのアカウントで入るのかを取り違える
   $("account").hidden = toExtraSite || !loggedInAccount;
   renderAccountTarget();
-  checkTargetNow();
 }
 /**
  * 記事の target が入れる先と合わなければ、読み込んだ時点で知らせてボタンを止める(押してから止めるより先に分かる)。
@@ -259,6 +286,7 @@ function applyDestination() {
  */
 function checkTargetNow() {
   if (submitting) return;
+  applyDestinationControls();
   const problem = markdownEl.value.trim() ? targetProblem(markdownEl.value, destination(), parseYaml) : null;
   submitEl.disabled = problem !== null;
   const submitStatusEl = document.getElementById(STATUS_IDS.submit);
@@ -273,6 +301,8 @@ function checkTargetNow() {
   }
 }
 function showExtraSiteSetting(granted: boolean) {
+  extraSiteGranted = granted;
+  applyDestination();
   extraSiteRowEl.hidden = !granted;
   extraSiteToggleEl.checked = granted;
   if (granted) extraSiteOfferEl.hidden = true;
@@ -795,11 +825,15 @@ submitEl.addEventListener("click", async () => {
       bodyImageFiles,
       bodyImagesBySrc,
       // front matter の target と入れる先が合わなければ、ここで止まる(タブを開く前)
-      destination: extraSiteFillTabId !== undefined ? "extra-site" : "note",
+      destination: destination(),
     });
 
     if (extraSiteFillTabId !== undefined) {
       await fillExtraSiteTab(extraSiteFillTabId, article);
+      return;
+    }
+    if (extraSiteNewMode()) {
+      await openExtraSiteAndFill(article);
       return;
     }
 
@@ -841,6 +875,37 @@ submitEl.addEventListener("click", async () => {
  * 入れ終わるのは待たない(結果はそのページのバナーに出る)。このページでは入らない書き方は、入れる前にここで知らせる
  */
 async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeof buildArticle>>) {
+  const { notes, extraArticle } = extraSiteMessage(article);
+  const message: Message = { type: "extraSiteFill", article: extraArticle, notes };
+  const res = (await chrome.tabs.sendMessage(tabId, message).catch(() => null)) as ExtraSiteFillResponse | null;
+  if (!res) throw new Error("今開いているページを再読み込みしてから、もう一度押してください。");
+  if (!res.ok) throw new Error(res.error);
+  setStatus(
+    "今開いているページに入れ始めました。続きはページの右下に出ます。\n中身を確かめてから、ページの「下書き保存」を自分で押してください。" + notesText(notes),
+    { error: notes.length > 0, near: "submit" },
+  );
+}
+
+/**
+ * 新しいタブで追加の対応先の新規記事のエディタを開き、開いたら記事を入れる(note と同じく、別のページからも作れるように)。
+ * タブを開くとポップアップは閉じるので、開いて待つのは service worker に頼む。続きはそのページのバナーに出る
+ */
+async function openExtraSiteAndFill(article: Awaited<ReturnType<typeof buildArticle>>) {
+  const { notes, extraArticle } = extraSiteMessage(article);
+  // 閉じる前に読めるよう、知らせを先に出しておく
+  setStatus(`${EXTRA_SITE_HOST} の新規記事を新しいタブで開いています。続きはそのページの右下に出ます。` + notesText(notes), { error: notes.length > 0, near: "submit" });
+  const res = (await chrome.runtime.sendMessage({ type: "extraSiteOpenAndFill", article: extraArticle, notes } satisfies Message).catch(() => null)) as ExtraSiteFillResponse | null;
+  if (!res) throw new Error("新しいタブを開けませんでした。もう一度押してください。");
+  if (!res.ok) throw new Error(res.error);
+}
+
+/** 入らない書き方の知らせの文(無ければ空) */
+function notesText(notes: string[]): string {
+  return notes.length ? `\n\n${EXTRA_SITE_HOST} のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : "";
+}
+
+/** 追加の対応先に渡す記事と、入らない書き方の知らせ */
+function extraSiteMessage(article: Awaited<ReturnType<typeof buildArticle>>) {
   // 目次・埋め込み・マガジン・価格は、このページでは押せなくしてあるので知らせない。本文の書き方と画像だけ知らせる
   const notes = extraSiteUnsupportedNotes({
     html: article.html,
@@ -848,9 +913,9 @@ async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeo
     embedUrls: false,
     images: article.images,
   });
-  const message: Message = {
-    type: "extraSiteFill",
-    article: {
+  return {
+    notes,
+    extraArticle: {
       title: article.title,
       hashtags: article.hashtags,
       html: article.html,
@@ -862,14 +927,5 @@ async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeo
       ...(article.publishScope ? { publishScope: article.publishScope } : {}),
       ...(article.readingTime !== undefined ? { readingTime: article.readingTime } : {}),
     },
-    notes,
   };
-  const res = (await chrome.tabs.sendMessage(tabId, message).catch(() => null)) as ExtraSiteFillResponse | null;
-  if (!res) throw new Error("今開いているページを再読み込みしてから、もう一度押してください。");
-  if (!res.ok) throw new Error(res.error);
-  setStatus(
-    "今開いているページに入れ始めました。続きはページの右下に出ます。\n中身を確かめてから、ページの「下書き保存」を自分で押してください。" +
-      (notes.length ? `\n\n${EXTRA_SITE_HOST} のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : ""),
-    { error: notes.length > 0, near: "submit" },
-  );
 }
