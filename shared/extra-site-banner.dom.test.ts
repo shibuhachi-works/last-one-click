@@ -48,6 +48,8 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
     assert.match((await b.locator("#wait").textContent()) ?? "", /library\.libecity\.com の編集画面は操作せずにお待ちください/);
     assert.equal(await b.locator("#chip").textContent(), "入力中");
     assert.equal(await b.locator(".title").textContent(), "Last One Click for library.libecity.com");
+    // 見出し・印・「たたむ」が 1 行に収まる(折り返すと行の高さが 2 行分になる)
+    assert.ok(((await b.locator(".head").boundingBox())?.height ?? 99) < 32, "見出しの行が折り返しています");
     assert.equal(await b.getByRole("button", { name: "知らせを閉じる" }).count(), 0, "入れている途中に閉じるが出ています");
     // ページの querySelectorAll には当たらない(shadow DOM)
     assert.equal(await page.evaluate(() => document.querySelectorAll("button").length), 1);
@@ -70,6 +72,8 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
     assert.equal(await b.locator("#pill").isVisible(), true);
     assert.match((await b.locator("#pill").textContent()) ?? "", /確かめてください/);
     await b.locator("#pill").click();
+    // いちばん長い「確かめてください」と「たたむ」「閉じる」でも、見出しの行は 1 行
+    assert.ok(((await b.locator(".head").boundingBox())?.height ?? 99) < 32, "見出しの行が折り返しています");
     assert.equal(await b.locator(".spin").count(), 0, "終わったあとも回る印が出ています");
     assert.equal(await b.locator("#wait").count(), 0);
     assert.match((await b.locator("#sum").textContent()) ?? "", /下書きを入れました。[\s\S]*「下書き保存」を押してください/);
