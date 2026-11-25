@@ -5,5 +5,7 @@
   "settingsMenu": ["#article_setting_menu"],
   "settingsMenuOpenButton": [".article_setting_menu_index"],
   "eyecatchInput": ["#fileInput", ".js_dragDropFileInput"],
-  "tagInput": ["input[placeholder*=\"タグ\"]"]
+  "tagInput": ["input[placeholder*=\"タグ\"]"],
+  "tagSuggest": [".article_tag_suggest"],
+  "summary": ["#summary", "textarea[name=\"summary\"]"]
 }

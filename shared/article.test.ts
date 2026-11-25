@@ -169,6 +169,21 @@ describe("price(有料記事の価格)", () => {
   });
 });
 
+describe("summary・category(追加の対応先の要約・カテゴリ)", () => {
+  it("front matter の summary・category を読み、renderArticle が返す。書かなければ無い", async () => {
+    const fm = parseFrontMatter("---\ntitle: T\nsummary: 見本の要約\ncategory: 見本のカテゴリ\n---\n本文", parseYaml).data;
+    assert.equal(fm.summary, "見本の要約");
+    assert.equal(fm.category, "見本のカテゴリ");
+    const conv = { markdown: (b: string) => md.parse(b) as string, yaml: parseYaml };
+    const a = await renderArticle("---\ntitle: T\nsummary: 見本の要約\ncategory: 見本のカテゴリ\n---\n本文", conv);
+    assert.equal(a.summary, "見本の要約");
+    assert.equal(a.category, "見本のカテゴリ");
+    const b = await renderArticle("---\ntitle: T\n---\n本文", conv);
+    assert.equal(Object.hasOwn(b, "summary"), false);
+    assert.equal(Object.hasOwn(b, "category"), false);
+  });
+});
+
 describe("target(入れる先)", () => {
   it("front matter の target を読み、renderArticle が返す。書かなければ無い", async () => {
     assert.equal(parseFrontMatter("---\ntarget: library\n---\n本文", parseYaml).data.target, "library");

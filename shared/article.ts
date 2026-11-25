@@ -29,6 +29,10 @@ export type FrontMatter = {
    * あれば、拡張が工程を始める前にログイン中のアカウントと比べ、違えば止める(#102)。無ければ比べない
    */
   noteAccount?: string;
+  /** 要約(front matter の summary)。note には入れない。追加の対応先の編集画面の「要約」の欄に入れる */
+  summary?: string;
+  /** カテゴリ(front matter の category)。note には入れない。追加の対応先の編集画面で使う */
+  category?: string;
 };
 
 /** YAML の文字列 → 値。各パッケージの `yaml` の parse を渡す */
@@ -67,7 +71,7 @@ export function resolveArticleUrl(input: string): { mdUrl: string; baseUrl: stri
 
 /**
  * front matter(先頭の "---" で囲まれたブロック)を YAML として読む。
- * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account だけで、他は無視する。
+ * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account / summary / category だけで、他は無視する。
  * - 値は文字列に揃える(数値などもそのまま文字列に)。null や空は「無し」
  * - hashtags は配列でも "a, b" / "#a #b" の文字列でもよい。`#` は外す
  * - `hashtags: #AI #個人開発`(引用符なし)は YAML ではコメントになるが、README で許している書き方なので
@@ -91,7 +95,7 @@ export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: Fron
 
   const obj = raw as Record<string, unknown>;
   const data: FrontMatter = {};
-  for (const key of ["title", "magazine", "thumbnail", "target"] as const) {
+  for (const key of ["title", "magazine", "thumbnail", "target", "summary", "category"] as const) {
     const v = scalarToString(obj[key]);
     if (v !== undefined) data[key] = v;
   }
@@ -167,6 +171,10 @@ export type RenderedArticle = {
   target?: string;
   /** front matter の note_account(記事を作る note のアカウントの ID)。無ければ比べない(#102) */
   noteAccount?: string;
+  /** front matter の summary(要約)。note には入れない */
+  summary?: string;
+  /** front matter の category(カテゴリ)。note には入れない */
+  category?: string;
 };
 
 /** 下書きを入れる先。note の新しいタブか、今開いている追加の対応先の編集画面か */
@@ -304,5 +312,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
     ...(price !== undefined ? { price } : {}),
     ...(paywallAnchor !== undefined ? { paywallAnchor } : {}),
     ...(fm.noteAccount ? { noteAccount: fm.noteAccount } : {}),
+    ...(fm.summary !== undefined ? { summary: fm.summary } : {}),
+    ...(fm.category !== undefined ? { category: fm.category } : {}),
   };
 }

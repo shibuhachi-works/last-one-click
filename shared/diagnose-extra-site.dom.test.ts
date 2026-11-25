@@ -25,6 +25,9 @@ const PAGE = `<!doctype html><html><head><title>ひみつの記事タイトル</
       <figure><img src="https://example.com/a.png"><figcaption>ひみつのキャプション</figcaption></figure>
     </div>
     <div class="ql-container"><div class="ql-editor" contenteditable="true">ひみつの二つめの本文</div></div>
+    <div id="article_setting_menu"><div class="article_setting_item article_category"><button type="button" class="btn_selectCategory">カテゴリを選択</button></div>
+      <div class="article_setting_item article_tag_input"><div class="article_tag_inputArea"><span class="tag_chip">見本のタグ<button type="button" class="tag_remove">×</button></span><input type="text" placeholder="タグを追加してください"></div></div></div>
+    <div class="modal show" role="dialog"><ul class="category_list"><li><label><input type="radio" name="category" value="1">見本のカテゴリ</label></li></ul><input type="text" placeholder="カテゴリを検索" value="ひみつの検索語"></div>
     <footer><button type="button">投稿する</button><button type="button" aria-label="公開する"></button></footer>
   </main>
 </body></html>`;
@@ -108,6 +111,15 @@ describe("追加の対応先の診断 (DOM)", () => {
   it("画像のボタンと file input の道筋が出る", () => {
     assert.match(sectionOf("画像を入れるためのボタンらしいもの"), /button \[type="button" aria-label="画像を挿入"\].*path: main\.editor-page > div\.toolbar:nth-of-type\(1\) > button:nth-of-type\(1\)/);
     assert.match(sectionOf("file input"), /input \[type="file" accept="image\/\*"\] \(hidden\) path: main\.editor-page > div\.toolbar:nth-of-type\(1\) > input/);
+  });
+
+  it("タグの欄・カテゴリの欄の中と、開いているダイアログの中を出す。ダイアログの選択肢の文字は出し、打つ欄の文字は出さない", () => {
+    assert.match(report, /## タグの欄の中[^\n]*\n- div \.article_setting_item\.article_tag_input/);
+    assert.match(report, /span \.tag_chip "見本のタグ×"/);
+    assert.match(report, /## カテゴリの欄の中[^\n]*\n- div \.article_setting_item\.article_category/);
+    assert.match(report, /## 開いているダイアログの中/);
+    assert.match(report, /label "見本のカテゴリ"/);
+    assert.doesNotMatch(report, /ひみつの検索語/);
   });
 
   it("ボタンの一覧に、文字と道筋が出る", () => {

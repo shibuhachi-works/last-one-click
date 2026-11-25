@@ -57,6 +57,10 @@ export type ExtraSiteSelectors = {
   eyecatchInput: string[];
   /** タグの欄 */
   tagInput: string[];
+  /** タグの欄の近くの、公認タグの候補の並び(入ったかを数えるときに除く) */
+  tagSuggest: string[];
+  /** 要約の欄 */
+  summary: string[];
 };
 
 /** selectors/extra-site.json が無い・読めないときの値。ファイルがあっても、欠けた項目はこの値を使う */
@@ -68,6 +72,8 @@ export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
   settingsMenuOpenButton: [".article_setting_menu_index"],
   eyecatchInput: ["#fileInput", ".js_dragDropFileInput"],
   tagInput: ['input[placeholder*="タグ"]'],
+  tagSuggest: [".article_tag_suggest"],
+  summary: ["#summary", 'textarea[name="summary"]'],
 };
 
 /**
@@ -133,6 +139,10 @@ export type ExtraSiteArticle = {
   images?: { marker: string; name: string; mimeType: string; base64: string; caption?: string }[];
   /** 本文の画像で、ポップアップの時点で入れられないと分かったもの(上限・見つからない・大きすぎる) */
   imageNotes?: string[];
+  /** 要約の欄に入れる文(front matter の summary) */
+  summary?: string;
+  /** カテゴリ(front matter の category)。選ぶ画面の作りが分かるまでは入れず、知らせるだけ */
+  category?: string;
 };
 
 /**

@@ -12,6 +12,9 @@ export type ArticlePayload = {
    * あれば、工程を始める前にログイン中のアカウントと比べ、違えば何も入れずに止める。無ければ比べない
    */
   noteAccount?: string;
+  /** front matter の summary・category。note には入れない(追加の対応先の編集画面でだけ使う) */
+  summary?: string;
+  category?: string;
   /** note に貼り付ける HTML */
   html: string;
   /** base64 で持ち回る(chrome.storage に入れるため) */

@@ -853,6 +853,8 @@ async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnType<typeo
       thumbnail: article.thumbnail,
       images: article.images,
       imageNotes: article.imageNotes,
+      ...(article.summary !== undefined ? { summary: article.summary } : {}),
+      ...(article.category !== undefined ? { category: article.category } : {}),
     },
     notes,
   };
