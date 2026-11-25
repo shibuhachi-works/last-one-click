@@ -1,10 +1,11 @@
 // 追加の対応先(library.libecity.com)のページで動く content script。
 // ポップアップで許可されたときだけ、chrome.scripting.registerContentScripts で登録する(manifest の content_scripts には書かない)。
 // 開発用のビルド(EXTRA_SITE=1 npm run build)でだけ登録される(shared/extra-site.ts の EXTRA_SITE_ENABLED)。
-// 受けるのは 2 つ:
+// 受けるのは 3 つ:
 //   1. ポップアップの「DOM 情報を取得」に、診断のレポートを返す(読むだけ。#118)
 //   2. ポップアップの「今開いているページに下書きを入れる」で、このタブの編集画面に記事を入れて止まる(#120。./lib/extra-site-fill.ts)。
-//      「確認画面へ」「下書き保存」は押さない
+//      「確認画面へ」「下書き保存」は押さない。新しいタブで新規記事を開いたときは、service worker が送ってくる
+//   3. service worker からの知らせ(新規記事のエディタが開かなかったときなど)を、ページのバナーに出す
 import { isExtraSiteUrl } from "../../shared/extra-site";
 import { buildExtraSiteReport } from "./lib/diagnose-extra-site";
 import { showBanner, showBannerStatus } from "./lib/extra-site-banner";
@@ -21,6 +22,12 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: D
     } catch (e) {
       sendResponse({ ok: false, error: (e as Error).message });
     }
+    return;
+  }
+  if (msg?.type === "extraSiteNotice") {
+    // service worker からだけ受ける(ページの中のスクリプトは chrome.runtime のメッセージを送れない)
+    showBanner(msg.text, msg.kind);
+    sendResponse({ ok: true });
     return;
   }
   if (msg?.type === "extraSiteFill") {

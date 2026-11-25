@@ -7,17 +7,19 @@
 //   4. ポップアップを開いたとき、note のタブが無ければ(またはタブから返事が無ければ)、ログイン中のアカウントを
 //      note.com に 1 回だけ問い合わせる(#127)。GET だけ。Cookie は読まない(ブラウザが付ける)。
 //      読んだ名前・ID・アイコンの URL はポップアップに返すだけで、保存しない・note.com 以外へ送らない
+//   5. 追加の対応先: ポップアップに頼まれたら、新しいタブで新規記事のエディタを開き、開いたらそのタブに記事を渡す
+//      (note と同じく、別のページからも作れるように。タブを開くとポップアップは閉じるので、ここで待つ)
 // 記事の中身には触らない。
 import { fetchCurrentUser } from "../../shared/current-user";
-import { EXTRA_SITE_ENABLED, syncExtraSite } from "../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, EXTRA_SITE_NEW_ARTICLE_URL, fillProbe, syncExtraSite, waitForNewEditor } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { loadSelectors } from "./lib/selectors";
-import type { AccountResponse, Message, SelectorsResponse, WhoAmIResponse } from "./lib/types";
+import type { AccountResponse, ExtraSiteFillResponse, Message, SelectorsResponse, WhoAmIResponse } from "./lib/types";
 
 /** 問い合わせ先が "/" で始まるときに付ける origin(note のタブが無いので、note.com に付ける) */
 const NOTE_ORIGIN = "https://note.com";
 
-chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse: (r: WhoAmIResponse | SelectorsResponse | AccountResponse) => void) => {
+chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse: (r: WhoAmIResponse | SelectorsResponse | AccountResponse | ExtraSiteFillResponse) => void) => {
   if (msg?.type === "whoami") {
     sendResponse({ tabId: sender.tab?.id ?? null });
     return;
@@ -30,7 +32,18 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse: (r: Wh
   }
   // 拡張のページ(ポップアップ。独立したウィンドウ・タブで開いたときも)からだけ受ける。
   // content script(note のページ)からは受けない(タブの中で自分で問い合わせる)
-  if (msg?.type === "account" && sender.id === chrome.runtime.id && sender.url?.startsWith(chrome.runtime.getURL(""))) {
+  // 追加の対応先の新規記事を開いて入れる(開発用のビルドだけ)。ポップアップからだけ受ける。
+  // タブを開いたら、すぐに返す(タブがアクティブになるとポップアップは閉じる。続きはそのページのバナーに出る)
+  if (msg?.type === "extraSiteOpenAndFill" && fromExtensionPage(sender)) {
+    if (!EXTRA_SITE_ENABLED) {
+      sendResponse({ ok: false, error: "このビルドでは使えません。" });
+      return;
+    }
+    sendResponse({ ok: true });
+    openAndFillExtraSite(msg.article, msg.notes).catch((e) => console.warn("新規記事に入れられませんでした", e));
+    return;
+  }
+  if (msg?.type === "account" && fromExtensionPage(sender)) {
     loadSelectors()
       .then(({ selectors }) => fetchCurrentUser(selectors.account, NOTE_ORIGIN))
       .catch(() => null)
@@ -38,6 +51,49 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse: (r: Wh
     return true;
   }
 });
+
+/** 拡張のページ(ポップアップ)から来たメッセージか */
+function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id && !!sender.url?.startsWith(chrome.runtime.getURL(""));
+}
+
+/**
+ * 新しいタブで新規記事のエディタを開き、編集画面に移って欄が出たら、そのタブに記事を渡す。
+ * 開かなかったとき(ログインの画面に移ったなど)は、そのタブに知らせを出す(ポップアップは閉じているので)
+ */
+async function openAndFillExtraSite(article: Extract<Message, { type: "extraSiteOpenAndFill" }>["article"], notes: string[]) {
+  const tab = await chrome.tabs.create({ url: EXTRA_SITE_NEW_ARTICLE_URL, active: true });
+  const tabId = tab.id;
+  if (tabId === undefined) return;
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  try {
+    await waitForNewEditor(tabId, {
+      tab: async (id) => {
+        const t = await chrome.tabs.get(id).catch(() => null);
+        return t ? { url: t.url, loading: t.status === "loading" } : null;
+      },
+      probe: (id) => chromeExtraSiteApi.probe(id, fillProbe()),
+      sleep,
+      now: () => Date.now(),
+    });
+  } catch (e) {
+    await sendToTab(tabId, { type: "extraSiteNotice", text: `エラー: ${(e as Error).message}`, kind: "error" });
+    return;
+  }
+  // content script は読み込みが終わってから入る。返事があるまで少し待って送り直す
+  const res = await sendToTab(tabId, { type: "extraSiteFill", article, notes });
+  if (res && !res.ok) await sendToTab(tabId, { type: "extraSiteNotice", text: `エラー: ${res.error}`, kind: "error" });
+}
+
+/** タブの content script にメッセージを送る。返事が無ければ 0.5 秒ごとに送り直す(最大 10 秒) */
+async function sendToTab(tabId: number, message: Message): Promise<ExtraSiteFillResponse | null> {
+  for (let i = 0; i < 20; i++) {
+    const res = (await chrome.tabs.sendMessage(tabId, message).catch(() => null)) as ExtraSiteFillResponse | null;
+    if (res) return res;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return null;
+}
 
 const syncExtraSiteScript = () => {
   syncExtraSite(chromeExtraSiteApi).catch((e) => console.warn("追加の対応先の登録を合わせられませんでした", e));

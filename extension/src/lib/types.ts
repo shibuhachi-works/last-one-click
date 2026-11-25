@@ -58,7 +58,11 @@ export type Message =
   | { type: "selectors" }
   | { type: "account" }
   /** popup → 追加の対応先の content script(#120)。今開いているタブに下書きを入れる。notes は入らない書き方の知らせ */
-  | { type: "extraSiteFill"; article: ExtraSiteArticle; notes: string[] };
+  | { type: "extraSiteFill"; article: ExtraSiteArticle; notes: string[] }
+  /** popup → service worker。新しいタブで新規記事のエディタを開き、開いたら extraSiteFill を送る(note と同じく、別のページからも作れるように) */
+  | { type: "extraSiteOpenAndFill"; article: ExtraSiteArticle; notes: string[] }
+  /** service worker → 追加の対応先の content script。エディタが開かなかったときなどの知らせを、そのページに出す */
+  | { type: "extraSiteNotice"; text: string; kind: "info" | "warn" | "error" };
 /** 追加の対応先の content script の返事。入れ始めたら ok(入れ終わるのは待たない。結果はページのバナーに出す) */
 export type ExtraSiteFillResponse = { ok: true } | { ok: false; error: string };
 export type WhoAmIResponse = { tabId: number | null };
