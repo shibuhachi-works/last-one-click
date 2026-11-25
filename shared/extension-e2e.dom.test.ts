@@ -386,7 +386,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       },
       { markdown, images },
     );
-    await popup.waitForFunction(() => /本文の画像|見出し画像|md ファイル/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 5_000 });
+    await popup.waitForFunction(() => /本文の画像|見出し画像|md ファイル/.test(document.getElementById("status-drop")?.textContent ?? ""), null, { timeout: 5_000 });
   }
 
   it("md と一緒にドロップした画像を、本文の ![説明](ファイル名) の位置に入れる。md に無い画像は見出し画像になる", async () => {
@@ -431,8 +431,8 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         dt.items.add(new File([new Uint8Array(bytes)], "post.zip", { type: "application/zip" }));
         document.body.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
       }, [...zip]);
-      await popup.waitForFunction(() => /post\.zip から/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 5_000 });
-      const status = (await popup.locator("#status").textContent()) ?? "";
+      await popup.waitForFunction(() => /post\.zip から/.test(document.getElementById("status-drop")?.textContent ?? ""), null, { timeout: 5_000 });
+      const status = (await popup.locator("#status-drop").textContent()) ?? "";
       assert.match(status, /md ファイル: post\/article\.md/);
       assert.match(status, /見出し画像: thumbnail\.png/);
       assert.match(status, /本文の画像: 1 枚/);
@@ -715,6 +715,49 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
     return popup;
   }
+
+  it("診断の「DOM 情報を取得」を押したときの知らせは、診断のボタンのすぐ下に出る。ほかの場所の知らせは消える(#141)", async () => {
+    /** 知らせが出ている欄(出ていなければ空)。同時に出るのは 1 か所だけ */
+    const shown = (popup: Page) =>
+      popup.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>("p.status"))
+          .filter((el) => !el.hidden)
+          .map((el) => ({ id: el.id, role: el.getAttribute("role"), text: el.textContent ?? "" })),
+      );
+    // note のタブが無いときは、エラーを診断のボタンのすぐ下に出す(role="alert")
+    const popup = await openPopupWithoutNoteTabs();
+    const errors: string[] = [];
+    popup.on("pageerror", (e) => errors.push(e.message));
+    await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
+    await popup.locator("#status-drop").waitFor({ state: "visible" });
+    await popup.evaluate(() => {
+      for (const d of document.querySelectorAll("details")) d.open = true;
+    });
+    await safeClickLike(popup, "#diagnose");
+    await popup.locator("#status-diagnose").waitFor({ state: "visible", timeout: 5_000 });
+    const [err, ...rest] = await shown(popup);
+    assert.deepEqual(rest, [], "知らせは 1 か所だけ");
+    assert.equal(err.id, "status-diagnose");
+    assert.equal(err.role, "alert");
+    assert.match(err.text, /note のタブが見つかりません/);
+    // 診断のボタンの並び(.row)のすぐ下にある
+    assert.equal(await popup.locator("#status-diagnose").evaluate((el) => el.previousElementSibling?.querySelector("#diagnose") !== null), true);
+
+    // note のタブがあれば、取得できたことを同じ場所に出す(role="status")
+    const editor = await context.newPage();
+    await editor.goto("https://editor.note.com/notes/e2e-diagnose/edit/");
+    await editor.waitForTimeout(1_000);
+    await safeClickLike(popup, "#diagnose");
+    await popup.waitForFunction(() => /診断結果を取得/.test(document.getElementById("status-diagnose")?.textContent ?? ""), null, { timeout: 10_000 });
+    const [ok, ...rest2] = await shown(popup);
+    assert.deepEqual(rest2, []);
+    assert.equal(ok.id, "status-diagnose");
+    assert.equal(ok.role, "status");
+    assert.equal(await popup.locator("#status").isVisible(), false, "「note の下書きを作成」の下には出さない");
+    assert.deepEqual(errors, []);
+    await editor.close();
+    await popup.close();
+  });
 
   it("note のタブが無くても、ポップアップを開くと拡張から 1 回だけ問い合わせて出す。保存はしない(#127)", async () => {
     const sample = { data: { id: 1234, nickname: "タブ無しの書き手", urlname: "no_tab_writer", profile_image_path: "https://note.com/e2e-icon2.png" } };
