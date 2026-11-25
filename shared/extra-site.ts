@@ -69,6 +69,24 @@ export type ExtraSiteSelectors = {
   publishScopeLimited: string[];
   /** 外部公開の範囲の「全文公開」の radio */
   publishScopePublic: string[];
+  /** カテゴリを選ぶ画面を開くボタン(「カテゴリを選択」。選んだあとは「大 > 小」の文字になる) */
+  categoryOpen: string[];
+  /** 選んだカテゴリが入る、隠れた欄 */
+  categoryValue: string[];
+  /** カテゴリを選ぶ画面 */
+  categoryDialog: string[];
+  /** 選ぶ画面の、大きなカテゴリのまとまり。中に名前と、小さなカテゴリのボタンがある */
+  categoryMain: string[];
+  /** 大きなカテゴリの名前 */
+  categoryMainName: string[];
+  /** 大きなカテゴリを開くところ(たたまれているときだけ押す) */
+  categoryMainToggle: string[];
+  /** 小さなカテゴリのボタン(押すと選ばれる) */
+  categorySub: string[];
+  /** 小さなカテゴリの名前 */
+  categorySubName: string[];
+  /** 選ぶ画面を閉じるボタン(選び終えても開いたままのときだけ押す) */
+  categoryClose: string[];
   /** 読了目安時間を出すかの checkbox */
   readingTime: string[];
   /** ログイン中のアカウントのアイコンの画像(ヘッダーの右上。編集画面にもある) */
@@ -95,6 +113,15 @@ export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
   summary: ["#summary", 'textarea[name="summary"]'],
   publishScopeLimited: ["#publishScope_limited"],
   publishScopePublic: ["#publishScope_public"],
+  categoryOpen: [".article_category .btn_selectCategory", ".btn_selectCategory"],
+  categoryValue: ['.article_category input[name="category"]', 'input[name="category"]'],
+  categoryDialog: ["#selectCategory"],
+  categoryMain: [".category_lists .main_cat_item"],
+  categoryMainName: [".cat_name"],
+  categoryMainToggle: [".main_cat_inner"],
+  categorySub: [".sub_cat_inner"],
+  categorySubName: [".sub_cat_name"],
+  categoryClose: ["#selectCategory .modal-header button.close", "#selectCategory .btn-close"],
   readingTime: ["#setting_estimatedReadingTime"],
   accountIcon: [".btn_mypage img.rounded-circle"],
   accountName: [],
@@ -255,7 +282,7 @@ export type ExtraSiteArticle = {
   imageNotes?: string[];
   /** 要約の欄に入れる文(front matter の summary) */
   summary?: string;
-  /** カテゴリ(front matter の category)。選ぶ画面の作りが分かるまでは入れず、知らせるだけ */
+  /** カテゴリ(front matter の category)。「大きなカテゴリ > 小さなカテゴリ」か、小さなカテゴリだけ */
   category?: string;
   /** 外部公開の範囲(front matter の「外部公開」)。public は全文公開、limited は冒頭のみ公開 */
   publishScope?: "public" | "limited";
