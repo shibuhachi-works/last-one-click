@@ -16,6 +16,7 @@ import { htmlToText } from "../../shared/markdown-safe";
 import { hasTocHeadings } from "../../shared/toc";
 import { installFilePickerGuard, type FilePickerGuard } from "../../shared/file-picker-guard";
 import { diagnoseCurrentUser, fetchCurrentUser, type CurrentUser } from "../../shared/current-user";
+import { checkNoteAccount, noteAccountMismatchMessage, noteAccountUnknownMessage } from "../../shared/note-account";
 import {
   STORAGE,
   type AccountResponse,
@@ -28,6 +29,8 @@ import {
 } from "./lib/types";
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
+/** 工程の結果に入れる、アカウントを確かめられなかったときの行の名前(#102) */
+const ACCOUNT_STEP = "アカウント";
 /** ポップアップがタブを開いてから tabId を埋めるまでの猶予 */
 const TAB_ID_WAIT_MS = 3_000;
 
@@ -81,8 +84,22 @@ async function main() {
   // 二重実行防止:ここで pending を消す(失敗しても再実行はポップアップから)
   await chrome.storage.local.remove(STORAGE.pendingArticle);
 
-  banner(`入力中... (selectors: ${source})`);
+  // 記事が note_account を指定していれば、工程を始める前にログイン中のアカウントと比べる(#102)。
+  // 違えば何も入れずに止める。読めなければ止めずに進み、バナーで注意する。指定が無ければ比べない(今までどおり)
   const results: string[] = [];
+  let checkedAccount: CurrentUser | null | undefined;
+  if (article.noteAccount) {
+    banner("ログイン中のアカウントを確かめています...");
+    checkedAccount = await readAccount(S);
+    const check = checkNoteAccount(article.noteAccount, checkedAccount);
+    if (check.kind === "mismatch") {
+      banner(`⚠️ ${noteAccountMismatchMessage(check)}\n\nタイトル・本文などは入れていません。`, "error");
+      return;
+    }
+    if (check.kind === "unknown") results.push(`${ACCOUNT_STEP} ⚠️ ${noteAccountUnknownMessage(check)}`);
+  }
+
+  banner(`入力中... (selectors: ${source})`);
   // どの記事で始めたか。バナーのボタンを押したときに別の記事が開いていれば入れない。
   // 新規作成から始めたときは、保存で id が付いた時点でその id に固定する(別の記事に移ったあとで "new" が何にでも一致しないように)
   const keyRef: ArticleKeyRef = { key: articleKey(location.pathname) };
@@ -102,11 +119,13 @@ async function main() {
   scrollToTop(titleEl);
   const proceed = { label: "公開設定を入れる", onClick: () => runPublishSettings(S, article, results, keyRef) };
   // 入れ終えたので、どのアカウントで作ったかを 1 回だけ読む(#106)。読めなければ出さない。公開設定まで一気に進むときは、そちらで読む
-  const account = article.skipBodyReview && goOn ? null : await readAccount(S);
+  // 先にアカウントを確かめて読めていれば、それを使う(同じ問い合わせを 2 回しない)
+  const account = article.skipBodyReview && goOn ? null : (checkedAccount ?? (await readAccount(S)));
   if (!goOn) {
     // 見出し画像のアップロードを確認できないまま公開設定へ移ると、アップロードが途中で切れる可能性があるので、ここで止める
     banner(
-      `⚠️ 見出し画像を確認できませんでした。画面で確かめてから「公開設定を入れる」を押してください。\n\n公開設定には進んでいません。\n${results.join("\n")}`,
+      accountWarning(results) +
+        `⚠️ 見出し画像を確認できませんでした。画面で確かめてから「公開設定を入れる」を押してください。\n\n公開設定には進んでいません。\n${results.join("\n")}`,
       "warn",
       [proceed],
       account,
@@ -119,9 +138,10 @@ async function main() {
     // 途中の工程(タイトル・本文など)が失敗していても step() は先へ進むので、ここで ✗ を見て文言と色を変える
     const failed = results.some((r) => r.includes("✗"));
     banner(
-      (failed
-        ? `⚠️ 一部は入力できませんでした。画面で確かめ、足りないものは手で入れてから「公開設定を入れる」を押してください。\n\n`
-        : `✅ タイトル・本文・見出し画像を入れました。本文を確かめて、よければ「公開設定を入れる」を押してください。\n\n`) +
+      accountWarning(results) +
+        (failed
+          ? `⚠️ 一部は入力できませんでした。画面で確かめ、足りないものは手で入れてから「公開設定を入れる」を押してください。\n\n`
+          : `✅ タイトル・本文・見出し画像を入れました。本文を確かめて、よければ「公開設定を入れる」を押してください。\n\n`) +
         `下書き保存・プレビューは、note の編集画面で済ませてください。\n「公開設定を入れる」を押すと、拡張が「公開に進む」を押し、ハッシュタグとマガジンを入れて止まります。\n${results.join("\n")}`,
       failed ? "warn" : "ok",
       [proceed],
@@ -130,6 +150,15 @@ async function main() {
     return;
   }
   await runPublishSettings(S, article, results, keyRef);
+}
+
+/**
+ * アカウントを確かめられなかったとき(#102)、バナーの見える部分の先頭に出す 1 行。たたんだままでも気づけるように。
+ * 無ければ空
+ */
+function accountWarning(results: string[]): string {
+  const line = results.find((r) => r.startsWith(`${ACCOUNT_STEP} ⚠️ `));
+  return line ? `${line.slice(ACCOUNT_STEP.length + 1)}\n` : "";
 }
 
 /**
@@ -187,9 +216,10 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   // 公開設定を入れたあとにも、どのアカウントかを 1 回だけ読んで出す(#106)。「投稿する」を押す前に気づけるように
   const account = await readAccount(S);
   banner(
-    (failed.length
-      ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n\n入ったものは画面で確かめ、足りないものは手で入れてから、「投稿する」を自分で押してください。\n`
-      : `✅ 入力が終わりました。内容を確認して、「投稿する」を自分で押してください。\n\n`) +
+    accountWarning(results) +
+      (failed.length
+        ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n\n入ったものは画面で確かめ、足りないものは手で入れてから、「投稿する」を自分で押してください。\n`
+        : `✅ 入力が終わりました。内容を確認して、「投稿する」を自分で押してください。\n\n`) +
       `「キャンセル」で戻ると、ハッシュタグとマガジン${article.price ? "・有料の設定" : ""}は note 側で消えます。\n直したあとは「もう一度入れる」を押してください。\n${results.join("\n")}`,
     failed.length ? "warn" : "ok",
     [{ label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) }],

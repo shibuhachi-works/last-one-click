@@ -48,6 +48,9 @@ button.copied, button.copied:hover { background: #41c9b4; border-color: #35b3a0;
 /* ログイン中の note アカウント(#106)。「note の下書きを作成」のすぐ上に出す */
 .account { display: flex; align-items: center; gap: 6px; margin: 12px 0 -4px; font-size: 12px; color: #444; }
 .account img { width: 20px; height: 20px; border-radius: 50%; flex: none; }
+/* 記事の front matter の note_account(#102)。違うときは注意の色にする */
+.account-target { margin: 12px 0 -4px; font-size: 12px; color: #444; }
+.account-target.mismatch { padding: 6px 8px; border-radius: 6px; background: #fdecea; color: #a12622; }
 .status { margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: #eef7f5; white-space: pre-line; }
 .status.error { background: #fdecea; color: #a12622; }
 details { margin-top: 10px; }

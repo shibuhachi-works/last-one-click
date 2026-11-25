@@ -38,6 +38,7 @@ const FEATURES: [string, RegExp, RegExp][] = [
 /** 見本の front matter にコメントで入れておく書き方(先頭の「# 」を消すと使える)。[名前, md に含まれること] */
 const FRONT_MATTER_FEATURES: [string, RegExp][] = [
   ["マガジン(magazine)", /^# magazine: /m],
+  ["記事を作るアカウント(note_account)", /^# note_account: /m],
   ["有料記事の価格(price)", /^# price: 300\b/m],
   ["有料の境目の印(<!-- ここから有料 -->)の説明", /^# .*「<!-- ここから有料 -->」だけの行/m],
   ["入れる先(target)", /^# target: note\b/m],
@@ -72,6 +73,9 @@ describe("templates/note/article.md(見本)", () => {
     // そのまま読み込んでも有料にならないよう、price はコメントにしてある
     assert.equal((await renderArticle(src, convert)).price, undefined);
     assert.equal((await renderArticle(src.replace(/^# price: /m, "price: "), convert)).price, 300);
+    // そのまま読み込んでもアカウントを比べないよう、note_account はコメントにしてある
+    assert.equal((await renderArticle(src, convert)).noteAccount, undefined);
+    assert.equal((await renderArticle(src.replace(/^# note_account: /m, "note_account: "), convert)).noteAccount, "example");
     // 見本の本文には印を入れていない(入れると見本が有料になる)。price と一緒に本文に印を足すと、その位置が読める
     assert.equal((await renderArticle(src, convert)).paywallAnchor, undefined);
     const paid = src.replace(/^# price: /m, "price: ").replace(/^(本文はここから書きます。.*)$/m, "$1\n\n<!-- ここから有料 -->");

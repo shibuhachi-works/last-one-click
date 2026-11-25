@@ -5,6 +5,7 @@
 // Markdown → HTML と YAML の変換関数は呼び出し側が渡す(marked / yaml は各パッケージのものを使う。
 // shared/ は 2 つのパッケージが別々に install するので、ここから node_modules を import しない)。
 // 取得(fetch / トークン)とサムネイルの持ち方(Buffer / base64)は各パッケージに残す。
+import { normalizeNoteAccount } from "./note-account.js";
 import { PAYWALL_MARKER, findMarkerLines, makePaywallToken, markerLinesInCode, replacePaywallMarker, takePaywallAnchor } from "./paywall.js";
 
 export type FrontMatter = {
@@ -23,6 +24,11 @@ export type FrontMatter = {
   priceRaw?: string;
   /** 入れる先(target)。書かなければ note。note 以外の値は、note には入れない(checkTarget) */
   target?: string;
+  /**
+   * 記事を作る note のアカウントの ID(front matter の note_account。note.com/<ID> の部分)。先頭の @ は外す。
+   * あれば、拡張が工程を始める前にログイン中のアカウントと比べ、違えば止める(#102)。無ければ比べない
+   */
+  noteAccount?: string;
 };
 
 /** YAML の文字列 → 値。各パッケージの `yaml` の parse を渡す */
@@ -61,7 +67,7 @@ export function resolveArticleUrl(input: string): { mdUrl: string; baseUrl: stri
 
 /**
  * front matter(先頭の "---" で囲まれたブロック)を YAML として読む。
- * 使うキーは title / hashtags / magazine / thumbnail / price / target だけで、他は無視する。
+ * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account だけで、他は無視する。
  * - 値は文字列に揃える(数値などもそのまま文字列に)。null や空は「無し」
  * - hashtags は配列でも "a, b" / "#a #b" の文字列でもよい。`#` は外す
  * - `hashtags: #AI #個人開発`(引用符なし)は YAML ではコメントになるが、README で許している書き方なので
@@ -96,6 +102,8 @@ export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: Fron
     const s = scalarToString(h);
     if (s !== undefined) data.hashtags = splitList(s);
   }
+  const noteAccount = normalizeNoteAccount(scalarToString(obj.note_account));
+  if (noteAccount) data.noteAccount = noteAccount;
   try {
     const price = parsePrice(obj.price);
     if (price !== undefined) data.price = price;
@@ -157,6 +165,8 @@ export type RenderedArticle = {
   paywallAnchor?: string;
   /** front matter の target(入れる先)。書かなければ無い(= note) */
   target?: string;
+  /** front matter の note_account(記事を作る note のアカウントの ID)。無ければ比べない(#102) */
+  noteAccount?: string;
 };
 
 /** 下書きを入れる先。note の新しいタブか、今開いている追加の対応先の編集画面か */
@@ -293,5 +303,6 @@ export async function renderArticle(markdown: string, convert: Converters, overr
     ...(fm.target !== undefined ? { target: fm.target } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(paywallAnchor !== undefined ? { paywallAnchor } : {}),
+    ...(fm.noteAccount ? { noteAccount: fm.noteAccount } : {}),
   };
 }
