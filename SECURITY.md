@@ -11,4 +11,4 @@
 - note の「投稿する」「公開する」ボタンは押しません(クリックはすべて禁止文字の判定を通します)
 - note のパスワードや Cookie には触れません
 - 記事は利用者の Chrome の中に一時的に置くだけで、note 以外には送りません
-- GitHub のトークンは任意で、入れた場合も raw.githubusercontent.com 以外には送りません
+- GitHub のトークンは任意で、入れた場合も raw.githubusercontent.com と、PR の URL から記事を読むときの api.github.com(その PR の問い合わせだけ)以外には送りません
