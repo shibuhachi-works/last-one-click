@@ -252,6 +252,14 @@ export async function shouldFillExtraSite(api: ExtraSiteApi, tab: { id?: number;
   }
 }
 
+/** 登録が「同じ id がある」で失敗したあと、登録が見えてくるのを待つ長さ */
+const REGISTER_RECHECK_MS = 300;
+
+async function registeredAfter(api: ExtraSiteApi, ms: number): Promise<boolean> {
+  await new Promise((r) => setTimeout(r, ms));
+  return api.isRegistered();
+}
+
 /** 許可のあるなしに、content script の登録を合わせる。戻り値は許可があるか */
 export async function syncExtraSite(api: ExtraSiteApi): Promise<boolean> {
   const granted = await api.hasPermission();
@@ -261,7 +269,21 @@ export async function syncExtraSite(api: ExtraSiteApi): Promise<boolean> {
       await api.register();
     } catch (e) {
       // service worker とポップアップが同時に登録すると、あとのほうは「同じ id がある」で失敗する。登録があれば良い
-      if (!(await api.isRegistered())) throw e;
+      // 別のところの登録が終わる途中だと、まだ見えないことがある。少し待ってから確かめ直す
+      if (!(await api.isRegistered()) && !(await registeredAfter(api, REGISTER_RECHECK_MS))) {
+        // それでも見えないのに「同じ id がある」で失敗することがある(許可を外して付け直したとき、同時に消している途中など)。
+        // 一度消してから、もう一度だけ登録する
+        try {
+          await api.unregister();
+        } catch {
+          // 無ければ消せない。そのまま登録し直す
+        }
+        try {
+          await api.register();
+        } catch (e2) {
+          if (!(await api.isRegistered())) throw e2;
+        }
+      }
     }
   } else if (!granted && registered) {
     try {
