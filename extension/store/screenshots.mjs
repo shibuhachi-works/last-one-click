@@ -46,11 +46,22 @@ mkdirSync(dir, { recursive: true });
     document.querySelector("#title").value = "週 1 本、note を書き続けるためにやったこと";
     document.querySelector("#hashtags").value = "個人開発, note, 習慣";
     document.querySelector("#magazine").value = "開発日記";
+    // ② の短い一覧(ポップアップでは popup.js が欄の値から作る。ここでは同じ形を直接入れる)
+    const summary = document.querySelector("#fields-summary");
+    if (summary) {
+      for (const [k, v] of [["タイトル", "週 1 本、note を書き続けるためにやったこと"], ["ハッシュタグ", "個人開発, note, 習慣"], ["マガジン", "開発日記"], ["価格", "なし"]]) {
+        const dt = document.createElement("dt");
+        dt.textContent = k;
+        const dd = document.createElement("dd");
+        dd.textContent = v;
+        summary.append(dt, dd);
+      }
+    }
     const picked = document.querySelector("#picked");
     picked.hidden = false;
     picked.textContent = "受け取り済み: md ファイル: 2026-10-28-weekly-note.md / 見出し画像: thumbnail.png / 本文の画像: 2 枚";
     const opts = document.querySelector("#article-options-on");
-    if (opts) opts.textContent = "(目次・埋め込み・画像)";
+    if (opts) opts.textContent = "(目次)";
     // 記事の最後のリンクとハッシュタグのチェックは、既定でチェックあり
     const credit = document.querySelector("#credit-link");
     if (credit) credit.checked = true;

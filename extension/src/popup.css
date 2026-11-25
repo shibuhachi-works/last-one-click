@@ -76,3 +76,11 @@ details details { margin-left: 12px; }
 .extra-site-offer[hidden] { display: none; }
 .extra-site-offer p { margin: 0; flex: 1; }
 #extra-site-row[hidden] { display: none; }
+/* 「② 入れる内容を確かめる」の短い一覧。直すときだけ「直す」で欄を開く */
+.fields-summary { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 6px 0 0; font-size: 12px; }
+.fields-summary dt { color: #666; }
+.fields-summary dd { margin: 0; color: #1f2328; overflow-wrap: anywhere; }
+.fields-summary dd.missing { color: #a12622; }
+#fields-edit { margin-top: 6px; }
+#fields-edit .grid { margin-top: 6px; }
+.fields-summary dd.unavailable { color: #888; }

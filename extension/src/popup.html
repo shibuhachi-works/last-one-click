@@ -31,32 +31,20 @@
   <input id="markdown-file" type="file" accept=".md,.markdown,.txt,.zip,text/markdown,text/plain,application/zip" hidden>
   <input id="thumbnail" type="file" accept="image/*" hidden>
 
-  <div id="advanced-github" hidden>
-    <details id="github-fold">
-      <summary>GitHub から読み込む</summary>
-      <div class="row">
-        <input id="github-url" type="url" placeholder="https://github.com/you/repo/tree/main/posts/2026-10-28-xxx">
-        <button id="github-load" type="button">読み込む</button>
-      </div>
-      <p class="hint">記事のフォルダの URL か、PR の URL(…/pull/123)を貼ります。</p>
-      <div id="github-pick" class="row" hidden>
-        <select id="github-article" aria-label="読み込む記事"></select>
-        <button id="github-pick-load" type="button">この記事を読み込む</button>
-      </div>
-      <p id="status-github" class="status" hidden></p>
-    </details>
-  </div>
-
   <div id="step-check">
   <h2 class="step">② 入れる内容を確かめる</h2>
   <div id="fields" hidden>
     <p class="fields-head">note に入れる内容<small class="hint-inline tip" title="md ファイルから読み取った値です。直したければここで直せます。空にすると「なし」になります。">(md ファイルから)</small></p>
-    <div class="grid">
-      <label>タイトル<input id="title" type="text" placeholder="(md ファイルにタイトルがありません。入力してください)"></label>
-      <label>ハッシュタグ<input id="hashtags" type="text" placeholder="(なし。カンマ区切りで追加できます)"></label>
-      <label>マガジン<input id="magazine" type="text" placeholder="(なし。note のマガジン名と完全一致)"></label>
-      <label>価格(有料)<input id="price" type="text" inputmode="numeric" placeholder="(なし。無料のまま。有料にするときは円で入れる)"></label>
-    </div>
+    <dl id="fields-summary" class="fields-summary"></dl>
+    <details id="fields-edit">
+      <summary>直す</summary>
+      <div class="grid">
+        <label>タイトル<input id="title" type="text" placeholder="(md ファイルにタイトルがありません。入力してください)"></label>
+        <label>ハッシュタグ<input id="hashtags" type="text" placeholder="(なし。カンマ区切りで追加できます)"></label>
+        <label>マガジン<input id="magazine" type="text" placeholder="(なし。note のマガジン名と完全一致)"></label>
+        <label>価格(有料)<input id="price" type="text" inputmode="numeric" placeholder="(なし。無料のまま。有料にするときは円で入れる)"></label>
+      </div>
+    </details>
   </div>
 
   <div id="markdown-box" hidden>
@@ -87,8 +75,6 @@ magazine: マガジン名
   <details id="article-options" class="article-options">
     <summary>記事の設定 <small id="article-options-on" class="hint-inline"></small></summary>
     <label class="check hint-check tip" title="入れると、本文の先頭に note の目次を入れます。目次は本文の見出し(## と ###)から note が作ります。見出しが無い記事には入れません。"><input id="insert-toc" type="checkbox" checked>記事の先頭に目次を入れる</label>
-    <label class="check hint-check tip" title="入れると、本文の中で URL だけが書かれた行を、note の埋め込み(カード)にします。文の中のリンクはそのままです。"><input id="embed-urls" type="checkbox" checked>URL だけの行を埋め込みにする</label>
-    <label class="check hint-check tip" title="入れると、md の ![説明](image1.png) のようにファイル名で書いた画像を、本文のその位置に入れます。GitHub から読み込んだときは記事と同じフォルダから、手元の md なら一緒にドロップした画像(記事のフォルダ・ZIP の中の画像)から取ります。1 記事 20 枚まで。"><input id="insert-images" type="checkbox" checked>本文の画像を入れる</label>
     <label class="check hint-check tip" title="入れると、ハッシュタグとマガジンまで一気に入れて止まります。note の公開設定を「キャンセル」で閉じるとハッシュタグとマガジンは消えるので、本文を先に確かめたいときは外しておいてください。"><input id="skip-review" type="checkbox">本文の確認を飛ばして、公開設定まで進む</label>
     <label id="extra-site-row" class="check hint-check tip" title="切ると、library.libecity.com への許可を外します。また使うときは、library.libecity.com のページを開いてツールバーのアイコンを押してください。" hidden><input id="extra-site-toggle" type="checkbox" checked>追加の対応先(library.libecity.com)</label>
     <p id="status-extra-site-toggle" class="status" hidden></p>
@@ -98,11 +84,26 @@ magazine: マガジン名
     <summary>拡張機能の設定</summary>
     <p id="version" class="hint">Last One Click</p>
     <p class="hint"><a href="https://note.com/shibuhachi/n/n9c41926f2a3a" target="_blank" rel="noopener noreferrer">使い方の記事(note)</a></p>
-    <label class="check tip" title="「GitHub から読み込む」、selectors の URL、GitHub トークンの欄が出ます。読み込んだ内容の欄も編集・貼り付けできるようになります。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
+    <label class="check tip" title="この下に「GitHub から読み込む」、selectors の URL、GitHub トークンの欄が出ます。読み込んだ内容の欄も編集・貼り付けできるようになります。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
     <p id="status-advanced" class="status" hidden></p>
     <div id="advanced-settings" hidden>
+      <div id="advanced-github" hidden>
+        <details id="github-fold">
+          <summary>GitHub から読み込む</summary>
+          <div class="row">
+            <input id="github-url" type="url" placeholder="https://github.com/you/repo/tree/main/posts/2026-10-28-xxx">
+            <button id="github-load" type="button">読み込む</button>
+          </div>
+          <p class="hint">記事のフォルダの URL か、PR の URL(…/pull/123)を貼ります。</p>
+          <div id="github-pick" class="row" hidden>
+            <select id="github-article" aria-label="読み込む記事"></select>
+            <button id="github-pick-load" type="button">この記事を読み込む</button>
+          </div>
+          <p id="status-github" class="status" hidden></p>
+        </details>
+      </div>
       <label>selectors/note.json の URL<input id="selectors-url" type="url" placeholder="(既定値を使う)"></label>
-      <p class="hint">note の画面の定義ファイルの場所です。記事の URL ではありません(記事は上の「GitHub から読み込む」に貼ります)。普段は空のままにしてください。</p>
+      <p class="hint">note の画面の定義ファイルの場所です。記事の URL ではありません(記事は「GitHub から読み込む」に貼ります)。普段は空のままにしてください。</p>
       <label>GitHub トークン(private リポジトリのみ)<input id="github-token" type="password" autocomplete="off"></label>
       <button id="save-settings" type="button">保存</button>
       <p id="status-settings" class="status" hidden></p>

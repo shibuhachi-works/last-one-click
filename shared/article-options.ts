@@ -1,7 +1,7 @@
 // ポップアップの「記事の設定」(たたんだ所)の見出しの横に、いまオンになっているものを短く出す。
 // たたんだままでも、何が入るかが分かるようにする。
 
-export type ArticleOptions = { toc: boolean; embed: boolean; images?: boolean; skipReview?: boolean };
+export type ArticleOptions = { toc: boolean; embed?: boolean; images?: boolean; skipReview?: boolean };
 
 /** 例: 「(目次・埋め込み・画像・公開設定まで進む)」。全部オフなら「(なし)」 */
 export function articleOptionsLabel(o: ArticleOptions): string {
