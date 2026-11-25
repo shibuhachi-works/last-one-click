@@ -25,6 +25,8 @@ const PAGE = `<!doctype html><html><head><title>ひみつの記事タイトル</
       <figure><img src="https://example.com/a.png"><figcaption>ひみつのキャプション</figcaption></figure>
     </div>
     <div class="ql-container"><div class="ql-editor" contenteditable="true">ひみつの二つめの本文</div></div>
+    <form id="articleSearchForm"><input type="search" placeholder="キーワード、#タグなど" style="display:none"></form>
+    <div class="category_select_area"><button type="button" class="category_item">稼ぐ</button><a class="category_child">見本の子カテゴリ</a></div>
     <div id="article_setting_menu"><div class="article_setting_item article_category"><button type="button" class="btn_selectCategory">カテゴリを選択</button></div>
       <div class="article_setting_item article_tag_input"><div class="article_tag_inputArea"><span class="tag_chip">見本のタグ<button type="button" class="tag_remove">×</button></span><input type="text" placeholder="タグを追加してください"></div></div></div>
     <div class="modal show" role="dialog"><ul class="category_list"><li><label><input type="radio" name="category" value="1">見本のカテゴリ</label></li></ul><input type="text" placeholder="カテゴリを検索" value="ひみつの検索語"></div>
@@ -117,7 +119,11 @@ describe("追加の対応先の診断 (DOM)", () => {
     assert.match(report, /## タグの欄の中[^\n]*\n- div \.article_setting_item\.article_tag_input/);
     assert.match(report, /span \.tag_chip "見本のタグ×"/);
     assert.match(report, /## カテゴリの欄の中[^\n]*\n- div \.article_setting_item\.article_category/);
-    assert.match(report, /## 開いているダイアログの中/);
+    assert.match(report, /## 開いているダイアログ・選ぶ画面らしいものの中/);
+    // ダイアログの形でない選ぶ画面(class にカテゴリらしい名前)も出す
+    assert.match(report, /a \.category_child "見本の子カテゴリ"/);
+    // ページ上部の隠れた検索欄ではなく、見えているタグの欄を出す
+    assert.doesNotMatch(report, /## タグの欄の中[^\n]*\n- form/);
     assert.match(report, /label "見本のカテゴリ"/);
     assert.doesNotMatch(report, /ひみつの検索語/);
   });

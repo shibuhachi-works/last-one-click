@@ -9,6 +9,8 @@ import { redact } from "./diagnose-account";
 import { cssPath, isVisible } from "./diagnose";
 
 const MAX_PER_GROUP = 60;
+/** 選ぶ画面の中は、選択肢が多いことがあるので多めに出す */
+const MAX_CHOICES = 200;
 const TEXT_LEN = 40;
 
 /** エディタの種類が分かる class の手がかり(class 名の一部) */
@@ -100,18 +102,29 @@ export function buildExtraSiteReport(): string {
   list(lines, "入力欄 (input / textarea / contenteditable)", fields);
 
   // 7. 記事の設定のタグ・カテゴリの欄の中(入れ方と、入ったかの確かめ方を決めるため)。要素を上から順に出す
-  const tagItem = all("input[placeholder*='タグ']").map((el) => el.closest<HTMLElement>(".article_setting_item") ?? el.parentElement).find(Boolean);
+  // 見えているタグの欄を使う(ページ上部の隠れた検索欄も placeholder に「タグ」を含む)
+  const tagInput = all("input[placeholder*='タグ']").find(isVisible);
+  const tagItem = tagInput ? (tagInput.closest<HTMLElement>(".article_setting_item") ?? tagInput.parentElement) : null;
   list(lines, "タグの欄の中(タグの入力欄を含む設定の項目)", tagItem ? [tagItem, ...descendants(tagItem)] : []);
   const categoryItem = all(".article_category, .btn_selectCategory").map((el) => el.closest<HTMLElement>(".article_setting_item") ?? el).find(Boolean);
   list(lines, "カテゴリの欄の中", categoryItem ? [categoryItem, ...descendants(categoryItem)] : []);
 
-  // 8. 開いているダイアログ(カテゴリを選ぶ画面など)の中。選択肢の文字は出す(選ぶときに文字で探すため)
-  const dialogs = all(".modal.show, [role='dialog'], [aria-modal='true'], dialog[open]").filter(isVisible);
-  if (!dialogs.length) list(lines, "開いているダイアログ", []);
+  // 8. 開いているダイアログ(カテゴリを選ぶ画面など)の中。選択肢の文字は出す(選ぶときに文字で探すため)。
+  // ダイアログの形でない選ぶ画面もあるので、class にカテゴリ・ポップアップらしい名前を持つ、見えている要素も見る
+  // (記事の設定の中のカテゴリの欄は 7. で出すので除く)
+  const pickerLike = all("[class*='category' i], [class*='modal' i], [class*='popup' i], [class*='picker' i], [class*='dropdown' i], [class*='overlay' i]").filter(
+    (el) => isVisible(el) && !el.closest(".article_setting_item") && !el.closest("#article_setting_menu"),
+  );
+  const outermost = pickerLike.filter((el) => !pickerLike.some((o) => o !== el && o.contains(el)));
+  const dialogs = [...all(".modal.show, [role='dialog'], [aria-modal='true'], dialog[open]").filter(isVisible), ...outermost].filter(
+    (el, i, a) => a.indexOf(el) === i && !a.some((o) => o !== el && o.contains(el)),
+  );
+  if (!dialogs.length) list(lines, "開いているダイアログ・選ぶ画面らしいもの", []);
   for (const d of dialogs.slice(0, 3)) {
     const els = [d, ...descendants(d)].filter(isVisible);
-    lines.push(`## 開いているダイアログの中 (${els.length} 件${els.length > MAX_PER_GROUP ? `、先頭 ${MAX_PER_GROUP} 件のみ` : ""})`);
-    for (const el of els.slice(0, MAX_PER_GROUP)) lines.push(`- ${describeSafe(el, { choiceText: true })}`);
+    // 選択肢が多いことがあるので、ここだけ多めに出す
+    lines.push(`## 開いているダイアログ・選ぶ画面らしいものの中 (${els.length} 件${els.length > MAX_CHOICES ? `、先頭 ${MAX_CHOICES} 件のみ` : ""})`);
+    for (const el of els.slice(0, MAX_CHOICES)) lines.push(`- ${describeSafe(el, { choiceText: true })}`);
     lines.push(``);
   }
 

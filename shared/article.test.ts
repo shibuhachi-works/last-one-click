@@ -184,6 +184,24 @@ describe("summary・category(追加の対応先の要約・カテゴリ)", () =>
   });
 });
 
+describe("外部公開・読了目安時間(追加の対応先)", () => {
+  it("外部公開は 全文公開 → public、冒頭のみ公開 → limited。分からない値は無し", () => {
+    const read = (v: string) => parseFrontMatter(`---\n外部公開: ${v}\n---\n本文`, parseYaml).data.publishScope;
+    assert.equal(read("全文公開"), "public");
+    assert.equal(read("冒頭のみ公開"), "limited");
+    assert.equal(read("ひみつ"), undefined);
+  });
+
+  it("読了目安時間は 表示する/表示しない・true/false。分からない値は無し", () => {
+    const read = (v: string) => parseFrontMatter(`---\n読了目安時間: ${v}\n---\n本文`, parseYaml).data.readingTime;
+    assert.equal(read("表示する"), true);
+    assert.equal(read("表示しない"), false);
+    assert.equal(read("true"), true);
+    assert.equal(read("false"), false);
+    assert.equal(read("たぶん"), undefined);
+  });
+});
+
 describe("target(入れる先)", () => {
   it("front matter の target を読み、renderArticle が返す。書かなければ無い", async () => {
     assert.equal(parseFrontMatter("---\ntarget: library\n---\n本文", parseYaml).data.target, "library");
