@@ -17,6 +17,9 @@ export type FillOptions = {
   imageWaitMs?: number;
   /** 欄が出るのを待つ長さ */
   fieldWaitMs?: number;
+  /** タグを入れる前に、記事の設定の画面が落ち着くのを待つ長さ(変わらなければ落ち着いたとみる長さ・最長) */
+  settleQuietMs?: number;
+  settleMaxMs?: number;
   /** いま進めていることの文(「タグを入れています…」など)。ページの知らせの文を書き換えるのに使う */
   onProgress?: (what: string) => void;
 };
@@ -28,6 +31,8 @@ const IMAGE_WAIT_MS = 30_000;
 const FIELD_WAIT_MS = 10_000;
 /** タグを入れ終えてから、消えていないかを数え直すまでの長さ */
 const TAG_RECHECK_MS = 1_500;
+const SETTLE_QUIET_MS = 1_000;
+const SETTLE_MAX_MS = 10_000;
 
 /** このページで押すときは、いつもここを通す(「確認画面へ」「下書き保存」も押さない) */
 function click(el: HTMLElement, context: string) {
@@ -79,8 +84,10 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   if (article.thumbnail) await step("見出し画像", () => setEyecatch(S, article.thumbnail!, fieldWait));
   if (article.publishScope) await step("外部公開の範囲", () => setPublishScope(S, article.publishScope!, fieldWait));
   if (summary) await step("要約", () => setSummary(S, summary, fieldWait));
-  if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait));
   if (article.readingTime !== undefined) await step("読了目安時間", () => setReadingTime(S, article.readingTime!, fieldWait));
+  // タグは最後に入れる(ほかの設定や見出し画像のアップロードで、記事の設定が作り直されたときに消えないように)
+  const settle = { quietMs: opts.settleQuietMs ?? SETTLE_QUIET_MS, maxMs: opts.settleMaxMs ?? SETTLE_MAX_MS };
+  if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait, settle));
   if (article.category?.trim()) lines.push(`⚠ カテゴリ: 「${article.category.trim()}」は入れていません。画面の「カテゴリを選択」から選んでください`);
 
   for (const n of notes) lines.push(`⚠ ${EXTRA_SITE_HOST} のエディタでは入らない書き方: ${n}`);
@@ -235,47 +242,99 @@ async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: num
 }
 
 /**
- * タグを 1 つずつ入れて Enter。入ったかは、タグの欄と公認タグの候補の並びの外に、そのタグの文字が増えたかで確かめる
- * (候補の並びや、打っている途中に出る候補に同じ文字があっても、入ったとは数えない)
+ * タグを入れる。入れる前に、記事の設定の画面が落ち着く(しばらく作り直されない)のを待つ。
+ * 入れ終えたあと少し待って数え直し、消えた・入らなかったタグは 1 回だけ入れ直す。
+ * それでも残らなければ、消え方(タグの欄ごと作り直されたか、タグのボタンだけ消えたか)を添えて知らせる
+ * (実機で、いったん入ったタグが消えた。候補のボタンで入れた公認タグも消えたので、送るイベントの違いではなく、
+ * ページが記事の設定を作り直しているとみている)
  */
-async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number): Promise<string> {
+async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number, settle: Settle): Promise<string> {
+  const want = [...new Set(tags.map((t) => t.replace(/^[#＃]/, "").trim()).filter(Boolean))];
+  if (!want.length) return "0 個";
+  await waitQuiet(query(S.settingsMenu) ?? document.body, settle);
+  const firstInput = await waitFor<HTMLInputElement>(S.tagInput, fieldWait);
+  if (!firstInput) throw new Error("タグの欄が見つかりません");
+  const before = new Map(want.map((t) => [t, countTag(S, t)] as const));
+  const missing = () => want.filter((t) => countTag(S, t) <= before.get(t)!);
+
+  const first = await addTagsOnce(S, want, fieldWait, false);
+  if (first.entered.length) await sleep(TAG_RECHECK_MS);
+  let lost = missing();
+  const gone1 = lost.filter((t) => first.entered.includes(t));
+  if (!lost.length) return `${want.length} 個`;
+
+  // 入れ直す前に、消え方を記録しておく(次に直すときの手がかり)
+  const rebuilt = !firstInput.isConnected;
+  await waitQuiet(query(S.settingsMenu) ?? document.body, settle);
+  const second = await addTagsOnce(S, lost, fieldWait, true);
+  if (second.entered.length) await sleep(TAG_RECHECK_MS);
+  lost = missing();
+  const done = want.length - lost.length;
+  const how = rebuilt ? "タグの欄ごと作り直されていました" : "タグのボタンだけが消えていました";
+  if (!lost.length) {
+    return `⚠ ${done} 個。一度目は残らなかったので入れ直しました(${[...new Set([...gone1, ...first.failed])].join(", ")}。${gone1.length ? how : "入ったか確かめられませんでした"})。画面で確かめてください`;
+  }
+  const gone = lost.filter((t) => first.entered.includes(t) || second.entered.includes(t));
+  const failed = lost.filter((t) => !gone.includes(t));
+  const problems: string[] = [];
+  if (failed.length) problems.push(`入ったか確かめられなかったタグがあります(${failed.join(", ")})`);
+  if (gone.length) problems.push(`いったん入ったあと、画面から消えたタグがあります(${gone.join(", ")}。${how})`);
+  throw new Error(`${done ? `${done} 個は入れました。` : "1 個も残っていません。"}入れ直しても残りませんでした。${problems.join("。")}。画面で確かめてください`);
+}
+
+/** タグを 1 つずつ入れる。少し待っても増えたままのタグを entered、増えなかったタグを failed に返す */
+async function addTagsOnce(S: ExtraSiteSelectors, tags: string[], fieldWait: number, retry: boolean): Promise<{ entered: string[]; failed: string[] }> {
+  const entered: string[] = [];
   const failed: string[] = [];
-  /** 入ったタグと、入れる前に同じタグがいくつあったか(最後に、消えていないかを数え直す) */
-  const entered: { tag: string; before: number }[] = [];
-  const countOf = (tag: string) => countTag(S, tag);
-  for (const raw of tags) {
-    const tag = raw.replace(/^[#＃]/, "").trim();
-    if (!tag) continue;
+  for (const tag of tags) {
     const input = await waitFor<HTMLInputElement>(S.tagInput, fieldWait);
     if (!input) throw new Error("タグの欄が見つかりません");
-    const before = countOf(tag);
+    const before = countTag(S, tag);
     const suggest = findSuggest(S, tag);
-    if (suggest) {
+    if (suggest && !suggest.classList.contains("is_selected")) {
       // 公認タグは、候補のボタンを押して入れる(画面の「クリックするとタグが追加されます」と同じ)
-      if (!suggest.classList.contains("is_selected")) click(suggest, `公認タグ: #${tag}`);
+      click(suggest, `公認タグ: #${tag}`);
+    } else if (suggest && !retry) {
+      // 選ばれた印があって、前から入っている公認タグ
+      if (before > 0) entered.push(tag);
+      else failed.push(tag);
+      continue;
     } else {
       // 手で打って Enter を押したときと同じく、input と keydown だけを送る。
-      // keypress・keyup・change まで送ると、実機では入ったタグが消えた(手で入れたときは消えない)
+      // (入れ直しで、印だけ残った公認タグも打って入れる。印の付いた候補を押すと外れることがあるため)
       input.focus();
       setInputValue(input, tag);
       input.dispatchEvent(enterEvent("keydown"));
     }
     // 増えたあと、少し待っても増えたままなら入ったとする(打っている途中だけ出るものを数えないように)
-    const added = await waitUntil(() => (countOf(tag) > before ? true : null), 2_000);
+    const added = await waitUntil(() => (countTag(S, tag) > before ? true : null), 2_000);
     if (added) await sleep(500);
-    if (added && countOf(tag) > before) entered.push({ tag, before });
-    else if (suggest?.classList.contains("is_selected") && countOf(tag) > 0) entered.push({ tag, before: 0 }); // 前から入っていた公認タグ
+    if (added && countTag(S, tag) > before) entered.push(tag);
     else failed.push(tag);
   }
-  // 入れ終えたあと、少し待ってから数え直す。いったん入ったのに、あとで消えるタグがある(実機で見た)
-  if (entered.length) await sleep(TAG_RECHECK_MS);
-  const gone = entered.filter((e) => countOf(e.tag) <= e.before).map((e) => e.tag);
-  const done = entered.length - gone.length;
-  const problems: string[] = [];
-  if (failed.length) problems.push(`入ったか確かめられなかったタグがあります(${failed.join(", ")})`);
-  if (gone.length) problems.push(`いったん入ったあと、画面から消えたタグがあります(${gone.join(", ")})`);
-  if (problems.length) throw new Error(`${done ? `${done} 個は入れました。` : "1 個も残っていません。"}${problems.join("。")}。画面で確かめてください`);
-  return `${done} 個`;
+  return { entered, failed };
+}
+
+/** 画面が落ち着くのを待つ設定(しばらく作り直されなければ落ち着いたとみる) */
+type Settle = { quietMs: number; maxMs: number };
+
+/** root の中が quietMs のあいだ変わらなくなるまで待つ(最長 maxMs)。見出し画像のアップロードのあとなどに使う */
+function waitQuiet(root: Node, { quietMs, maxMs }: Settle): Promise<void> {
+  return new Promise((resolve) => {
+    let timer = setTimeout(done, quietMs);
+    const limit = setTimeout(done, maxMs);
+    const mo = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(done, quietMs);
+    });
+    mo.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
+    function done() {
+      mo.disconnect();
+      clearTimeout(timer);
+      clearTimeout(limit);
+      resolve();
+    }
+  });
 }
 
 /** 「#タグ」の文字を、比べる形にそろえる(先頭の #・終わりの × の印・空白を外す) */

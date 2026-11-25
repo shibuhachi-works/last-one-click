@@ -67,7 +67,7 @@ const PAGE = `<!doctype html><html><body>
       img.dataset.name = e.target.files[0].name;
       document.getElementById("eyecatch_preview").append(img);
     });
-    const tag = document.querySelector('input[placeholder="タグを追加してください"]');
+    let tag = document.querySelector('input[placeholder="タグを追加してください"]');
     // 足したタグは、実機と同じく入力欄の前の button.tagItems(「#タグ」と × の印)
     function addChip(text) {
       const b = document.createElement("button");
@@ -79,27 +79,44 @@ const PAGE = `<!doctype html><html><body>
       b.append(x);
       tag.before(b);
     }
+    // ページが記事の設定を作り直したときのまね: 足したタグと、候補の選ばれた印を消す。__tagRebuild なら入力欄も作り直す
+    function vanish() {
+      document.querySelectorAll("#tags .tagItems").forEach((c) => c.remove());
+      document.querySelectorAll(".article_tag_suggest_item.is_selected").forEach((b) => b.classList.remove("is_selected"));
+      if (window.__tagRebuild) {
+        const fresh = tag.cloneNode(true);
+        window.__tagRebuild = false;
+        tag.replaceWith(fresh);
+        tag = fresh;
+        listen();
+      }
+    }
     // 公認タグの候補を押すと、そのタグが足される(実機の「クリックするとタグが追加されます」のまね)
     document.querySelectorAll(".article_tag_suggest_item").forEach((b) => b.addEventListener("click", () => {
       if (b.classList.contains("is_selected")) return;
       b.classList.add("is_selected");
       addChip(b.textContent.replace(/^#/, ""));
     }));
-    // 打っている途中は、候補の並びに打った文字を出す(入ったと取り違えないかを見るため)
-    tag.addEventListener("input", () => { document.getElementById("typing").textContent = tag.value; });
-    // keyCode で Enter を見る(KeyboardEvent の初期値の keyCode は 0)。window.__tagBroken なら Enter で欄を空にするだけ
-    tag.addEventListener("keydown", (e) => {
-      if (e.keyCode !== 13 || !tag.value) return;
-      if (window.__tagBroken) { tag.value = ""; return; }
-      // window.__tagVanish なら、足したタグを少しあとで消す(実機で、いったん入ったタグが消えたときのまね)
-      if (window.__tagVanish && !window.__vanishSet) { window.__vanishSet = true; setTimeout(() => { document.querySelectorAll("#tags .tagItems").forEach((c) => c.remove()); }, 1800); }
-      addChip(tag.value);
-      tag.value = "";
-    });
-    // 手で Enter を押したときに来ない keypress・change が来たら、足したタグを外す
-    // (実機で、拡張が入れたタグだけが消えたときのまね。拡張は keydown と input だけを送ること)
-    tag.addEventListener("keypress", (e) => { if (e.keyCode === 13) document.querySelector("#tags .tagItems:last-of-type")?.remove(); });
-    tag.addEventListener("change", () => { document.querySelectorAll("#tags .tagItems").forEach((c) => c.remove()); });
+    function listen() {
+      // 打っている途中は、候補の並びに打った文字を出す(入ったと取り違えないかを見るため)
+      tag.addEventListener("input", () => { document.getElementById("typing").textContent = tag.value; });
+      // keyCode で Enter を見る(KeyboardEvent の初期値の keyCode は 0)。window.__tagBroken なら Enter で欄を空にするだけ
+      tag.addEventListener("keydown", (e) => {
+        if (e.keyCode !== 13 || !tag.value) return;
+        if (window.__tagBroken) { tag.value = ""; return; }
+        // window.__tagVanish なら、足したタグを少しあとで消す(実機で、いったん入ったタグが消えたときのまね)
+        // window.__tagVanishAlways なら、入れるたびに消す。window.__tagRebuild なら、一度だけタグの欄ごと作り直す
+        if ((window.__tagVanish || window.__tagRebuild) && !window.__vanishSet) { window.__vanishSet = true; setTimeout(vanish, 1800); }
+        if (window.__tagVanishAlways) setTimeout(vanish, 1800);
+        addChip(tag.value);
+        tag.value = "";
+      });
+      // 手で Enter を押したときに来ない keypress・change が来たら、足したタグを外す
+      // (実機で、拡張が入れたタグだけが消えたときのまね。拡張は keydown と input だけを送ること)
+      tag.addEventListener("keypress", (e) => { if (e.keyCode === 13) document.querySelector("#tags .tagItems:last-of-type")?.remove(); });
+      tag.addEventListener("change", () => { document.querySelectorAll("#tags .tagItems").forEach((c) => c.remove()); });
+    }
+    listen();
   </script>
 </body></html>`;
 
@@ -171,7 +188,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
         let result = null;
         let error = null;
         try {
-          result = await (globalThis as any).__fill(article, ["見本の知らせ"], { imageWaitMs: 1000, fieldWaitMs: 1000, ...opts });
+          result = await (globalThis as any).__fill(article, ["見本の知らせ"], { imageWaitMs: 1000, fieldWaitMs: 1000, settleQuietMs: 100, settleMaxMs: 1000, ...opts });
         } catch (e) {
           error = (e as Error).message;
         }
@@ -272,11 +289,34 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 要約が 136 字で、欄の上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
-  it("いったん入ったタグが、あとで画面から消えたら ✗ で知らせる", async () => {
+  it("いったん入ったタグが一度だけ消えたら、入れ直して ⚠ で知らせる", async () => {
     await page.evaluate(() => ((window as any).__tagVanish = true));
     const r = await run(ARTICLE);
+    assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
+    assert.ok(
+      r.result!.lines.some((l) => l === "⚠ タグ: 2 個。一度目は残らなかったので入れ直しました(一つめ, 二つめ。タグのボタンだけが消えていました)。画面で確かめてください"),
+      r.result!.lines.join("\n"),
+    );
+  });
+
+  it("タグの欄ごと作り直されたときも入れ直し、消え方を知らせる", async () => {
+    await page.evaluate(() => ((window as any).__tagRebuild = true));
+    const r = await run(ARTICLE);
+    assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
+    assert.ok(r.result!.lines.some((l) => l.includes("タグの欄ごと作り直されていました")), r.result!.lines.join("\n"));
+  });
+
+  it("入れ直しても消えるなら ✗ で知らせる。タグは最後に入れる", async () => {
+    await page.evaluate(() => ((window as any).__tagVanishAlways = true));
+    const r = await run(ARTICLE);
     assert.deepEqual(r.tags, []);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個も残っていません。いったん入ったあと、画面から消えたタグがあります(一つめ, 二つめ)")), r.result!.lines.join("\n"));
+    const tagLine = r.result!.lines.findIndex((l) => l.startsWith("✗ タグ:"));
+    assert.ok(
+      r.result!.lines[tagLine]?.startsWith("✗ タグ: 1 個も残っていません。入れ直しても残りませんでした。いったん入ったあと、画面から消えたタグがあります(一つめ, 二つめ。タグのボタンだけが消えていました)"),
+      r.result!.lines.join("\n"),
+    );
+    // 記事の設定のうち、タグがいちばん後(読了目安時間よりも後)
+    assert.ok(r.result!.lines.slice(tagLine + 1).every((l) => !/^[✓✗] /.test(l)), r.result!.lines.join("\n"));
   });
 
   it("タグが入らなかったら、候補の並びに同じ文字があっても、入ったとは数えない", async () => {
@@ -284,7 +324,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     const r = await run(ARTICLE);
     // 公認タグ(一つめ)は候補のボタンで入る。打って入れる二つめは、Enter で欄が空になるだけで入らない
     assert.deepEqual(r.tags, ["一つめ"]);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個は入れました。入ったか確かめられなかったタグがあります(二つめ)")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個は入れました。入れ直しても残りませんでした。入ったか確かめられなかったタグがあります(二つめ)")), r.result!.lines.join("\n"));
   });
 
   it("開くボタンのセレクタが「下書き保存」「確認画面へ」に当たっても押さない", async () => {
