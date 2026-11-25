@@ -86,7 +86,7 @@ describe("templates/note/article.md(見本)", () => {
     assert.equal(plain.category, undefined);
     const extra = await renderArticle(src.replace(/^# summary: /m, "summary: ").replace(/^# category: /m, "category: "), convert);
     assert.equal(extra.summary, "記事の要約");
-    assert.equal(extra.category, "カテゴリの名前");
+    assert.equal(extra.category, "大 > 小");
     assert.equal(plain.publishScope, undefined);
     assert.equal(plain.readingTime, undefined);
     const extra2 = await renderArticle(src.replace(/^# 外部公開: /m, "外部公開: ").replace(/^# 読了目安時間: /m, "読了目安時間: "), convert);

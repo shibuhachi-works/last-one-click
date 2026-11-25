@@ -1,10 +1,11 @@
 // 追加の対応先(library.libecity.com)の編集画面に、記事を下書きとして入れる(#120)。
 // 今開いているタブに入れて止まる。新しいタブは開かない。
 // 押さない: 「確認画面へ」(公開へ進む)・「下書き保存」(人が中身を確かめてから押す)・「公開」「投稿」を含むもの。
-// 押してよいのは、記事の設定がたたまれているときの開くボタンと、外部公開の範囲の radio・読了目安時間の checkbox だけ
+// 押してよいのは、記事の設定がたたまれているときの開くボタン、外部公開の範囲の radio・読了目安時間の checkbox、
+// 公認タグの候補、カテゴリを選ぶ画面(開くボタン・大きなカテゴリの開閉・小さなカテゴリ・閉じるボタン)だけ
 // (どれも safeClick に EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS を渡す)。
 // 記事の設定の「要約」・外部公開の範囲・読了目安時間は front matter に書いてあれば入れる(押すのは radio・checkbox だけ)。
-// カテゴリには触らない(人が入れる。今は知らせるだけ)。
+// カテゴリは、front matter の category(「大 > 小」か小だけ)と名前がちょうど 1 つ合うときだけ選ぶ。
 // 画面の作りは #119 の診断から決めた(shared/extra-site.ts の EXTRA_SITE_DEFAULT_SELECTORS)
 import { EXTRA_SITE_HOST, acceptsFile, extraSiteSelectors, type ExtraSiteArticle, type ExtraSiteSelectors } from "../../../shared/extra-site";
 import { EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS } from "../../../shared/forbidden-click";
@@ -77,18 +78,19 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   }
 
   const summary = article.summary?.trim() ?? "";
-  const settings = article.thumbnail || article.hashtags.length || summary || article.publishScope || article.readingTime !== undefined;
+  const settings = article.thumbnail || article.hashtags.length || summary || article.publishScope || article.readingTime !== undefined || article.category?.trim();
   if (settings) {
     await step("記事の設定を開く", () => openSettings(S, fieldWait));
   }
   if (article.thumbnail) await step("見出し画像", () => setEyecatch(S, article.thumbnail!, fieldWait));
   if (article.publishScope) await step("外部公開の範囲", () => setPublishScope(S, article.publishScope!, fieldWait));
+  const category = article.category?.trim() ?? "";
+  if (category) await step("カテゴリ", () => setCategory(S, category, fieldWait));
   if (summary) await step("要約", () => setSummary(S, summary, fieldWait));
   if (article.readingTime !== undefined) await step("読了目安時間", () => setReadingTime(S, article.readingTime!, fieldWait));
   // タグは最後に入れる(ほかの設定や見出し画像のアップロードで、記事の設定が作り直されたときに消えないように)
   const settle = { quietMs: opts.settleQuietMs ?? SETTLE_QUIET_MS, maxMs: opts.settleMaxMs ?? SETTLE_MAX_MS };
   if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait, settle));
-  if (article.category?.trim()) lines.push(`⚠ カテゴリ: 「${article.category.trim()}」は入れていません。画面の「カテゴリを選択」から選んでください`);
 
   for (const n of notes) lines.push(`⚠ ${EXTRA_SITE_HOST} のエディタでは入らない書き方: ${n}`);
   return { ok, lines };
@@ -212,6 +214,107 @@ async function setPublishScope(S: ExtraSiteSelectors, scope: "public" | "limited
   if (!radio.checked) click(radio, `外部公開の範囲: ${label}`);
   if (!(await waitUntil(() => (radio.checked ? true : null), 1_000))) throw new Error(`「${label}」を選べたか確かめられませんでした。画面で確かめてください`);
   return label;
+}
+
+/** カテゴリの「大 > 小」を分ける。区切りは >・＞・/・／。1 つだけなら小さなカテゴリ */
+export function splitCategory(category: string): { main?: string; sub: string } {
+  const parts = category.split(/\s*[>＞/／]\s*/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2) return { main: parts[0], sub: parts[parts.length - 1]! };
+  return { sub: parts[0] ?? "" };
+}
+
+/** 比べるための形(空白を外す) */
+function norm(text: string | null | undefined): string {
+  return (text ?? "").replace(/\s+/g, "");
+}
+
+/**
+ * カテゴリを選ぶ。「カテゴリを選択」を押して選ぶ画面を開き、名前がちょうど 1 つ合う小さなカテゴリを押す。
+ * 合うものが無い・2 つ以上あるときは、何も選ばずに画面を閉じて知らせる。すでに同じカテゴリなら押さない
+ */
+async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: number): Promise<string> {
+  const { main, sub } = splitCategory(category);
+  if (!sub) throw new Error(`カテゴリ「${category}」を読めませんでした。「大きなカテゴリ > 小さなカテゴリ」の形で書いてください`);
+  const open = await waitFor(S.categoryOpen, fieldWait);
+  if (!open) throw new Error("「カテゴリを選択」のボタンが見つかりません。画面で選んでください");
+  const value = query<HTMLInputElement>(S.categoryValue, { hidden: true });
+  // すでに選ばれていれば押さない。開くボタンの文字(「大 > 小」)を分けて、それぞれ名前全体で比べる
+  const current = splitCategory(open.textContent ?? "");
+  const same = norm(current.sub) === norm(sub) && (!main || norm(current.main) === norm(main));
+  if (value?.value && current.main && same) return `${open.textContent?.trim()}(前から)`;
+
+  click(open, "カテゴリを選択");
+  const dialog = await waitFor(S.categoryDialog, fieldWait);
+  if (!dialog) throw new Error("カテゴリを選ぶ画面が開きませんでした。画面で選んでください");
+  const close = () => {
+    const btn = queryIn<HTMLElement>(dialog, S.categoryClose);
+    if (btn && isVisible(btn)) click(btn, "カテゴリを選ぶ画面を閉じる");
+  };
+
+  // 大きなカテゴリを書いていれば、その中だけを見る
+  const groups = queryAllIn(document, S.categoryMain).filter((g) => !main || norm(queryIn(g, S.categoryMainName)?.textContent) === norm(main));
+  if (main && !groups.length) {
+    close();
+    throw new Error(`大きなカテゴリ「${main}」が見つかりません。画面で選んでください`);
+  }
+  const hits: { group: HTMLElement; button: HTMLElement }[] = [];
+  for (const group of groups) {
+    for (const button of queryAllIn(group, S.categorySub)) {
+      const name = queryIn(button, S.categorySubName)?.textContent ?? button.textContent;
+      if (norm(name) === norm(sub)) hits.push({ group, button });
+    }
+  }
+  if (hits.length !== 1) {
+    close();
+    if (!hits.length) throw new Error(`カテゴリ「${category}」が見つかりません。画面で選んでください`);
+    throw new Error(`「${sub}」というカテゴリが ${hits.length} つあります。大きなカテゴリも書いてください(例: 大きなカテゴリ > ${sub})`);
+  }
+  const { group, button } = hits[0]!;
+  const mainName = queryIn(group, S.categoryMainName)?.textContent?.trim() ?? main ?? "";
+  // 大きなカテゴリがたたまれていれば開く
+  if (!isVisible(button)) {
+    const toggle = queryIn<HTMLElement>(group, S.categoryMainToggle);
+    if (toggle) click(toggle, `カテゴリ: ${mainName}を開く`);
+    await waitUntil(() => (isVisible(button) ? true : null), 1_000);
+  }
+  const before = value?.value ?? "";
+  click(button, `カテゴリ: ${mainName} > ${sub}`);
+  const chosen = await waitUntil(() => {
+    const v = query<HTMLInputElement>(S.categoryValue, { hidden: true });
+    const t = splitCategory(query(S.categoryOpen, { hidden: true })?.textContent ?? "");
+    return (v && v.value && v.value !== before) || norm(t.sub) === norm(sub) ? true : null;
+  }, 2_000);
+  // 選んでも開いたままなら閉じる
+  await sleep(300);
+  if (isVisible(dialog)) close();
+  if (!chosen) throw new Error(`カテゴリ「${mainName} > ${sub}」を選べたか確かめられませんでした。画面で確かめてください`);
+  return `${mainName} > ${sub}`;
+}
+
+/** root の中で、セレクタの候補を先頭から見て最初に当たった要素 */
+function queryIn<T extends HTMLElement = HTMLElement>(root: ParentNode, selectors: string[]): T | null {
+  for (const s of selectors) {
+    try {
+      const el = root.querySelector<T>(s);
+      if (el) return el;
+    } catch {
+      // 書き方の誤ったセレクタは飛ばす
+    }
+  }
+  return null;
+}
+
+/** root の中で、セレクタの候補のうち最初に 1 つ以上当たったものの全部 */
+function queryAllIn(root: ParentNode, selectors: string[]): HTMLElement[] {
+  for (const s of selectors) {
+    try {
+      const els = Array.from(root.querySelectorAll<HTMLElement>(s));
+      if (els.length) return els;
+    } catch {
+      // 書き方の誤ったセレクタは飛ばす
+    }
+  }
+  return [];
 }
 
 /** 読了目安時間を出すかの checkbox を合わせる(押すのは checkbox だけ。合っていれば押さない) */
@@ -416,16 +519,16 @@ export function resultMessage(r: FillResult): { text: string; kind: "ok" | "warn
     ? "✅ 下書きを入れました。"
     : "⚠️ 一部は入れられませんでした。足りないものは画面で入れてください。";
   return {
-    text: `${head}\n中身を確かめてから、画面の「下書き保存」を押してください。拡張は「下書き保存」も「確認画面へ」も押しません。\n${notTouched(r)}\n\n${r.lines.join("\n")}`,
+    text: `${[head, "中身を確かめてから、画面の「下書き保存」を押してください。拡張は「下書き保存」も「確認画面へ」も押しません。", notTouched(r)].filter(Boolean).join("\n")}\n\n${r.lines.join("\n")}`,
     kind: warn ? "warn" : "ok",
   };
 }
 
-/** 入れていない欄の知らせ。要約・外部公開の範囲は、入れたとき(✓)だけ外す */
+/** 入れていない欄の知らせ。要約・カテゴリ・外部公開の範囲は、入れたとき(✓)だけ外す。全部入れたら空 */
 function notTouched(r: FillResult): string {
   const filled = (name: string) => r.lines.some((l) => l.startsWith(`✓ ${name}`));
-  const items = [...(filled("要約") ? [] : ["要約"]), "カテゴリ", ...(filled("外部公開の範囲") ? [] : ["外部公開の範囲"])];
-  return `${items.join("・")}は入れていません。`;
+  const items = ["要約", "カテゴリ", "外部公開の範囲"].filter((name) => !filled(name));
+  return items.length ? `${items.join("・")}は入れていません。` : "";
 }
 
 // ---------------------------------------------------------------------------

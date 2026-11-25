@@ -20,6 +20,10 @@ const PAGE = `<!doctype html><html><body>
       <div id="setting_body" style="display:none">
         <input type="file" id="fileInput" class="js_dragDropFileInput" accept="image/*" style="display:none">
         <div id="eyecatch_preview"></div>
+        <div class="article_setting_item article_category">
+          <input type="hidden" name="category" value="">
+          <button type="button" class="btn_selectCategory">カテゴリを選択</button>
+        </div>
         <textarea id="summary" maxlength="140"></textarea>
         <div class="article_setting_item article_tag_input">
           <div class="article_tag_inputArea" id="tags"><input type="text" placeholder="タグを追加してください"></div>
@@ -33,6 +37,22 @@ const PAGE = `<!doctype html><html><body>
     <button type="button" id="save">下書き保存</button>
     <button type="button" id="confirm">確認画面へ</button>
   </form>
+  <!-- カテゴリを選ぶ画面(実機の作り: #selectCategory の中の li.main_cat_item に .cat_name と button.sub_cat_inner > .sub_cat_name) -->
+  <div id="selectCategory" style="display:none">
+    <div class="modal-header"><p>カテゴリを選択</p><button type="button" class="close" aria-label="Close">×</button></div>
+    <ul class="category_lists">
+      <li class="main_cat_item is_open"><div class="main_cat_inner"><span class="cat_name">貯める</span></div>
+        <div class="sub_cat_wrap"><ul class="sub_cat">
+          <li class="sub_cat_item"><button type="button" class="sub_cat_inner"><span class="sub_cat_name">家計管理の準備</span></button></li>
+          <li class="sub_cat_item"><button type="button" class="sub_cat_inner"><span class="sub_cat_name">その他</span></button></li>
+        </ul></div></li>
+      <li class="main_cat_item"><div class="main_cat_inner"><span class="cat_name">稼ぐ</span></div>
+        <div class="sub_cat_wrap" style="display:none"><ul class="sub_cat">
+          <li class="sub_cat_item"><button type="button" class="sub_cat_inner"><span class="sub_cat_name">ITリテラシー</span></button></li>
+          <li class="sub_cat_item"><button type="button" class="sub_cat_inner"><span class="sub_cat_name">その他</span></button></li>
+        </ul></div></li>
+    </ul>
+  </div>
   <script>
     window.__clicks = [];
     window.__submitted = 0;
@@ -40,6 +60,20 @@ const PAGE = `<!doctype html><html><body>
       const b = e.target.closest("button, [role=button]");
       if (b) window.__clicks.push(b.id || b.className);
     }, true);
+    // カテゴリ: 開くボタンで画面を出す。大きなカテゴリの名前を押すと開閉する。小さなカテゴリを押すと選んで閉じる
+    const catDialog = document.getElementById("selectCategory");
+    document.querySelector(".btn_selectCategory").addEventListener("click", () => { catDialog.style.display = "block"; });
+    catDialog.querySelector(".close").addEventListener("click", () => { catDialog.style.display = "none"; });
+    catDialog.querySelectorAll(".main_cat_inner").forEach((m) => m.addEventListener("click", () => {
+      const w = m.nextElementSibling;
+      w.style.display = w.style.display === "none" ? "" : "none";
+    }));
+    catDialog.querySelectorAll(".sub_cat_inner").forEach((b) => b.addEventListener("click", () => {
+      const main = b.closest(".main_cat_item").querySelector(".cat_name").textContent;
+      document.querySelector('input[name="category"]').value = main + "/" + b.textContent;
+      document.querySelector(".btn_selectCategory").textContent = main + " > " + b.textContent;
+      if (!window.__catStayOpen) catDialog.style.display = "none";
+    }));
     document.querySelector(".article_setting_menu_index").addEventListener("click", () => {
       document.getElementById("setting_body").style.display = "block";
     });
@@ -162,6 +196,8 @@ type Run = {
   summary: string;
   scope: string;
   readingTime: boolean;
+  category: string;
+  categoryOpen: boolean;
 };
 
 describe("追加の対応先の編集画面に入れる (DOM)", () => {
@@ -206,6 +242,8 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
           summary: (document.getElementById("summary") as HTMLTextAreaElement).value,
           scope: Array.from(document.querySelectorAll<HTMLInputElement>('input[name="setting_publishScope"]')).find((r) => r.checked)?.id ?? "",
           readingTime: (document.getElementById("setting_estimatedReadingTime") as HTMLInputElement).checked,
+          category: (document.querySelector('input[name="category"]') as HTMLInputElement).value,
+          categoryOpen: (document.getElementById("selectCategory") as HTMLElement).style.display !== "none",
         };
       },
       { article, opts },
@@ -249,15 +287,69 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.match(await page.evaluate((res) => (globalThis as any).__result(res).text, r.result), /要約・カテゴリ・外部公開の範囲は入れていません/);
   });
 
-  it("front matter の summary を要約の欄に入れ、カテゴリは入れずに知らせる", async () => {
-    const r = await run({ ...ARTICLE, summary: "見本の要約です。", category: "見本のカテゴリ" });
+  it("front matter の summary を要約の欄に入れる。結果に、入れていない欄として出さない", async () => {
+    const r = await run({ ...ARTICLE, summary: "見本の要約です。" });
     assert.equal(r.summary, "見本の要約です。");
     assert.ok(r.result!.lines.includes("✓ 要約: 8 字"), r.result!.lines.join("\n"));
-    assert.ok(r.result!.lines.some((l) => l.startsWith("⚠ カテゴリ: 「見本のカテゴリ」は入れていません")));
     assert.equal(r.scope, "");
     const text = await page.evaluate((res) => (globalThis as any).__result(res).text, r.result);
     assert.match(text, /カテゴリ・外部公開の範囲は入れていません/);
     assert.doesNotMatch(text, /要約・カテゴリ/);
+  });
+
+  it("カテゴリを「大 > 小」で選ぶ。たたまれた大きなカテゴリは開き、選んだら画面は閉じたまま", async () => {
+    const r = await run({ ...ARTICLE, category: "稼ぐ > ITリテラシー" });
+    assert.equal(r.category, "稼ぐ/ITリテラシー");
+    assert.equal(r.categoryOpen, false);
+    assert.ok(r.result!.lines.includes("✓ カテゴリ: 稼ぐ > ITリテラシー"), r.result!.lines.join("\n"));
+    assert.deepEqual(r.clicks.filter((c) => /cat|Category/i.test(c)), ["btn_selectCategory", "sub_cat_inner"]);
+    const text = await page.evaluate((res) => (globalThis as any).__result(res).text, r.result);
+    assert.doesNotMatch(text, /カテゴリ・|・カテゴリ/);
+    // 小さなカテゴリだけでも、1 つに決まれば選ぶ。全角の ＞ でもよい
+    const r2 = await run({ ...ARTICLE, category: "家計管理の準備" });
+    assert.equal(r2.category, "貯める/家計管理の準備");
+    const r3 = await run({ ...ARTICLE, category: "稼ぐ＞ITリテラシー" });
+    assert.equal(r3.category, "稼ぐ/ITリテラシー");
+  });
+
+  it("選んでも画面が開いたままなら、閉じるボタンで閉じる", async () => {
+    await page.evaluate(() => ((window as any).__catStayOpen = true));
+    const r = await run({ ...ARTICLE, category: "稼ぐ > ITリテラシー" });
+    assert.equal(r.category, "稼ぐ/ITリテラシー");
+    assert.equal(r.categoryOpen, false);
+  });
+
+  it("同じ名前のカテゴリが 2 つある・見つからないときは、選ばずに画面を閉じて ✗ で知らせる", async () => {
+    const r = await run({ ...ARTICLE, category: "その他" });
+    assert.equal(r.category, "");
+    assert.equal(r.categoryOpen, false);
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「その他」というカテゴリが 2 つあります。大きなカテゴリも書いてください")), r.result!.lines.join("\n"));
+    const r2 = await run({ ...ARTICLE, category: "見本のカテゴリ" });
+    assert.equal(r2.category, "");
+    assert.equal(r2.categoryOpen, false);
+    assert.ok(r2.result!.lines.some((l) => l.startsWith("✗ カテゴリ: カテゴリ「見本のカテゴリ」が見つかりません")), r2.result!.lines.join("\n"));
+    const r3 = await run({ ...ARTICLE, category: "増やす > ITリテラシー" });
+    assert.ok(r3.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 大きなカテゴリ「増やす」が見つかりません")), r3.result!.lines.join("\n"));
+  });
+
+  it("すでに同じカテゴリが選ばれていれば、押さない", async () => {
+    await page.evaluate(() => {
+      (document.querySelector('input[name="category"]') as HTMLInputElement).value = "稼ぐ/ITリテラシー";
+      document.querySelector(".btn_selectCategory")!.textContent = "稼ぐ > ITリテラシー";
+    });
+    const r = await run({ ...ARTICLE, category: "稼ぐ > ITリテラシー" });
+    assert.ok(r.result!.lines.includes("✓ カテゴリ: 稼ぐ > ITリテラシー(前から)"), r.result!.lines.join("\n"));
+    assert.ok(!r.clicks.includes("btn_selectCategory"));
+  });
+
+  it("選ばれているカテゴリと名前の一部だけ合うときは、選ばれているとみない", async () => {
+    await page.evaluate(() => {
+      (document.querySelector('input[name="category"]') as HTMLInputElement).value = "貯める/家計管理の準備";
+      document.querySelector(".btn_selectCategory")!.textContent = "貯める > 家計管理の準備";
+    });
+    const r = await run({ ...ARTICLE, category: "準備" });
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: カテゴリ「準備」が見つかりません")), r.result!.lines.join("\n"));
+    assert.equal(r.categoryOpen, false);
   });
 
   it("外部公開の範囲・読了目安時間を、front matter のとおりに合わせる。結果に、入れていない欄として出さない", async () => {
