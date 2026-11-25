@@ -1,6 +1,14 @@
 :root { font: 13px/1.5 system-ui, sans-serif; color: #222; }
 body { width: 420px; margin: 0; padding: 12px 14px 14px; box-sizing: border-box; }
 h1 { font-size: 15px; margin: 0; }
+/* 手順の見出し(① ファイルを入れる ② 入れる内容を確かめる ③ 下書きを作る)。上から順に読めば何をするか分かるように */
+.step { font-size: 13px; margin: 14px 0 6px; padding-top: 10px; border-top: 1px solid #e6e9ec; color: #1f2328; }
+.step.first { margin-top: 8px; padding-top: 0; border-top: 0; }
+/* ② は、読み込んだ内容が出るまで見出しごと出さない */
+#step-check:not(:has(#fields:not([hidden]), #markdown-box:not([hidden]))) { display: none; }
+#step-check .fields-head { margin-top: 0; }
+#markdown-fold { margin-top: 8px; }
+#markdown-fold label { margin-top: 6px; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 button.small { padding: 3px 8px; font-size: 12px; }
 body.window { width: auto; max-width: 560px; margin: 0 auto; }
