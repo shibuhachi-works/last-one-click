@@ -45,8 +45,13 @@ button.primary:hover { background: #35b3a0; }
 button:disabled { opacity: .6; cursor: default; }
 button.copied, button.copied:hover { background: #41c9b4; border-color: #35b3a0; color: #fff; font-weight: 700; }
 .hint { color: #666; font-size: 12px; margin: 6px 0 0; }
-/* ログイン中の note アカウント(#106)。「note の下書きを作成」のすぐ上に出す */
-.account { display: flex; align-items: center; gap: 6px; margin: 12px 0 -4px; font-size: 12px; color: #444; }
+/* ログイン中のアカウント(#106)。「note の下書きを作成」のすぐ上に、「(ドメイン): [アイコン] 名前」を 1 行ずつ出す。
+   ドメインの列の幅をそろえる(subgrid)。どの行も出ていなければ、枠ごと出さない */
+.accounts { display: grid; grid-template-columns: max-content 1fr; column-gap: 6px; row-gap: 4px; margin: 12px 0 -4px; font-size: 12px; color: #444; }
+.accounts:not(:has(.account:not([hidden]))) { display: none; }
+.account { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; margin: 0; }
+.account[hidden] { display: none; }
+.account .who { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .account img { width: 20px; height: 20px; border-radius: 50%; flex: none; }
 /* 記事の front matter の note_account(#102)。違うときは注意の色にする */
 .account-target { margin: 12px 0 -4px; font-size: 12px; color: #444; }

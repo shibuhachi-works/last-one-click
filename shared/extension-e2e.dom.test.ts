@@ -692,7 +692,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       const popup = await context.newPage();
       await popup.goto(`chrome-extension://${extensionId}/popup.html`);
       await popup.locator("#account").waitFor({ state: "visible", timeout: 10_000 });
-      assert.deepEqual(await accountIn(popup, "popup"), { text: "ログイン中:見本の書き手(@sample_writer)", icon: "https://note.com/e2e-icon.png" });
+      assert.deepEqual(await accountIn(popup, "popup"), { text: "note.com:見本の書き手(@sample_writer)", icon: "https://note.com/e2e-icon.png" });
       // 名前・ID・アイコンの URL は chrome.storage に残さない
       const stored = await popup.evaluate(async () => {
         const c = (globalThis as unknown as { chrome: { storage: Record<"local" | "session", { get: (k: null) => Promise<unknown> }> } }).chrome;
@@ -765,7 +765,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await withCurrentUser({ status: 200, contentType: "application/json", body: JSON.stringify(sample) }, async (requests) => {
       const popup = await openPopupWithoutNoteTabs();
       await popup.locator("#account").waitFor({ state: "visible", timeout: 10_000 });
-      assert.deepEqual(await accountIn(popup, "popup"), { text: "ログイン中:タブ無しの書き手(@no_tab_writer)", icon: "https://note.com/e2e-icon2.png" });
+      assert.deepEqual(await accountIn(popup, "popup"), { text: "note.com:タブ無しの書き手(@no_tab_writer)", icon: "https://note.com/e2e-icon2.png" });
       const stored = await popup.evaluate(async () => {
         const c = (globalThis as unknown as { chrome: { storage: Record<"local" | "session", { get: (k: null) => Promise<unknown> }> } }).chrome;
         return JSON.stringify([await c.storage.local.get(null), await c.storage.session.get(null)]);
