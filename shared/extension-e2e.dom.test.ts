@@ -268,7 +268,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("target が note 以外の記事は、読み込んだ時点で知らせてボタンを押せなくする。target を消すと押せるようになる", async () => {
     const popup = await context.newPage();
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-    const md = "---\ntitle: 図書館の記事\ntarget: library\n---\n\n本文\n";
+    const md = "---\ntitle: 追加の対応先の記事\ntarget: library\n---\n\n本文\n";
     await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
     await popup.locator("#fields").waitFor({ state: "visible" });
     assert.equal(await popup.locator("#submit").isDisabled(), true);
@@ -285,7 +285,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("記事の ZIP やファイルをまとめてドロップしたときも、受け取りの知らせのあとに target の知らせを残す", async () => {
     const popup = await context.newPage();
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-    const md = "---\ntitle: 図書館の記事\ntarget: library\n---\n\n本文\n";
+    const md = "---\ntitle: 追加の対応先の記事\ntarget: library\n---\n\n本文\n";
     const zip = makeZip([{ name: "post/article.md", data: md }]);
     await popup.evaluate(async (bytes) => {
       const dt = new DataTransfer();

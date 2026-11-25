@@ -48,7 +48,7 @@ export type ArticlePayload = {
 /** selectors/note.json の形(検査は shared/selectors-schema.ts) */
 import type { SelectorsJson } from "../../../shared/selectors-schema";
 import type { CurrentUser } from "../../../shared/current-user";
-import type { ExtraSiteArticle } from "../../../shared/extra-site";
+import type { ExtraSiteAccount, ExtraSiteArticle } from "../../../shared/extra-site";
 export type Selectors = SelectorsJson;
 
 /** popup ⇄ content script ⇄ service worker のメッセージ */
@@ -62,7 +62,11 @@ export type Message =
   /** popup → service worker。新しいタブで新規記事のエディタを開き、開いたら extraSiteFill を送る(note と同じく、別のページからも作れるように) */
   | { type: "extraSiteOpenAndFill"; article: ExtraSiteArticle; notes: string[] }
   /** service worker → 追加の対応先の content script。エディタが開かなかったときなどの知らせを、そのページに出す */
-  | { type: "extraSiteNotice"; text: string; kind: "info" | "warn" | "error" };
+  | { type: "extraSiteNotice"; text: string; kind: "info" | "warn" | "error" }
+  /** popup → 追加の対応先の content script。ページに出ているログイン中のアカウントを読む(問い合わせはしない) */
+  | { type: "extraSiteAccount" };
+/** 追加の対応先のアカウントの答え。読めなければ account は null。画面に出すだけで、保存しない */
+export type ExtraSiteAccountResponse = { account: ExtraSiteAccount | null };
 /** 追加の対応先の content script の返事。入れ始めたら ok(入れ終わるのは待たない。結果はページのバナーに出す) */
 export type ExtraSiteFillResponse = { ok: true } | { ok: false; error: string };
 export type WhoAmIResponse = { tabId: number | null };
