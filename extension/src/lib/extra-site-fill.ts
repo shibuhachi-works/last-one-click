@@ -254,10 +254,10 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number,
   await waitQuiet(query(S.settingsMenu) ?? document.body, settle);
   const firstInput = await waitFor<HTMLInputElement>(S.tagInput, fieldWait);
   if (!firstInput) throw new Error("タグの欄が見つかりません");
-  const before = new Map(want.map((t) => [t, countTag(S, t)] as const));
-  const missing = () => want.filter((t) => countTag(S, t) <= before.get(t)!);
+  // 前から入っているタグも含めて、画面に 1 つでもあれば入っているとみる(足した数ではなく、残っているかで見る)
+  const missing = () => want.filter((t) => countTag(S, t) === 0);
 
-  const first = await addTagsOnce(S, want, fieldWait, false);
+  const first = await addTagsOnce(S, want, fieldWait);
   if (first.entered.length) await sleep(TAG_RECHECK_MS);
   let lost = missing();
   const gone1 = lost.filter((t) => first.entered.includes(t));
@@ -266,7 +266,7 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number,
   // 入れ直す前に、消え方を記録しておく(次に直すときの手がかり)
   const rebuilt = !firstInput.isConnected;
   await waitQuiet(query(S.settingsMenu) ?? document.body, settle);
-  const second = await addTagsOnce(S, lost, fieldWait, true);
+  const second = await addTagsOnce(S, lost, fieldWait);
   if (second.entered.length) await sleep(TAG_RECHECK_MS);
   lost = missing();
   const done = want.length - lost.length;
@@ -282,26 +282,28 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number,
   throw new Error(`${done ? `${done} 個は入れました。` : "1 個も残っていません。"}入れ直しても残りませんでした。${problems.join("。")}。画面で確かめてください`);
 }
 
-/** タグを 1 つずつ入れる。少し待っても増えたままのタグを entered、増えなかったタグを failed に返す */
-async function addTagsOnce(S: ExtraSiteSelectors, tags: string[], fieldWait: number, retry: boolean): Promise<{ entered: string[]; failed: string[] }> {
+/**
+ * タグを 1 つずつ入れる。すでに画面にあるタグは入れずに entered に入れる(二重に入れない)。
+ * 少し待っても増えたままのタグを entered、増えなかったタグを failed に返す
+ */
+async function addTagsOnce(S: ExtraSiteSelectors, tags: string[], fieldWait: number): Promise<{ entered: string[]; failed: string[] }> {
   const entered: string[] = [];
   const failed: string[] = [];
   for (const tag of tags) {
     const input = await waitFor<HTMLInputElement>(S.tagInput, fieldWait);
     if (!input) throw new Error("タグの欄が見つかりません");
     const before = countTag(S, tag);
+    if (before > 0) {
+      entered.push(tag);
+      continue;
+    }
     const suggest = findSuggest(S, tag);
     if (suggest && !suggest.classList.contains("is_selected")) {
       // 公認タグは、候補のボタンを押して入れる(画面の「クリックするとタグが追加されます」と同じ)
       click(suggest, `公認タグ: #${tag}`);
-    } else if (suggest && !retry) {
-      // 選ばれた印があって、前から入っている公認タグ
-      if (before > 0) entered.push(tag);
-      else failed.push(tag);
-      continue;
     } else {
       // 手で打って Enter を押したときと同じく、input と keydown だけを送る。
-      // (入れ直しで、印だけ残った公認タグも打って入れる。印の付いた候補を押すと外れることがあるため)
+      // 選ばれた印だけ残って画面に無い公認タグも、打って入れる(印の付いた候補を押すと外れることがあるため)
       input.focus();
       setInputValue(input, tag);
       input.dispatchEvent(enterEvent("keydown"));

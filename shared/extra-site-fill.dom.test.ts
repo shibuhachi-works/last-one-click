@@ -299,6 +299,17 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     );
   });
 
+  it("前から入っているタグは入れ直さず、二重にも入れない", async () => {
+    await page.evaluate(() => {
+      const b = document.querySelector<HTMLElement>(".article_tag_suggest_item")!;
+      b.click(); // 公認タグ(一つめ)が前から入っている下書き
+      b.classList.add("is_selected");
+    });
+    const r = await run(ARTICLE);
+    assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
+    assert.ok(r.result!.lines.includes("✓ タグ: 2 個"), r.result!.lines.join("\n"));
+  });
+
   it("タグの欄ごと作り直されたときも入れ直し、消え方を知らせる", async () => {
     await page.evaluate(() => ((window as any).__tagRebuild = true));
     const r = await run(ARTICLE);
