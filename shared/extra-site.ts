@@ -144,17 +144,27 @@ export type NewEditorDeps = {
   probe(tabId: number): Promise<boolean>;
   sleep(ms: number): Promise<void>;
   now(): number;
+  /**
+   * 編集画面でないページ(ログインの画面など)で読み込みが終わったとき、ページ(URL)ごとに 1 回呼ぶ。
+   * そのページに「ログインすると、そのまま入れます」と知らせるのに使う
+   */
+  onWaitingPage?(url: string): void;
 };
 
-/** 新規記事のエディタが開くのを待つ長さ */
-export const NEW_EDITOR_WAIT_MS = 30_000;
+/**
+ * 新規記事のエディタが開くのを待つ長さ。ログインしていないと、ログインの画面を経てから編集画面に移るので、
+ * ログインし終えるまで待てるよう長めにする
+ */
+export const NEW_EDITOR_WAIT_MS = 10 * 60_000;
 
 /**
  * 新しく開いたタブが、新規記事の編集画面になって欄が出るまで待つ。
- * 読み込み終わったのに編集画面でない(ログインの画面に移ったなど)ときと、待ちきれなかったときはエラー
+ * 途中のページ(ログインの画面や、ログインのための移動)では止まらずに待ち続ける(ログインし終えると編集画面に移るため)。
+ * タブが閉じられたときと、待ちきれなかったときはエラー
  */
 export async function waitForNewEditor(tabId: number, deps: NewEditorDeps, timeoutMs = NEW_EDITOR_WAIT_MS): Promise<void> {
   const end = deps.now() + timeoutMs;
+  let notified: string | undefined;
   for (;;) {
     const t = await deps.tab(tabId);
     if (!t) throw new Error("新規記事のタブが閉じられました。もう一度ポップアップから入れてください。");
@@ -166,13 +176,16 @@ export async function waitForNewEditor(tabId: number, deps: NewEditorDeps, timeo
         ok = false; // 読み込みの途中など。少し待って確かめ直す
       }
       if (ok) return;
-    } else if (!t.loading && t.url && !isExtraSiteNewArticleUrl(t.url) && t.url !== "about:blank") {
+    } else if (!t.loading && t.url && !isExtraSiteNewArticleUrl(t.url) && t.url !== "about:blank" && t.url !== notified) {
+      notified = t.url;
+      deps.onWaitingPage?.(t.url);
+    }
+    if (deps.now() >= end) {
       throw new Error(
-        `${EXTRA_SITE_HOST} の新規記事のエディタが開きませんでした(ログインの画面などに移りました)。${EXTRA_SITE_HOST} にログインしてから、もう一度ポップアップから入れてください。`,
+        `${EXTRA_SITE_HOST} の新規記事のエディタが ${Math.round(timeoutMs / 60_000) || 1} 分待っても開きませんでした。ログインしてから、もう一度ポップアップから入れてください。`,
       );
     }
-    if (deps.now() >= end) throw new Error(`${EXTRA_SITE_HOST} の新規記事のエディタが ${Math.round(timeoutMs / 1000)} 秒待っても開きませんでした。開いたタブで確かめてください。`);
-    await deps.sleep(300);
+    await deps.sleep(500);
   }
 }
 

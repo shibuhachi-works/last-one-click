@@ -11,7 +11,7 @@
 //      (note と同じく、別のページからも作れるように。タブを開くとポップアップは閉じるので、ここで待つ)
 // 記事の中身には触らない。
 import { fetchCurrentUser } from "../../shared/current-user";
-import { EXTRA_SITE_ENABLED, EXTRA_SITE_NEW_ARTICLE_URL, fillProbe, syncExtraSite, waitForNewEditor } from "../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, EXTRA_SITE_HOST, EXTRA_SITE_NEW_ARTICLE_URL, fillProbe, isExtraSiteUrl, syncExtraSite, waitForNewEditor } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { loadSelectors } from "./lib/selectors";
 import type { AccountResponse, ExtraSiteFillResponse, Message, SelectorsResponse, WhoAmIResponse } from "./lib/types";
@@ -59,7 +59,9 @@ function fromExtensionPage(sender: chrome.runtime.MessageSender): boolean {
 
 /**
  * 新しいタブで新規記事のエディタを開き、編集画面に移って欄が出たら、そのタブに記事を渡す。
- * 開かなかったとき(ログインの画面に移ったなど)は、そのタブに知らせを出す(ポップアップは閉じているので)
+ * ログインしていないときは、ログインの画面などを経てから編集画面に移るので、途中のページでは止まらずに待つ
+ * (そのページが追加の対応先なら「ログインすると、そのまま入れます」と知らせる)。
+ * 待ちきれなかったときは、そのタブに知らせを出す(ポップアップは閉じているので)
  */
 async function openAndFillExtraSite(article: Extract<Message, { type: "extraSiteOpenAndFill" }>["article"], notes: string[]) {
   const tab = await chrome.tabs.create({ url: EXTRA_SITE_NEW_ARTICLE_URL, active: true });
@@ -75,6 +77,16 @@ async function openAndFillExtraSite(article: Extract<Message, { type: "extraSite
       probe: (id) => chromeExtraSiteApi.probe(id, fillProbe()),
       sleep,
       now: () => Date.now(),
+      // 追加の対応先のページなら、content script に知らせを出してもらう。ほかのサイト(ログインの画面など)には出せない
+      onWaitingPage: (url) => {
+        if (!isExtraSiteUrl(url)) return;
+        void sendToTab(tabId, {
+          type: "extraSiteNotice",
+          text: `新規記事のエディタが開くのを待っています。${EXTRA_SITE_HOST} にログインすると、編集画面に移ったところで、そのまま下書きを入れます(最大 10 分待ちます)。`,
+          // info だと「操作せずにお待ちください」が出る。ここはログインの操作をしてもらうので warn にする
+          kind: "warn",
+        }, 6);
+      },
     });
   } catch (e) {
     await sendToTab(tabId, { type: "extraSiteNotice", text: `エラー: ${(e as Error).message}`, kind: "error" });
@@ -85,9 +97,9 @@ async function openAndFillExtraSite(article: Extract<Message, { type: "extraSite
   if (res && !res.ok) await sendToTab(tabId, { type: "extraSiteNotice", text: `エラー: ${res.error}`, kind: "error" });
 }
 
-/** タブの content script にメッセージを送る。返事が無ければ 0.5 秒ごとに送り直す(最大 10 秒) */
-async function sendToTab(tabId: number, message: Message): Promise<ExtraSiteFillResponse | null> {
-  for (let i = 0; i < 20; i++) {
+/** タブの content script にメッセージを送る。返事が無ければ 0.5 秒ごとに送り直す(既定で最大 10 秒) */
+async function sendToTab(tabId: number, message: Message, tries = 20): Promise<ExtraSiteFillResponse | null> {
+  for (let i = 0; i < tries; i++) {
     const res = (await chrome.tabs.sendMessage(tabId, message).catch(() => null)) as ExtraSiteFillResponse | null;
     if (res) return res;
     await new Promise((r) => setTimeout(r, 500));
