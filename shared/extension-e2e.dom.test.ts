@@ -856,6 +856,26 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     });
   });
 
+  it("「ウィンドウで開く」で引き継いだ記事でも、note_account の「記事の指定」・違うときの注意を出す(#102)", async () => {
+    await withCurrentUser({ status: 200, contentType: "application/json", body: JSON.stringify(SAMPLE_USER) }, async () => {
+      const opener = await context.newPage();
+      await opener.goto(`chrome-extension://${extensionId}/popup.html`);
+      const md = withAccount("other_writer");
+      await opener.evaluate(
+        (markdown) => chrome.storage.session.set({ windowHandoff: { markdown, title: "起動テストの記事", hashtags: "テスト", magazine: "" } }),
+        md,
+      );
+      await opener.close();
+      const popup = await context.newPage();
+      await popup.goto(`chrome-extension://${extensionId}/popup.html?window=1`);
+      const target = popup.locator("#account-target");
+      await target.waitFor({ state: "visible", timeout: 10_000 });
+      await popup.waitForFunction(() => document.getElementById("account-target")?.classList.contains("mismatch"), null, { timeout: 10_000 });
+      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。note でアカウントを切り替えてから作成してください。");
+      await popup.close();
+    });
+  });
+
   it("記事の note_account があり、ログイン中のアカウントが読めない(401)ときは、止めずに進み、バナーで注意する(#102)", async () => {
     await withCurrentUser({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { message: "login required" } }) }, async () => {
       const { editor, errors } = await draftFromPopup(async () => {}, withAccount("sample_writer"));

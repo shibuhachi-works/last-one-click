@@ -112,6 +112,9 @@ if (isWindow) {
     if (h.fieldsEdited) Object.assign(fieldsEdited, { price: false, ...h.fieldsEdited });
     if (h.thumbnail) setThumbnailFile(payloadToFile(h.thumbnail));
     renderPicked();
+    // 引き継いだ md の note_account も読み直す(fillFieldsFromMarkdown は呼ばない。直した欄を上書きしないため)
+    articleNoteAccount = readNoteAccount(h.markdown);
+    renderAccountTarget();
     if (h.skippedImageName) {
       setStatus(`入力途中の内容を引き継ぎましたが、見出し画像「${h.skippedImageName}」は大きいので渡せませんでした。もう一度ドロップするか「画像を選ぶ」で選んでください。`, { error: true, near: "drop" });
     } else if (h.markdown || h.thumbnail) {
@@ -472,6 +475,15 @@ async function showAccount(): Promise<void> {
   el.hidden = false;
 }
 void showAccount();
+
+/** md の front matter の note_account。無いか読めなければ undefined */
+function readNoteAccount(md: string): string | undefined {
+  try {
+    return parseFrontMatter(md, parseYaml).data.noteAccount;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * 記事が note_account を指定していれば、「記事の指定: ◯◯」を「note の下書きを作成」の近くに出す(#102)。
