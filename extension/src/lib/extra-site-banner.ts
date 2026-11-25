@@ -36,7 +36,7 @@ const CSS = `
 :host{all:initial}
 @keyframes loc-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
-#box{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:min(420px,calc(100vw - 32px));max-height:70vh;display:flex;flex-direction:column;
+#box{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:min(560px,calc(100vw - 32px));max-height:70vh;display:flex;flex-direction:column;
   border-radius:14px;background:#fff;color:#1f2328;font:14px/1.6 system-ui,sans-serif;overflow:hidden;
   box-shadow:0 8px 28px rgba(20,30,60,.22),0 1px 3px rgba(20,30,60,.12)}
 #box[hidden],#pill[hidden],#det[hidden]{display:none}
@@ -47,10 +47,10 @@ const CSS = `
   color:#fff;font:700 13px/1 system-ui,sans-serif}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;
   animation:loc-spin .9s linear infinite}
-.title{font-weight:700}
-.chip{padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.chip{flex:none;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
 .grow{flex:1}
-.link{border:0;padding:0;background:none;color:#57606a;cursor:pointer;font:13px system-ui,sans-serif;text-decoration:underline;text-underline-offset:3px}
+.link{flex:none;white-space:nowrap;border:0;padding:0;background:none;color:#57606a;cursor:pointer;font:13px system-ui,sans-serif;text-decoration:underline;text-underline-offset:3px}
 .link:hover{color:#1f2328}
 #wait{margin-top:8px;padding:6px 10px;border-radius:8px;font-size:13px}
 #sum{margin-top:8px;white-space:pre-wrap}
