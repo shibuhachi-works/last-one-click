@@ -198,8 +198,9 @@ async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: num
   const el = await waitFor<HTMLTextAreaElement | HTMLInputElement>(S.summary, fieldWait);
   if (!el) throw new Error("要約の欄が見つかりません。画面で入れてください");
   const len = Array.from(summary).length;
-  if (el.maxLength > 0 && len > el.maxLength) {
-    throw new Error(`要約が ${len} 字で、欄の上限(${el.maxLength} 字)を超えています。front matter の summary を短くするか、画面で入れてください`);
+  // maxlength は UTF-16 の単位で数える(絵文字などは 2 つ)。比べるのは同じ単位の summary.length
+  if (el.maxLength > 0 && summary.length > el.maxLength) {
+    throw new Error(`要約が ${len} 字で、欄の上限(${el.maxLength} 字)を超えています(絵文字などは 2 字と数えます)。front matter の summary を短くするか、画面で入れてください`);
   }
   el.focus();
   setNativeValue(el, summary);

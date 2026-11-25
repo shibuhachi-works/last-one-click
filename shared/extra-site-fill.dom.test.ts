@@ -222,6 +222,12 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 要約が 141 字で、欄の上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
+  it("絵文字を含む要約は、欄の上限と同じ数え方(UTF-16)で比べる", async () => {
+    const r = await run({ ...ARTICLE, summary: "あ".repeat(130) + "😀".repeat(6) });
+    assert.equal(r.summary, "");
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 要約が 136 字で、欄の上限(140 字)を超えています")), r.result!.lines.join("\n"));
+  });
+
   it("タグが入らなかったら、候補の並びに同じ文字があっても、入ったとは数えない", async () => {
     await page.evaluate(() => ((window as any).__tagBroken = true));
     const r = await run(ARTICLE);
