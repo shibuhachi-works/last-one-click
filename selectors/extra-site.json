@@ -7,5 +7,8 @@
   "eyecatchInput": ["#fileInput", ".js_dragDropFileInput"],
   "tagInput": ["input[placeholder*=\"タグ\"]"],
   "tagSuggest": [".article_tag_suggest"],
-  "summary": ["#summary", "textarea[name=\"summary\"]"]
+  "summary": ["#summary", "textarea[name=\"summary\"]"],
+  "publishScopeLimited": ["#publishScope_limited"],
+  "publishScopePublic": ["#publishScope_public"],
+  "readingTime": ["#setting_estimatedReadingTime"]
 }

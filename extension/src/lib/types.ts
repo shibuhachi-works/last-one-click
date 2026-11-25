@@ -15,6 +15,9 @@ export type ArticlePayload = {
   /** front matter の summary・category。note には入れない(追加の対応先の編集画面でだけ使う) */
   summary?: string;
   category?: string;
+  /** front matter の「外部公開」「読了目安時間」。note には入れない */
+  publishScope?: "public" | "limited";
+  readingTime?: boolean;
   /** note に貼り付ける HTML */
   html: string;
   /** base64 で持ち回る(chrome.storage に入れるため) */

@@ -44,6 +44,8 @@ const FRONT_MATTER_FEATURES: [string, RegExp][] = [
   ["入れる先(target)", /^# target: note\b/m],
   ["要約(summary。追加の対応先だけ)", /^# summary: /m],
   ["カテゴリ(category。追加の対応先だけ)", /^# category: /m],
+  ["外部公開の範囲(外部公開。追加の対応先だけ)", /^# 外部公開: /m],
+  ["読了目安時間(読了目安時間。追加の対応先だけ)", /^# 読了目安時間: /m],
 ];
 
 describe("templates/note/article.md(見本)", () => {
@@ -85,6 +87,11 @@ describe("templates/note/article.md(見本)", () => {
     const extra = await renderArticle(src.replace(/^# summary: /m, "summary: ").replace(/^# category: /m, "category: "), convert);
     assert.equal(extra.summary, "記事の要約");
     assert.equal(extra.category, "カテゴリの名前");
+    assert.equal(plain.publishScope, undefined);
+    assert.equal(plain.readingTime, undefined);
+    const extra2 = await renderArticle(src.replace(/^# 外部公開: /m, "外部公開: ").replace(/^# 読了目安時間: /m, "読了目安時間: "), convert);
+    assert.equal(extra2.publishScope, "public");
+    assert.equal(extra2.readingTime, true);
     // 見本の本文には印を入れていない(入れると見本が有料になる)。price と一緒に本文に印を足すと、その位置が読める
     assert.equal((await renderArticle(src, convert)).paywallAnchor, undefined);
     const paid = src.replace(/^# price: /m, "price: ").replace(/^(本文はここから書きます。.*)$/m, "$1\n\n<!-- ここから有料 -->");
