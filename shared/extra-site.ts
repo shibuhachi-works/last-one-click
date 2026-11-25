@@ -59,6 +59,10 @@ export type ExtraSiteSelectors = {
   tagInput: string[];
   /** タグの欄の近くの、公認タグの候補の並び(入ったかを数えるときに除く) */
   tagSuggest: string[];
+  /** 公認タグの候補のボタン(押すとそのタグが足される。選ばれていると is_selected が付く) */
+  tagSuggestItem: string[];
+  /** 足したタグ(「#タグ」と × の印のボタン)。入ったかを数えるのに使う */
+  tagItem: string[];
   /** 要約の欄 */
   summary: string[];
   /** 外部公開の範囲の「冒頭のみ公開」の radio */
@@ -86,6 +90,8 @@ export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
   eyecatchInput: ["#fileInput", ".js_dragDropFileInput"],
   tagInput: ['input[placeholder*="タグ"]'],
   tagSuggest: [".article_tag_suggest"],
+  tagSuggestItem: [".article_tag_suggest_item"],
+  tagItem: [".article_tag_inputArea .tagItems"],
   summary: ["#summary", 'textarea[name="summary"]'],
   publishScopeLimited: ["#publishScope_limited"],
   publishScopePublic: ["#publishScope_public"],

@@ -240,22 +240,31 @@ async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: num
  */
 async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number): Promise<string> {
   const failed: string[] = [];
-  /** 入ったタグと、入れる前に同じ文字がいくつあったか(最後に、消えていないかを数え直す) */
+  /** 入ったタグと、入れる前に同じタグがいくつあったか(最後に、消えていないかを数え直す) */
   const entered: { tag: string; before: number }[] = [];
-  const countOf = (tag: string) => countOutside(query(S.settingsMenu) ?? document.body, query<HTMLInputElement>(S.tagInput), tag, S.tagSuggest);
+  const countOf = (tag: string) => countTag(S, tag);
   for (const raw of tags) {
     const tag = raw.replace(/^[#＃]/, "").trim();
     if (!tag) continue;
     const input = await waitFor<HTMLInputElement>(S.tagInput, fieldWait);
     if (!input) throw new Error("タグの欄が見つかりません");
     const before = countOf(tag);
-    input.focus();
-    setNativeValue(input, tag);
-    for (const type of ["keydown", "keypress", "keyup"]) input.dispatchEvent(enterEvent(type));
+    const suggest = findSuggest(S, tag);
+    if (suggest) {
+      // 公認タグは、候補のボタンを押して入れる(画面の「クリックするとタグが追加されます」と同じ)
+      if (!suggest.classList.contains("is_selected")) click(suggest, `公認タグ: #${tag}`);
+    } else {
+      // 手で打って Enter を押したときと同じく、input と keydown だけを送る。
+      // keypress・keyup・change まで送ると、実機では入ったタグが消えた(手で入れたときは消えない)
+      input.focus();
+      setInputValue(input, tag);
+      input.dispatchEvent(enterEvent("keydown"));
+    }
     // 増えたあと、少し待っても増えたままなら入ったとする(打っている途中だけ出るものを数えないように)
     const added = await waitUntil(() => (countOf(tag) > before ? true : null), 2_000);
     if (added) await sleep(500);
     if (added && countOf(tag) > before) entered.push({ tag, before });
+    else if (suggest?.classList.contains("is_selected") && countOf(tag) > 0) entered.push({ tag, before: 0 }); // 前から入っていた公認タグ
     else failed.push(tag);
   }
   // 入れ終えたあと、少し待ってから数え直す。いったん入ったのに、あとで消えるタグがある(実機で見た)
@@ -267,6 +276,40 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number)
   if (gone.length) problems.push(`いったん入ったあと、画面から消えたタグがあります(${gone.join(", ")})`);
   if (problems.length) throw new Error(`${done ? `${done} 個は入れました。` : "1 個も残っていません。"}${problems.join("。")}。画面で確かめてください`);
   return `${done} 個`;
+}
+
+/** 「#タグ」の文字を、比べる形にそろえる(先頭の #・終わりの × の印・空白を外す) */
+function tagText(text: string | null | undefined): string {
+  return (text ?? "").trim().replace(/^[#＃]/, "").replace(/[×✕]$/, "").trim();
+}
+
+/** 公認タグの候補のうち、文字が tag のもの */
+function findSuggest(S: ExtraSiteSelectors, tag: string): HTMLElement | null {
+  for (const s of S.tagSuggestItem) {
+    try {
+      const hit = Array.from(document.querySelectorAll<HTMLElement>(s)).find((el) => tagText(el.textContent) === tag);
+      if (hit) return hit;
+    } catch {
+      // 書き方の誤ったセレクタは飛ばす
+    }
+  }
+  return null;
+}
+
+/**
+ * 入っているタグ tag の数。足したタグのボタン(tagItem)が見つかればそれを数え、
+ * 見つからない作りなら、タグの欄と候補の並びの外にある tag の文字を数える
+ */
+function countTag(S: ExtraSiteSelectors, tag: string): number {
+  for (const s of S.tagItem) {
+    try {
+      const items = Array.from(document.querySelectorAll<HTMLElement>(s));
+      if (items.length || document.querySelector(s.split(" ")[0] ?? s)) return items.filter((el) => tagText(el.textContent) === tag).length;
+    } catch {
+      // 書き方の誤ったセレクタは飛ばす
+    }
+  }
+  return countOutside(query(S.settingsMenu) ?? document.body, query<HTMLInputElement>(S.tagInput), tag, S.tagSuggest);
 }
 
 /**
@@ -359,6 +402,12 @@ async function waitUntil<T>(fn: () => T | null, timeout: number): Promise<T | nu
     if (Date.now() >= end) return null;
     await sleep(100);
   }
+}
+
+/** input に値を入れて、input だけを知らせる(手で打ったときと同じ。change は送らない) */
+function setInputValue(el: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 /** React などが管理する input・textarea に値を入れて、変わったことを知らせる */
