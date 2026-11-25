@@ -10,11 +10,13 @@
     <h1>Last One Click <small style="font-weight:400;color:#666">note の下書きツール</small></h1>
     <button id="open-window" type="button" class="small" title="ポップアップを別ウィンドウで開きます。ツールバーから出た画面は Finder などに切り替えると閉じるので、ファイルをドロップするときはこちらを使ってください。">ウィンドウで開く</button>
   </div>
+  <p id="status-window" class="status" hidden></p>
   <div id="extra-site-offer" class="extra-site-offer" hidden>
     <p id="extra-site-offer-editor">今開いているページの新規記事エディタにも、下書きを入れられます。</p>
     <p id="extra-site-offer-site" hidden>今開いているサイト(library.libecity.com)でも、下書きを入れられるようにできます。</p>
     <button id="extra-site-enable" type="button" class="small">使えるようにする</button>
   </div>
+  <p id="status-extra-site-offer" class="status" hidden></p>
   <div id="dropzone" class="dropzone">
     <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
     <p class="dz-title">md ファイルと画像(または記事のフォルダ・ZIP)をここにドロップ</p>
@@ -24,6 +26,7 @@
     </p>
     <p id="picked" class="dz-picked" hidden></p>
   </div>
+  <p id="status-drop" class="status" hidden></p>
   <input id="markdown-file" type="file" accept=".md,.markdown,.txt,.zip,text/markdown,text/plain,application/zip" hidden>
   <input id="thumbnail" type="file" accept="image/*" hidden>
 
@@ -45,6 +48,7 @@ magazine: マガジン名
         <input id="github-url" type="url" placeholder="https://github.com/you/repo/tree/main/posts/2026-10-28-xxx">
         <button id="github-load" type="button">読み込む</button>
       </div>
+      <p id="status-github" class="status" hidden></p>
     </details>
   </div>
 
@@ -61,6 +65,7 @@ magazine: マガジン名
   <p id="account" class="account" hidden></p>
   <p id="account-target" class="account-target" hidden></p>
   <button id="submit" type="button" class="primary">note の下書きを作成</button>
+  <p id="status" class="status" hidden></p>
   <p class="hint">note が新しいタブで開き、タイトル・本文・見出し画像を入れたところで止まります。<br>投稿するボタンは自分で押してください。</p>
   <label class="check hint-check tip" title="入れると、ハッシュタグとマガジンまで一気に入れて止まります。note の公開設定を「キャンセル」で閉じるとハッシュタグとマガジンは消えるので、本文を先に確かめたいときは外しておいてください。"><input id="skip-review" type="checkbox">本文の確認を飛ばして、公開設定まで進む</label>
   <label class="check hint-check tip" title="入れると、本文の最後に区切り線と「この記事は、Last One Click で下書きしました。」の 1 行(ストアへのリンク付き)を入れ、ハッシュタグに #LastOneClick を足します。どちらも下書きと公開設定に入るので、公開する前に note の画面で確かめられます。"><input id="credit-link" type="checkbox" checked>記事の最後に「Last One Click で下書きしました」のリンクと、ハッシュタグ #LastOneClick を入れる</label>
@@ -70,19 +75,21 @@ magazine: マガジン名
     <label class="check hint-check tip" title="入れると、本文の中で URL だけが書かれた行を、note の埋め込み(カード)にします。文の中のリンクはそのままです。"><input id="embed-urls" type="checkbox" checked>URL だけの行を埋め込みにする</label>
     <label class="check hint-check tip" title="入れると、md の ![説明](image1.png) のようにファイル名で書いた画像を、本文のその位置に入れます。GitHub から読み込んだときは記事と同じフォルダから、手元の md なら一緒にドロップした画像(記事のフォルダ・ZIP の中の画像)から取ります。1 記事 20 枚まで。"><input id="insert-images" type="checkbox" checked>本文の画像を入れる</label>
     <label id="extra-site-row" class="check hint-check tip" title="切ると、library.libecity.com への許可を外します。また使うときは、library.libecity.com のページを開いてツールバーのアイコンを押してください。" hidden><input id="extra-site-toggle" type="checkbox" checked>追加の対応先(library.libecity.com)</label>
+    <p id="status-extra-site-toggle" class="status" hidden></p>
   </details>
-  <p id="status" class="status" hidden></p>
 
   <details>
     <summary>拡張機能の設定</summary>
     <p id="version" class="hint">Last One Click</p>
     <p class="hint"><a href="https://note.com/shibuhachi/n/n9c41926f2a3a" target="_blank" rel="noopener noreferrer">使い方の記事(note)</a></p>
     <label class="check tip" title="「GitHub から読み込む」、selectors の URL、GitHub トークンの欄が出ます。読み込んだ内容の欄も編集・貼り付けできるようになります。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
+    <p id="status-advanced" class="status" hidden></p>
     <div id="advanced-settings" hidden>
       <label>selectors/note.json の URL<input id="selectors-url" type="url" placeholder="(既定値を使う)"></label>
       <p class="hint">note の画面の定義ファイルの場所です。記事の URL ではありません(記事は上の「GitHub から読み込む」に貼ります)。普段は空のままにしてください。</p>
       <label>GitHub トークン(private リポジトリのみ)<input id="github-token" type="password" autocomplete="off"></label>
       <button id="save-settings" type="button">保存</button>
+      <p id="status-settings" class="status" hidden></p>
       <p class="hint">トークンは Last One Click の中(chrome.storage.local)にだけ保存され、GitHub 以外には送られません。</p>
     </div>
     <details>
@@ -92,6 +99,7 @@ magazine: マガジン名
         <button id="diagnose" type="button">DOM 情報を取得</button>
         <button id="diagnose-copy" type="button" aria-live="polite" disabled>コピー</button>
       </div>
+      <p id="status-diagnose" class="status" hidden></p>
       <textarea id="diagnose-out" readonly placeholder="(ここに結果が出ます)" style="min-height:90px"></textarea>
     </details>
   </details>
