@@ -396,13 +396,24 @@ describe("新規記事のエディタを開いて待つ(waitForNewEditor)", () =
     assert.equal(d.probes, 2);
   });
 
-  it("読み込み終わったのに編集画面でなければ(ログインの画面など)、ログインを促して止まる", async () => {
-    const d = deps([{ url: NEW, loading: true }, { url: "https://library.libecity.com/login", loading: false }]);
-    await assert.rejects(waitForNewEditor(1, d), /新規記事のエディタが開きませんでした.*ログインしてから/);
+  it("ログインの画面などを経ても止まらず、ページごとに 1 回知らせて、編集画面に移ったら終わる", async () => {
+    const LOGIN = "https://library.libecity.com/login";
+    const SSO = "https://example.com/sso";
+    const d = deps([
+      { url: NEW, loading: true },
+      { url: LOGIN, loading: false },
+      { url: LOGIN, loading: false },
+      { url: SSO, loading: true },
+      { url: SSO, loading: false },
+      { url: EDIT, loading: false },
+    ]);
+    const waiting: string[] = [];
+    await waitForNewEditor(1, { ...d, onWaitingPage: (u) => waiting.push(u) });
+    assert.deepEqual(waiting, [LOGIN, SSO]);
   });
 
   it("タブが閉じられたら止まる。待ちきれなければ止まる", async () => {
     await assert.rejects(waitForNewEditor(1, deps([null])), /タブが閉じられました/);
-    await assert.rejects(waitForNewEditor(1, deps([{ url: EDIT, loading: false }], () => false), 3_000), /3 秒待っても開きませんでした/);
+    await assert.rejects(waitForNewEditor(1, deps([{ url: EDIT, loading: false }], () => false), 60_000), /1 分待っても開きませんでした。ログインしてから/);
   });
 });
