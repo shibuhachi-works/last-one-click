@@ -2,7 +2,7 @@
 // 今開いているタブに入れて止まる。新しいタブは開かない。
 // 押さない: 「確認画面へ」(公開へ進む)・「下書き保存」(人が中身を確かめてから押す)・「公開」「投稿」を含むもの。
 // 押してよいのは、記事の設定がたたまれているときの開くボタンだけ(safeClick に EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS を渡す)。
-// 記事の設定の「要約」・カテゴリ・公開範囲には触らない(人が入れる)。
+// 記事の設定の「要約」は front matter の summary を入れる。カテゴリ・公開範囲には触らない(人が入れる。カテゴリは知らせるだけ)。
 // 画面の作りは #119 の診断から決めた(shared/extra-site.ts の EXTRA_SITE_DEFAULT_SELECTORS)
 import { EXTRA_SITE_HOST, acceptsFile, extraSiteSelectors, type ExtraSiteArticle, type ExtraSiteSelectors } from "../../../shared/extra-site";
 import { EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS } from "../../../shared/forbidden-click";
@@ -67,11 +67,14 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
     await step("本文の画像", () => insertBodyImages(S, article, opts.imageWaitMs ?? IMAGE_WAIT_MS, fieldWait, opts.onProgress));
   }
 
-  if (article.thumbnail || article.hashtags.length) {
+  const summary = article.summary?.trim() ?? "";
+  if (article.thumbnail || article.hashtags.length || summary) {
     await step("記事の設定を開く", () => openSettings(S, fieldWait));
   }
   if (article.thumbnail) await step("見出し画像", () => setEyecatch(S, article.thumbnail!, fieldWait));
+  if (summary) await step("要約", () => setSummary(S, summary, fieldWait));
   if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait));
+  if (article.category?.trim()) lines.push(`⚠ カテゴリ: 「${article.category.trim()}」は入れていません。画面の「カテゴリを選択」から選んでください`);
 
   for (const n of notes) lines.push(`⚠ ${EXTRA_SITE_HOST} のエディタでは入らない書き方: ${n}`);
   return { ok, lines };
@@ -187,7 +190,27 @@ async function setEyecatch(S: ExtraSiteSelectors, thumb: NonNullable<ExtraSiteAr
   return "";
 }
 
-/** タグを 1 つずつ入れて Enter。入ったか(欄が空になったか、欄の外にその文字が出たか)を確かめる */
+/**
+ * 要約の欄に入れる。欄に文字数の上限(maxlength)があり、要約がそれより長いときは入れずに知らせる
+ * (途中で切ると、文の終わりが欠けたまま気づかれないため)
+ */
+async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: number): Promise<string> {
+  const el = await waitFor<HTMLTextAreaElement | HTMLInputElement>(S.summary, fieldWait);
+  if (!el) throw new Error("要約の欄が見つかりません。画面で入れてください");
+  const len = Array.from(summary).length;
+  if (el.maxLength > 0 && len > el.maxLength) {
+    throw new Error(`要約が ${len} 字で、欄の上限(${el.maxLength} 字)を超えています。front matter の summary を短くするか、画面で入れてください`);
+  }
+  el.focus();
+  setNativeValue(el, summary);
+  if (el.value !== summary) throw new Error("要約が入ったか確かめられませんでした。画面で確かめてください");
+  return `${len} 字`;
+}
+
+/**
+ * タグを 1 つずつ入れて Enter。入ったかは、タグの欄と公認タグの候補の並びの外に、そのタグの文字が増えたかで確かめる
+ * (候補の並びや、打っている途中に出る候補に同じ文字があっても、入ったとは数えない)
+ */
 async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number): Promise<string> {
   const failed: string[] = [];
   let done = 0;
@@ -196,31 +219,48 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number)
     if (!tag) continue;
     const input = await waitFor<HTMLInputElement>(S.tagInput, fieldWait);
     if (!input) throw new Error("タグの欄が見つかりません");
-    const scope = query(S.settingsMenu) ?? document.body;
-    const before = countOutside(scope, input, tag);
+    const count = () => countOutside(query(S.settingsMenu) ?? document.body, query<HTMLInputElement>(S.tagInput), tag, S.tagSuggest);
+    const before = count();
     input.focus();
     setNativeValue(input, tag);
-    const init = { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true };
-    input.dispatchEvent(new KeyboardEvent("keydown", init));
-    input.dispatchEvent(new KeyboardEvent("keypress", init));
-    input.dispatchEvent(new KeyboardEvent("keyup", init));
-    const entered = await waitUntil(() => {
-      const now = query(S.tagInput) as HTMLInputElement | null;
-      return countOutside(query(S.settingsMenu) ?? document.body, now, tag) > before ? true : null;
-    }, 2_000);
-    if (entered) done++;
+    for (const type of ["keydown", "keypress", "keyup"]) input.dispatchEvent(enterEvent(type));
+    // 増えたあと、少し待っても増えたままなら入ったとする(打っている途中だけ出るものを数えないように)
+    const entered = await waitUntil(() => (count() > before ? true : null), 2_000);
+    if (entered) await sleep(500);
+    if (entered && count() > before) done++;
     else failed.push(tag);
   }
   if (failed.length) throw new Error(`${done ? `${done} 個は入れました。` : ""}入ったか確かめられなかったタグがあります(${failed.join(", ")})。画面で確かめてください`);
   return `${done} 個`;
 }
 
-/** scope の中で、入力欄の外に tag の文字だけの要素がいくつあるか */
-function countOutside(scope: HTMLElement, input: HTMLInputElement | null, tag: string): number {
+/**
+ * Enter キーのイベント。KeyboardEvent の初期値では keyCode・which が 0 になるので、13 にしておく
+ * (keyCode で Enter を見るページでも、押したのと同じに受け取れるように)
+ */
+function enterEvent(type: string): KeyboardEvent {
+  const e = new KeyboardEvent(type, { key: "Enter", code: "Enter", bubbles: true, cancelable: true });
+  for (const k of ["keyCode", "which", "charCode"] as const) {
+    Object.defineProperty(e, k, { get: () => (k === "charCode" && type !== "keypress" ? 0 : 13) });
+  }
+  return e;
+}
+
+/** scope の中で、入力欄と除く所(公認タグの候補の並びなど)の外に、tag の文字だけの要素がいくつあるか */
+function countOutside(scope: HTMLElement, input: HTMLInputElement | null, tag: string, exclude: string[] = []): number {
+  const skip: Element[] = [];
+  for (const s of exclude) {
+    try {
+      skip.push(...Array.from(scope.querySelectorAll(s)));
+    } catch {
+      // 書き方の誤ったセレクタは飛ばす
+    }
+  }
   let n = 0;
   const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
   for (let t = walker.nextNode(); t; t = walker.nextNode()) {
     if (input && input.contains(t)) continue;
+    if (skip.some((el) => el.contains(t))) continue;
     const v = (t.nodeValue ?? "").trim().replace(/^[#＃]/, "").replace(/[×✕]$/, "").trim();
     if (v === tag) n++;
   }
@@ -237,9 +277,15 @@ export function resultMessage(r: FillResult): { text: string; kind: "ok" | "warn
     ? "✅ 下書きを入れました。"
     : "⚠️ 一部は入れられませんでした。足りないものは画面で入れてください。";
   return {
-    text: `${head}\n中身を確かめてから、画面の「下書き保存」を押してください。拡張は「下書き保存」も「確認画面へ」も押しません。\n要約・カテゴリ・公開範囲は入れていません。\n\n${r.lines.join("\n")}`,
+    text: `${head}\n中身を確かめてから、画面の「下書き保存」を押してください。拡張は「下書き保存」も「確認画面へ」も押しません。\n${notTouched(r)}\n\n${r.lines.join("\n")}`,
     kind: warn ? "warn" : "ok",
   };
+}
+
+/** 入れていない欄の知らせ。要約は、入れたとき(✓ 要約)だけ外す */
+function notTouched(r: FillResult): string {
+  const items = [...(r.lines.some((l) => l.startsWith("✓ 要約")) ? [] : ["要約"]), "カテゴリ", "外部公開の範囲"];
+  return `${items.join("・")}は入れていません。`;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,9 +325,10 @@ async function waitUntil<T>(fn: () => T | null, timeout: number): Promise<T | nu
   }
 }
 
-/** React などが管理する input に値を入れて、変わったことを知らせる */
-function setNativeValue(el: HTMLInputElement, value: string) {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(el, value);
+/** React などが管理する input・textarea に値を入れて、変わったことを知らせる */
+function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
+  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, "value")?.set?.call(el, value);
   el.dispatchEvent(new Event("input", { bubbles: true }));
   el.dispatchEvent(new Event("change", { bubbles: true }));
 }

@@ -20,9 +20,10 @@ const PAGE = `<!doctype html><html><body>
       <div id="setting_body" style="display:none">
         <input type="file" id="fileInput" class="js_dragDropFileInput" accept="image/*" style="display:none">
         <div id="eyecatch_preview"></div>
-        <textarea id="summary"></textarea>
+        <textarea id="summary" maxlength="140"></textarea>
         <div id="tags"></div>
         <input type="text" placeholder="タグを入力">
+        <div class="article_tag_suggest"><ul><li><button type="button">#一つめ</button></li></ul><div id="typing"></div></div>
         <label><input type="radio" name="setting_publishScope" value="all">全体</label>
       </div>
     </div>
@@ -64,8 +65,12 @@ const PAGE = `<!doctype html><html><body>
       document.getElementById("eyecatch_preview").append(img);
     });
     const tag = document.querySelector('input[placeholder="タグを入力"]');
+    // 打っている途中は、候補の並びに打った文字を出す(入ったと取り違えないかを見るため)
+    tag.addEventListener("input", () => { document.getElementById("typing").textContent = tag.value; });
+    // keyCode で Enter を見る(KeyboardEvent の初期値の keyCode は 0)。window.__tagBroken なら Enter で欄を空にするだけ
     tag.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" || !tag.value) return;
+      if (e.keyCode !== 13 || !tag.value) return;
+      if (window.__tagBroken) { tag.value = ""; return; }
       const s = document.createElement("span");
       s.textContent = tag.value;
       document.getElementById("tags").append(s);
@@ -78,7 +83,7 @@ const PAGE = `<!doctype html><html><body>
 function bundle(): string {
   const out = buildSync({
     stdin: {
-      contents: `import { fillExtraSite } from "./extension/src/lib/extra-site-fill"; globalThis.__fill = fillExtraSite;`,
+      contents: `import { fillExtraSite, resultMessage } from "./extension/src/lib/extra-site-fill"; globalThis.__fill = fillExtraSite; globalThis.__result = resultMessage;`,
       resolveDir: new URL("..", import.meta.url).pathname,
       loader: "ts",
     },
@@ -193,10 +198,35 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.equal(r.submitted, 0);
   });
 
-  it("要約・公開範囲には触らない", async () => {
+  it("要約が無ければ要約の欄に触らない。公開範囲には触らない。結果に、入れていない欄を出す", async () => {
     const r = await run(ARTICLE);
     assert.equal(r.summary, "");
     assert.equal(r.scope, false);
+    assert.match(await page.evaluate((res) => (globalThis as any).__result(res).text, r.result), /要約・カテゴリ・外部公開の範囲は入れていません/);
+  });
+
+  it("front matter の summary を要約の欄に入れ、カテゴリは入れずに知らせる", async () => {
+    const r = await run({ ...ARTICLE, summary: "見本の要約です。", category: "見本のカテゴリ" });
+    assert.equal(r.summary, "見本の要約です。");
+    assert.ok(r.result!.lines.includes("✓ 要約: 8 字"), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("⚠ カテゴリ: 「見本のカテゴリ」は入れていません")));
+    assert.equal(r.scope, false);
+    const text = await page.evaluate((res) => (globalThis as any).__result(res).text, r.result);
+    assert.match(text, /カテゴリ・外部公開の範囲は入れていません/);
+    assert.doesNotMatch(text, /要約・カテゴリ/);
+  });
+
+  it("要約が欄の上限より長ければ、入れずに ✗ を出す", async () => {
+    const r = await run({ ...ARTICLE, summary: "あ".repeat(141) });
+    assert.equal(r.summary, "");
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 要約が 141 字で、欄の上限(140 字)を超えています")), r.result!.lines.join("\n"));
+  });
+
+  it("タグが入らなかったら、候補の並びに同じ文字があっても、入ったとは数えない", async () => {
+    await page.evaluate(() => ((window as any).__tagBroken = true));
+    const r = await run(ARTICLE);
+    assert.deepEqual(r.tags, []);
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 入ったか確かめられなかったタグがあります(一つめ, 二つめ)")), r.result!.lines.join("\n"));
   });
 
   it("開くボタンのセレクタが「下書き保存」「確認画面へ」に当たっても押さない", async () => {
@@ -214,6 +244,8 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
             settingsMenuOpenButton: [sel],
             eyecatchInput: ["#fileInput"],
             tagInput: ['input[placeholder*="タグ"]'],
+            tagSuggest: [".article_tag_suggest"],
+            summary: ["#summary"],
           },
         },
       );

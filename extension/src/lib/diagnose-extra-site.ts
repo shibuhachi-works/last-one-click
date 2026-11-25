@@ -99,6 +99,22 @@ export function buildExtraSiteReport(): string {
   // 6. 入力欄の一覧(タイトルらしいもの以外も)
   list(lines, "入力欄 (input / textarea / contenteditable)", fields);
 
+  // 7. 記事の設定のタグ・カテゴリの欄の中(入れ方と、入ったかの確かめ方を決めるため)。要素を上から順に出す
+  const tagItem = all("input[placeholder*='タグ']").map((el) => el.closest<HTMLElement>(".article_setting_item") ?? el.parentElement).find(Boolean);
+  list(lines, "タグの欄の中(タグの入力欄を含む設定の項目)", tagItem ? [tagItem, ...descendants(tagItem)] : []);
+  const categoryItem = all(".article_category, .btn_selectCategory").map((el) => el.closest<HTMLElement>(".article_setting_item") ?? el).find(Boolean);
+  list(lines, "カテゴリの欄の中", categoryItem ? [categoryItem, ...descendants(categoryItem)] : []);
+
+  // 8. 開いているダイアログ(カテゴリを選ぶ画面など)の中。選択肢の文字は出す(選ぶときに文字で探すため)
+  const dialogs = all(".modal.show, [role='dialog'], [aria-modal='true'], dialog[open]").filter(isVisible);
+  if (!dialogs.length) list(lines, "開いているダイアログ", []);
+  for (const d of dialogs.slice(0, 3)) {
+    const els = [d, ...descendants(d)].filter(isVisible);
+    lines.push(`## 開いているダイアログの中 (${els.length} 件${els.length > MAX_PER_GROUP ? `、先頭 ${MAX_PER_GROUP} 件のみ` : ""})`);
+    for (const el of els.slice(0, MAX_PER_GROUP)) lines.push(`- ${describeSafe(el, { choiceText: true })}`);
+    lines.push(``);
+  }
+
   // アカウントの表示らしい要素の文字・aria-label・title と、画像の alt を、レポート全体から伏せる
   // (要素ごとの行では出さないが、ほかの要素の aria-label などに同じ名前が入ることがある)
   return redact(lines.join("\n"), accountSecrets());
@@ -144,7 +160,7 @@ function list(lines: string[], name: string, els: HTMLElement[]) {
  *   文字も aria-label・title・placeholder も長さだけ
  * - 4 桁以上の数字・メールアドレスの形は伏せる
  */
-export function describeSafe(el: HTMLElement): string {
+export function describeSafe(el: HTMLElement, opts: { choiceText?: boolean } = {}): string {
   const parts: string[] = [el.tagName.toLowerCase()];
   if (el.id) parts.push(`#${mask(el.id)}`);
   const cls = Array.from(el.classList).slice(0, 4).map(mask).join(".");
@@ -165,7 +181,8 @@ export function describeSafe(el: HTMLElement): string {
   if (attrs.length) parts.push(`[${attrs.join(" ")}]`);
 
   const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-  if (text && (holdsArticleText(el) || account)) parts.push(`(文字 ${text.length} 字は出しません)`);
+  const hidesText = opts.choiceText ? holdsTypedText(el) : holdsArticleText(el);
+  if (text && (hidesText || account)) parts.push(`(文字 ${text.length} 字は出しません)`);
   else if (text) parts.push(`"${mask(text.slice(0, TEXT_LEN))}${text.length > TEXT_LEN ? "…" : ""}"`);
 
   parts.push(isVisible(el) ? "(visible)" : "(hidden)");
@@ -178,6 +195,17 @@ const EDITABLE = "[contenteditable]:not([contenteditable='false']), textarea, in
 /** 記事の文字が入る欄か、その中の要素か、それを包む要素か(入力欄・書ける欄。エディタの外枠も本文を含む) */
 function holdsArticleText(el: HTMLElement): boolean {
   return el.isContentEditable || !!el.closest(EDITABLE) || !!el.querySelector(EDITABLE);
+}
+
+/** 文字を打つ欄(選ぶだけの radio・checkbox は除く)か、その中か、それを包む要素か。選ぶ画面の選択肢の文字は出すため */
+function holdsTypedText(el: HTMLElement): boolean {
+  const typed = "[contenteditable]:not([contenteditable='false']), textarea, select, input:not([type=radio]):not([type=checkbox]):not([type=button]):not([type=submit])";
+  return el.isContentEditable || !!el.closest(typed) || !!el.querySelector(typed);
+}
+
+/** el の中の要素(上から順) */
+function descendants(el: HTMLElement): HTMLElement[] {
+  return Array.from(el.querySelectorAll<HTMLElement>("*"));
 }
 
 /** 公開・投稿のボタンか(押さない文字の一覧 shared/forbidden-click.ts で見る) */
