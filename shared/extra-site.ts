@@ -73,10 +73,7 @@ export type ExtraSiteSelectors = {
   readingTime: string[];
   /** ログイン中のアカウントのアイコンの画像(ヘッダーの右上。編集画面にもある) */
   accountIcon: string[];
-  /**
-   * ログイン中のアカウントの名前(マイページの左の欄など。編集画面には無い)。
-   * 作りがまだ分かっていないので、既定値は空。診断で分かったら selectors/extra-site.json に足す
-   */
+  /** ログイン中のアカウントの名前(マイページの左の欄。編集画面には無い) */
   accountName: string[];
 };
 
@@ -96,8 +93,8 @@ export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
   publishScopeLimited: ["#publishScope_limited"],
   publishScopePublic: ["#publishScope_public"],
   readingTime: ["#setting_estimatedReadingTime"],
-  accountIcon: [".btn_mypage img.rounded-circle"],
-  accountName: [],
+  accountIcon: [".btn_mypage img.rounded-circle", ".mypageSide .profile_img img.rounded-circle"],
+  accountName: [".mypageSide .profile_name"],
 };
 
 /**
@@ -129,6 +126,12 @@ export function extraSiteSelectors(): ExtraSiteSelectors {
  * 名前が読めないときは iconUrl だけ。画面に出すだけで、保存しない
  */
 export type ExtraSiteAccount = { name?: string; iconUrl?: string };
+
+/**
+ * 名前の出ている、追加の対応先のページ(マイページの「通知設定」。記事の一覧が無く軽い)。
+ * 開いているページに名前が無いとき(編集画面など)だけ、content script がこのページを 1 回だけ GET で読む
+ */
+export const EXTRA_SITE_ACCOUNT_PAGE_URL = `https://${EXTRA_SITE_HOST}/notification_settings`;
 
 /** アカウントを聞くタブを選ぶ。今のタブが追加の対応先なら、それ。無ければ、いちばん最近見た追加の対応先のタブ */
 export function pickExtraSiteTab<T extends { id?: number; url?: string; active?: boolean; lastAccessed?: number }>(
