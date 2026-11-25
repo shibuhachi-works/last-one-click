@@ -21,9 +21,10 @@ const PAGE = `<!doctype html><html><body>
         <input type="file" id="fileInput" class="js_dragDropFileInput" accept="image/*" style="display:none">
         <div id="eyecatch_preview"></div>
         <textarea id="summary" maxlength="140"></textarea>
-        <div id="tags"></div>
-        <input type="text" placeholder="タグを入力">
-        <div class="article_tag_suggest"><ul><li><button type="button">#一つめ</button></li></ul><div id="typing"></div></div>
+        <div class="article_setting_item article_tag_input">
+          <div class="article_tag_inputArea" id="tags"><input type="text" placeholder="タグを追加してください"></div>
+          <div class="article_tag_suggest"><ul><li><button type="button" class="article_tag_suggest_item">#一つめ</button></li></ul><div id="typing"></div></div>
+        </div>
         <label><input type="radio" id="publishScope_limited" name="setting_publishScope">冒頭のみ公開 投稿者名とアイコンは匿名表示</label>
         <label><input type="radio" id="publishScope_public" name="setting_publishScope">全文公開 投稿者名もアイコンもすべて表示</label>
         <label class="switch"><input type="checkbox" id="setting_estimatedReadingTime" style="display:none">読了目安時間を表示する</label>
@@ -66,7 +67,24 @@ const PAGE = `<!doctype html><html><body>
       img.dataset.name = e.target.files[0].name;
       document.getElementById("eyecatch_preview").append(img);
     });
-    const tag = document.querySelector('input[placeholder="タグを入力"]');
+    const tag = document.querySelector('input[placeholder="タグを追加してください"]');
+    // 足したタグは、実機と同じく入力欄の前の button.tagItems(「#タグ」と × の印)
+    function addChip(text) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tagItems";
+      b.textContent = "#" + text;
+      const x = document.createElement("i");
+      x.className = "fa-solid fa-xmark";
+      b.append(x);
+      tag.before(b);
+    }
+    // 公認タグの候補を押すと、そのタグが足される(実機の「クリックするとタグが追加されます」のまね)
+    document.querySelectorAll(".article_tag_suggest_item").forEach((b) => b.addEventListener("click", () => {
+      if (b.classList.contains("is_selected")) return;
+      b.classList.add("is_selected");
+      addChip(b.textContent.replace(/^#/, ""));
+    }));
     // 打っている途中は、候補の並びに打った文字を出す(入ったと取り違えないかを見るため)
     tag.addEventListener("input", () => { document.getElementById("typing").textContent = tag.value; });
     // keyCode で Enter を見る(KeyboardEvent の初期値の keyCode は 0)。window.__tagBroken なら Enter で欄を空にするだけ
@@ -74,12 +92,14 @@ const PAGE = `<!doctype html><html><body>
       if (e.keyCode !== 13 || !tag.value) return;
       if (window.__tagBroken) { tag.value = ""; return; }
       // window.__tagVanish なら、足したタグを少しあとで消す(実機で、いったん入ったタグが消えたときのまね)
-      if (window.__tagVanish && !window.__vanishSet) { window.__vanishSet = true; setTimeout(() => { document.getElementById("tags").replaceChildren(); }, 1800); }
-      const s = document.createElement("span");
-      s.textContent = tag.value;
-      document.getElementById("tags").append(s);
+      if (window.__tagVanish && !window.__vanishSet) { window.__vanishSet = true; setTimeout(() => { document.querySelectorAll("#tags .tagItems").forEach((c) => c.remove()); }, 1800); }
+      addChip(tag.value);
       tag.value = "";
     });
+    // 手で Enter を押したときに来ない keypress・change が来たら、足したタグを外す
+    // (実機で、拡張が入れたタグだけが消えたときのまね。拡張は keydown と input だけを送ること)
+    tag.addEventListener("keypress", (e) => { if (e.keyCode === 13) document.querySelector("#tags .tagItems:last-of-type")?.remove(); });
+    tag.addEventListener("change", () => { document.querySelectorAll("#tags .tagItems").forEach((c) => c.remove()); });
   </script>
 </body></html>`;
 
@@ -163,7 +183,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
           body: body.textContent ?? "",
           bodyImages: Array.from(body.querySelectorAll("img"), (i) => (i as HTMLElement).dataset.name ?? ""),
           eyecatch: Array.from(document.querySelectorAll("#eyecatch_preview img"), (i) => (i as HTMLElement).dataset.name ?? ""),
-          tags: Array.from(document.querySelectorAll("#tags span"), (s) => s.textContent ?? ""),
+          tags: Array.from(document.querySelectorAll("#tags .tagItems"), (s) => (s.textContent ?? "").replace(/^#/, "")),
           clicks: (window as any).__clicks,
           submitted: (window as any).__submitted,
           summary: (document.getElementById("summary") as HTMLTextAreaElement).value,
@@ -200,7 +220,8 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
 
   it("押すのは記事の設定を開くボタンだけ。「確認画面へ」「下書き保存」は押さず、フォームも送らない", async () => {
     const r = await run(ARTICLE);
-    assert.deepEqual(r.clicks, ["article_setting_menu_index"]);
+    // 公認タグの候補(#一つめ)は、候補のボタンを押して入れる
+    assert.deepEqual(r.clicks, ["article_setting_menu_index", "article_tag_suggest_item"]);
     assert.equal(r.submitted, 0);
   });
 
@@ -261,8 +282,9 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
   it("タグが入らなかったら、候補の並びに同じ文字があっても、入ったとは数えない", async () => {
     await page.evaluate(() => ((window as any).__tagBroken = true));
     const r = await run(ARTICLE);
-    assert.deepEqual(r.tags, []);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個も残っていません。入ったか確かめられなかったタグがあります(一つめ, 二つめ)")), r.result!.lines.join("\n"));
+    // 公認タグ(一つめ)は候補のボタンで入る。打って入れる二つめは、Enter で欄が空になるだけで入らない
+    assert.deepEqual(r.tags, ["一つめ"]);
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個は入れました。入ったか確かめられなかったタグがあります(二つめ)")), r.result!.lines.join("\n"));
   });
 
   it("開くボタンのセレクタが「下書き保存」「確認画面へ」に当たっても押さない", async () => {
@@ -281,6 +303,8 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
             eyecatchInput: ["#fileInput"],
             tagInput: ['input[placeholder*="タグ"]'],
             tagSuggest: [".article_tag_suggest"],
+            tagSuggestItem: [".article_tag_suggest_item"],
+            tagItem: [".article_tag_inputArea .tagItems"],
             summary: ["#summary"],
           },
         },
