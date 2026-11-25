@@ -47,6 +47,7 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
     assert.equal(await b.locator(".spin").count(), 2);
     assert.match((await b.locator("#wait").textContent()) ?? "", /library\.libecity\.com の編集画面は操作せずにお待ちください/);
     assert.equal(await b.locator("#chip").textContent(), "入力中");
+    assert.equal(await b.locator(".title").textContent(), "Last One Click for library.libecity.com");
     assert.equal(await b.getByRole("button", { name: "知らせを閉じる" }).count(), 0, "入れている途中に閉じるが出ています");
     // ページの querySelectorAll には当たらない(shadow DOM)
     assert.equal(await page.evaluate(() => document.querySelectorAll("button").length), 1);

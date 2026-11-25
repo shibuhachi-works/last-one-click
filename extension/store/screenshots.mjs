@@ -106,7 +106,7 @@ async function slide(name, cls, body, css = "", preCss = "") {
   await page.close();
 }
 const bannerHtml = (kind, text) =>
-  `<div class="banner" style="background:${kind === "ok" ? "#1f9d7a" : "#c27c0e"}"><b>Last One Click</b>${text}<span class="x">閉じる</span></div>`;
+  `<div class="banner" style="background:${kind === "ok" ? "#1f9d7a" : "#c27c0e"}"><b>Last One Click for note</b>${text}<span class="x">閉じる</span></div>`;
 
 // screenshot-2: 最後のワンクリックは、あなたの手で(マーキーの素材を背景なしで使い、本物のバナーを重ねる)
 {

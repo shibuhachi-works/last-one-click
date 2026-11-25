@@ -1124,6 +1124,8 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
   // 進めているあいだは、操作を控えてもらう。拡張が文字を選んで画像を貼ったり、目印を消したりしている途中に
   // 文字を打ったりクリックしたりすると、目印が残ったり、違う場所に入ったりする。note のダイアログ(OK を押すもの)だけは押してもらう
   // (この関数は main() から最初の await より前に呼ばれるので、文はファイルの先頭の const にせず、ここに置く)
+  // バナーの見出し。どのサイト向けの知らせかが分かるように、入れる先を添える(waitNotice と同じ理由で、ここに置く)
+  const BANNER_TITLE = "Last One Click for note";
   const waitNotice = "処理中です。終わるまで、note の編集画面は操作せずにお待ちください(note のダイアログが出たときは「OK」を押してください)";
   const spin = (size: number) =>
     working
@@ -1135,15 +1137,15 @@ function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "info", a
     <div id="box" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;max-width:440px;padding:12px 16px;
       border-radius:10px;background:${colors[kind]};color:#fff;font:14px/1.6 system-ui,sans-serif;
       box-shadow:0 4px 16px rgba(0,0,0,.25)">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>${spin(12)}Last One Click</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>${spin(12)}${BANNER_TITLE}</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
       ${working ? `<div id="wait" style="margin-bottom:6px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.18);font-size:13px">${escapeHtml(waitNotice)}</div>` : ""}
       <div id="sum" style="white-space:pre-wrap">${escapeHtml(summary ?? "")}</div>
       ${account ? `<div id="account" style="margin-top:6px;display:flex;align-items:center;gap:6px;font-size:13px"></div>` : ""}
       ${details ? `<div id="det" hidden style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.95;white-space:pre-wrap">${escapeHtml(details)}</div>` : ""}
       <div style="margin-top:10px;display:flex;align-items:center;justify-content:flex-end;gap:12px">${details ? `<button type="button" id="tog" aria-expanded="false" aria-controls="det" style="${link}">詳細</button>` : ""}${buttons}</div>
     </div>
-    <button type="button" id="pill" hidden aria-label="Last One Click のバナーを開く" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:6px 12px;border:0;border-radius:999px;
-      background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">${spin(10)}Last One Click ▴</button>`;
+    <button type="button" id="pill" hidden aria-label="${BANNER_TITLE} のバナーを開く" style="position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:6px 12px;border:0;border-radius:999px;
+      background:${colors[kind]};color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">${spin(10)}${BANNER_TITLE} ▴</button>`;
   const root = host.shadowRoot!;
   const accountEl = root.getElementById("account");
   if (account && accountEl) accountEl.append(...accountNodes("作成に使った note のアカウント:", account));

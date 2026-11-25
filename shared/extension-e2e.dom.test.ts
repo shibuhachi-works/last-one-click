@@ -477,6 +477,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         );
         const banner = editor.locator("#lastclick-pigeon-banner");
         assert.equal(await banner.locator(".spin").count(), 2, "回る印が出ていません");
+        assert.match((await banner.locator("b").first().textContent()) ?? "", /Last One Click for note$/, "バナーの見出しに入れる先が出ていません");
         // 進めているあいだは、操作を控えてもらうお願いを出す
         assert.match((await banner.locator("#wait").textContent()) ?? "", /終わるまで、note の編集画面は操作せずにお待ちください/);
         // たたんでも、秒数が進むあいだ、たたんだままになっている(バナーを作り直さない)

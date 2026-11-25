@@ -11,6 +11,9 @@ export type BannerKind = "info" | "ok" | "warn" | "error";
 
 export const BANNER_ID = "last-one-click-extra-site-banner";
 
+/** 知らせの見出し。どのサイト向けの知らせかが分かるように、入れる先のドメインを添える */
+export const BANNER_TITLE = `Last One Click for ${EXTRA_SITE_HOST}`;
+
 /** 種類ごとの色と、見出しの横に出す短いことば */
 const KINDS: Record<BannerKind, { color: string; soft: string; label: string; mark: string }> = {
   info: { color: "#3b7cf6", soft: "#eaf1ff", label: "入力中", mark: "" },
@@ -109,7 +112,7 @@ export function showBanner(text: string, kind: BannerKind = "info") {
   chip.style.background = k.soft;
   chip.style.color = k.color;
   const min = el("button", { type: "button", id: "min", class: "link", "aria-label": "知らせをたたむ" }, "たたむ");
-  head.append(badge(kind), el("span", { class: "title" }, "Last One Click"), chip, el("span", { class: "grow" }), min);
+  head.append(badge(kind), el("span", { class: "title" }, BANNER_TITLE), chip, el("span", { class: "grow" }), min);
   let close: HTMLButtonElement | null = null;
   if (!working) {
     close = el("button", { type: "button", id: "close", class: "link", "aria-label": "知らせを閉じる" }, "閉じる");
@@ -144,8 +147,8 @@ export function showBanner(text: string, kind: BannerKind = "info") {
     inner.append(det, foot);
   }
 
-  const pill = el("button", { type: "button", id: "pill", "aria-label": "Last One Click の知らせを開く" });
-  pill.append(badge(kind), document.createTextNode(`Last One Click · ${k.label} ▴`));
+  const pill = el("button", { type: "button", id: "pill", "aria-label": `${BANNER_TITLE} の知らせを開く` });
+  pill.append(badge(kind), document.createTextNode(`${BANNER_TITLE} · ${k.label} ▴`));
 
   box.hidden = wasCollapsed;
   pill.hidden = !wasCollapsed;
