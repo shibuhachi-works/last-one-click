@@ -38,6 +38,11 @@
         <input id="github-url" type="url" placeholder="https://github.com/you/repo/tree/main/posts/2026-10-28-xxx">
         <button id="github-load" type="button">読み込む</button>
       </div>
+      <p class="hint">記事のフォルダの URL か、PR の URL(…/pull/123)を貼ります。</p>
+      <div id="github-pick" class="row" hidden>
+        <select id="github-article" aria-label="読み込む記事"></select>
+        <button id="github-pick-load" type="button">この記事を読み込む</button>
+      </div>
       <p id="status-github" class="status" hidden></p>
     </details>
   </div>
