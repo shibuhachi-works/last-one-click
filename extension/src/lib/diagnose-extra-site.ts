@@ -128,6 +128,19 @@ export function buildExtraSiteReport(): string {
     lines.push(``);
   }
 
+  // 9. アカウントの表示らしい所の作り(ログイン中のアカウントを、ポップアップに出す場所を決めるため)。
+  // 隠れているもの(スマホ用のメニューなど)も出す。名前・ID の文字は出さず、長さだけ(describeSafe がアカウントらしい要素の文字を伏せる)。
+  // 画像は、src が https かどうかだけを出す(URL は出さない)
+  const accountRoots = all("[id], [class]").filter((el) => ACCOUNT_HINT.test(`${el.id} ${el.getAttribute("class") ?? ""}`));
+  const accountTop = accountRoots.filter((el) => !accountRoots.some((o) => o !== el && o.contains(el)));
+  const accountEls = accountTop.flatMap((el) => [el, ...descendants(el)]);
+  lines.push(`## アカウントの表示らしい所の中(隠れているものも。文字は長さだけ) (${accountEls.length} 件${accountEls.length > MAX_PER_GROUP ? `、先頭 ${MAX_PER_GROUP} 件のみ` : ""})`);
+  for (const el of accountEls.slice(0, MAX_PER_GROUP)) {
+    const img = el instanceof HTMLImageElement ? ` [画像: src ${el.src.startsWith("https://") ? "https" : el.src ? "https 以外" : "無し"}]` : "";
+    lines.push(`- ${describeSafe(el)}${img}`);
+  }
+  lines.push(``);
+
   // アカウントの表示らしい要素の文字・aria-label・title と、画像の alt を、レポート全体から伏せる
   // (要素ごとの行では出さないが、ほかの要素の aria-label などに同じ名前が入ることがある)
   return redact(lines.join("\n"), accountSecrets());

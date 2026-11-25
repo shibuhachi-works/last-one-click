@@ -128,6 +128,13 @@ describe("追加の対応先の診断 (DOM)", () => {
     assert.doesNotMatch(report, /ひみつの検索語/);
   });
 
+  it("アカウントの表示らしい所の作りを出す。名前・ID・画像の URL は出さない", () => {
+    assert.match(report, /## アカウントの表示らしい所の中/);
+    assert.match(report, /button \.user-menu .*\(文字 \d+ 字は出しません\)/);
+    assert.match(report, /img .*\[画像: src https\]/);
+    assert.doesNotMatch(report, /me\.png/);
+  });
+
   it("ボタンの一覧に、文字と道筋が出る", () => {
     assert.match(sectionOf("ボタン(公開・投稿のボタンを除く)"), /"下書き保存" \(visible\) path: main\.editor-page > div\.toolbar:nth-of-type\(1\) > button:nth-of-type\(2\)/);
   });
