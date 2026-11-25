@@ -61,6 +61,12 @@ export type ExtraSiteSelectors = {
   tagSuggest: string[];
   /** 要約の欄 */
   summary: string[];
+  /** 外部公開の範囲の「冒頭のみ公開」の radio */
+  publishScopeLimited: string[];
+  /** 外部公開の範囲の「全文公開」の radio */
+  publishScopePublic: string[];
+  /** 読了目安時間を出すかの checkbox */
+  readingTime: string[];
 };
 
 /** selectors/extra-site.json が無い・読めないときの値。ファイルがあっても、欠けた項目はこの値を使う */
@@ -74,6 +80,9 @@ export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
   tagInput: ['input[placeholder*="タグ"]'],
   tagSuggest: [".article_tag_suggest"],
   summary: ["#summary", 'textarea[name="summary"]'],
+  publishScopeLimited: ["#publishScope_limited"],
+  publishScopePublic: ["#publishScope_public"],
+  readingTime: ["#setting_estimatedReadingTime"],
 };
 
 /**
@@ -143,6 +152,10 @@ export type ExtraSiteArticle = {
   summary?: string;
   /** カテゴリ(front matter の category)。選ぶ画面の作りが分かるまでは入れず、知らせるだけ */
   category?: string;
+  /** 外部公開の範囲(front matter の「外部公開」)。public は全文公開、limited は冒頭のみ公開 */
+  publishScope?: "public" | "limited";
+  /** 読了目安時間を出すか(front matter の「読了目安時間」) */
+  readingTime?: boolean;
 };
 
 /**

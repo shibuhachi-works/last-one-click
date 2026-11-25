@@ -1,8 +1,10 @@
 // 追加の対応先(library.libecity.com)の編集画面に、記事を下書きとして入れる(#120)。
 // 今開いているタブに入れて止まる。新しいタブは開かない。
 // 押さない: 「確認画面へ」(公開へ進む)・「下書き保存」(人が中身を確かめてから押す)・「公開」「投稿」を含むもの。
-// 押してよいのは、記事の設定がたたまれているときの開くボタンだけ(safeClick に EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS を渡す)。
-// 記事の設定の「要約」は front matter の summary を入れる。カテゴリ・公開範囲には触らない(人が入れる。カテゴリは知らせるだけ)。
+// 押してよいのは、記事の設定がたたまれているときの開くボタンと、外部公開の範囲の radio・読了目安時間の checkbox だけ
+// (どれも safeClick に EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS を渡す)。
+// 記事の設定の「要約」・外部公開の範囲・読了目安時間は front matter に書いてあれば入れる(押すのは radio・checkbox だけ)。
+// カテゴリには触らない(人が入れる。今は知らせるだけ)。
 // 画面の作りは #119 の診断から決めた(shared/extra-site.ts の EXTRA_SITE_DEFAULT_SELECTORS)
 import { EXTRA_SITE_HOST, acceptsFile, extraSiteSelectors, type ExtraSiteArticle, type ExtraSiteSelectors } from "../../../shared/extra-site";
 import { EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS } from "../../../shared/forbidden-click";
@@ -24,6 +26,8 @@ export type FillResult = { ok: boolean; lines: string[] };
 
 const IMAGE_WAIT_MS = 30_000;
 const FIELD_WAIT_MS = 10_000;
+/** タグを入れ終えてから、消えていないかを数え直すまでの長さ */
+const TAG_RECHECK_MS = 1_500;
 
 /** このページで押すときは、いつもここを通す(「確認画面へ」「下書き保存」も押さない) */
 function click(el: HTMLElement, context: string) {
@@ -68,12 +72,15 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   }
 
   const summary = article.summary?.trim() ?? "";
-  if (article.thumbnail || article.hashtags.length || summary) {
+  const settings = article.thumbnail || article.hashtags.length || summary || article.publishScope || article.readingTime !== undefined;
+  if (settings) {
     await step("記事の設定を開く", () => openSettings(S, fieldWait));
   }
   if (article.thumbnail) await step("見出し画像", () => setEyecatch(S, article.thumbnail!, fieldWait));
+  if (article.publishScope) await step("外部公開の範囲", () => setPublishScope(S, article.publishScope!, fieldWait));
   if (summary) await step("要約", () => setSummary(S, summary, fieldWait));
   if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait));
+  if (article.readingTime !== undefined) await step("読了目安時間", () => setReadingTime(S, article.readingTime!, fieldWait));
   if (article.category?.trim()) lines.push(`⚠ カテゴリ: 「${article.category.trim()}」は入れていません。画面の「カテゴリを選択」から選んでください`);
 
   for (const n of notes) lines.push(`⚠ ${EXTRA_SITE_HOST} のエディタでは入らない書き方: ${n}`);
@@ -190,6 +197,25 @@ async function setEyecatch(S: ExtraSiteSelectors, thumb: NonNullable<ExtraSiteAr
   return "";
 }
 
+/** 外部公開の範囲の radio を選ぶ(押すのは radio だけ。すでに選ばれていれば押さない) */
+async function setPublishScope(S: ExtraSiteSelectors, scope: "public" | "limited", fieldWait: number): Promise<string> {
+  const label = scope === "public" ? "全文公開" : "冒頭のみ公開";
+  const radio = await waitFor<HTMLInputElement>(scope === "public" ? S.publishScopePublic : S.publishScopeLimited, fieldWait, { hidden: true });
+  if (!radio || radio.type !== "radio") throw new Error(`「${label}」の選択肢が見つかりません。画面で選んでください`);
+  if (!radio.checked) click(radio, `外部公開の範囲: ${label}`);
+  if (!(await waitUntil(() => (radio.checked ? true : null), 1_000))) throw new Error(`「${label}」を選べたか確かめられませんでした。画面で確かめてください`);
+  return label;
+}
+
+/** 読了目安時間を出すかの checkbox を合わせる(押すのは checkbox だけ。合っていれば押さない) */
+async function setReadingTime(S: ExtraSiteSelectors, show: boolean, fieldWait: number): Promise<string> {
+  const box = await waitFor<HTMLInputElement>(S.readingTime, fieldWait, { hidden: true });
+  if (!box || box.type !== "checkbox") throw new Error("読了目安時間の切り替えが見つかりません。画面で合わせてください");
+  if (box.checked !== show) click(box, "読了目安時間");
+  if (!(await waitUntil(() => (box.checked === show ? true : null), 1_000))) throw new Error("読了目安時間を切り替えられたか確かめられませんでした。画面で確かめてください");
+  return show ? "表示する" : "表示しない";
+}
+
 /**
  * 要約の欄に入れる。欄に文字数の上限(maxlength)があり、要約がそれより長いときは入れずに知らせる
  * (途中で切ると、文の終わりが欠けたまま気づかれないため)
@@ -214,24 +240,32 @@ async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: num
  */
 async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number): Promise<string> {
   const failed: string[] = [];
-  let done = 0;
+  /** 入ったタグと、入れる前に同じ文字がいくつあったか(最後に、消えていないかを数え直す) */
+  const entered: { tag: string; before: number }[] = [];
+  const countOf = (tag: string) => countOutside(query(S.settingsMenu) ?? document.body, query<HTMLInputElement>(S.tagInput), tag, S.tagSuggest);
   for (const raw of tags) {
     const tag = raw.replace(/^[#＃]/, "").trim();
     if (!tag) continue;
     const input = await waitFor<HTMLInputElement>(S.tagInput, fieldWait);
     if (!input) throw new Error("タグの欄が見つかりません");
-    const count = () => countOutside(query(S.settingsMenu) ?? document.body, query<HTMLInputElement>(S.tagInput), tag, S.tagSuggest);
-    const before = count();
+    const before = countOf(tag);
     input.focus();
     setNativeValue(input, tag);
     for (const type of ["keydown", "keypress", "keyup"]) input.dispatchEvent(enterEvent(type));
     // 増えたあと、少し待っても増えたままなら入ったとする(打っている途中だけ出るものを数えないように)
-    const entered = await waitUntil(() => (count() > before ? true : null), 2_000);
-    if (entered) await sleep(500);
-    if (entered && count() > before) done++;
+    const added = await waitUntil(() => (countOf(tag) > before ? true : null), 2_000);
+    if (added) await sleep(500);
+    if (added && countOf(tag) > before) entered.push({ tag, before });
     else failed.push(tag);
   }
-  if (failed.length) throw new Error(`${done ? `${done} 個は入れました。` : ""}入ったか確かめられなかったタグがあります(${failed.join(", ")})。画面で確かめてください`);
+  // 入れ終えたあと、少し待ってから数え直す。いったん入ったのに、あとで消えるタグがある(実機で見た)
+  if (entered.length) await sleep(TAG_RECHECK_MS);
+  const gone = entered.filter((e) => countOf(e.tag) <= e.before).map((e) => e.tag);
+  const done = entered.length - gone.length;
+  const problems: string[] = [];
+  if (failed.length) problems.push(`入ったか確かめられなかったタグがあります(${failed.join(", ")})`);
+  if (gone.length) problems.push(`いったん入ったあと、画面から消えたタグがあります(${gone.join(", ")})`);
+  if (problems.length) throw new Error(`${done ? `${done} 個は入れました。` : "1 個も残っていません。"}${problems.join("。")}。画面で確かめてください`);
   return `${done} 個`;
 }
 
@@ -283,9 +317,10 @@ export function resultMessage(r: FillResult): { text: string; kind: "ok" | "warn
   };
 }
 
-/** 入れていない欄の知らせ。要約は、入れたとき(✓ 要約)だけ外す */
+/** 入れていない欄の知らせ。要約・外部公開の範囲は、入れたとき(✓)だけ外す */
 function notTouched(r: FillResult): string {
-  const items = [...(r.lines.some((l) => l.startsWith("✓ 要約")) ? [] : ["要約"]), "カテゴリ", "外部公開の範囲"];
+  const filled = (name: string) => r.lines.some((l) => l.startsWith(`✓ ${name}`));
+  const items = [...(filled("要約") ? [] : ["要約"]), "カテゴリ", ...(filled("外部公開の範囲") ? [] : ["外部公開の範囲"])];
   return `${items.join("・")}は入れていません。`;
 }
 

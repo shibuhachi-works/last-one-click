@@ -24,7 +24,9 @@ const PAGE = `<!doctype html><html><body>
         <div id="tags"></div>
         <input type="text" placeholder="タグを入力">
         <div class="article_tag_suggest"><ul><li><button type="button">#一つめ</button></li></ul><div id="typing"></div></div>
-        <label><input type="radio" name="setting_publishScope" value="all">全体</label>
+        <label><input type="radio" id="publishScope_limited" name="setting_publishScope">冒頭のみ公開 投稿者名とアイコンは匿名表示</label>
+        <label><input type="radio" id="publishScope_public" name="setting_publishScope">全文公開 投稿者名もアイコンもすべて表示</label>
+        <label class="switch"><input type="checkbox" id="setting_estimatedReadingTime" style="display:none">読了目安時間を表示する</label>
       </div>
     </div>
     <button type="button" id="save">下書き保存</button>
@@ -71,6 +73,8 @@ const PAGE = `<!doctype html><html><body>
     tag.addEventListener("keydown", (e) => {
       if (e.keyCode !== 13 || !tag.value) return;
       if (window.__tagBroken) { tag.value = ""; return; }
+      // window.__tagVanish なら、足したタグを少しあとで消す(実機で、いったん入ったタグが消えたときのまね)
+      if (window.__tagVanish && !window.__vanishSet) { window.__vanishSet = true; setTimeout(() => { document.getElementById("tags").replaceChildren(); }, 1800); }
       const s = document.createElement("span");
       s.textContent = tag.value;
       document.getElementById("tags").append(s);
@@ -119,7 +123,8 @@ type Run = {
   clicks: string[];
   submitted: number;
   summary: string;
-  scope: boolean;
+  scope: string;
+  readingTime: boolean;
 };
 
 describe("追加の対応先の編集画面に入れる (DOM)", () => {
@@ -162,7 +167,8 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
           clicks: (window as any).__clicks,
           submitted: (window as any).__submitted,
           summary: (document.getElementById("summary") as HTMLTextAreaElement).value,
-          scope: Array.from(document.querySelectorAll<HTMLInputElement>('input[name="setting_publishScope"]')).some((r) => r.checked),
+          scope: Array.from(document.querySelectorAll<HTMLInputElement>('input[name="setting_publishScope"]')).find((r) => r.checked)?.id ?? "",
+          readingTime: (document.getElementById("setting_estimatedReadingTime") as HTMLInputElement).checked,
         };
       },
       { article, opts },
@@ -201,7 +207,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
   it("要約が無ければ要約の欄に触らない。公開範囲には触らない。結果に、入れていない欄を出す", async () => {
     const r = await run(ARTICLE);
     assert.equal(r.summary, "");
-    assert.equal(r.scope, false);
+    assert.equal(r.scope, "");
     assert.match(await page.evaluate((res) => (globalThis as any).__result(res).text, r.result), /要約・カテゴリ・外部公開の範囲は入れていません/);
   });
 
@@ -210,10 +216,27 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.equal(r.summary, "見本の要約です。");
     assert.ok(r.result!.lines.includes("✓ 要約: 8 字"), r.result!.lines.join("\n"));
     assert.ok(r.result!.lines.some((l) => l.startsWith("⚠ カテゴリ: 「見本のカテゴリ」は入れていません")));
-    assert.equal(r.scope, false);
+    assert.equal(r.scope, "");
     const text = await page.evaluate((res) => (globalThis as any).__result(res).text, r.result);
     assert.match(text, /カテゴリ・外部公開の範囲は入れていません/);
     assert.doesNotMatch(text, /要約・カテゴリ/);
+  });
+
+  it("外部公開の範囲・読了目安時間を、front matter のとおりに合わせる。結果に、入れていない欄として出さない", async () => {
+    const r = await run({ ...ARTICLE, publishScope: "public", readingTime: true });
+    assert.equal(r.scope, "publishScope_public");
+    assert.equal(r.readingTime, true);
+    assert.ok(r.result!.lines.includes("✓ 外部公開の範囲: 全文公開"), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.includes("✓ 読了目安時間: 表示する"), r.result!.lines.join("\n"));
+    const text = await page.evaluate((res) => (globalThis as any).__result(res).text, r.result);
+    assert.match(text, /要約・カテゴリは入れていません/);
+    // 合っていれば押さない(冒頭のみ公開に合わせ直し、読了目安時間は表示しないのまま)
+    const r2 = await run({ ...ARTICLE, publishScope: "limited", readingTime: true });
+    assert.equal(r2.scope, "publishScope_limited");
+    assert.equal(r2.readingTime, true, "合っているのに切り替えてしまいました");
+    const r3 = await run({ ...ARTICLE, readingTime: false });
+    assert.equal(r3.readingTime, false);
+    assert.equal(r3.scope, "publishScope_limited", "外部公開が無いのに触りました");
   });
 
   it("要約が欄の上限より長ければ、入れずに ✗ を出す", async () => {
@@ -228,11 +251,18 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 要約が 136 字で、欄の上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
+  it("いったん入ったタグが、あとで画面から消えたら ✗ で知らせる", async () => {
+    await page.evaluate(() => ((window as any).__tagVanish = true));
+    const r = await run(ARTICLE);
+    assert.deepEqual(r.tags, []);
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個も残っていません。いったん入ったあと、画面から消えたタグがあります(一つめ, 二つめ)")), r.result!.lines.join("\n"));
+  });
+
   it("タグが入らなかったら、候補の並びに同じ文字があっても、入ったとは数えない", async () => {
     await page.evaluate(() => ((window as any).__tagBroken = true));
     const r = await run(ARTICLE);
     assert.deepEqual(r.tags, []);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 入ったか確かめられなかったタグがあります(一つめ, 二つめ)")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個も残っていません。入ったか確かめられなかったタグがあります(一つめ, 二つめ)")), r.result!.lines.join("\n"));
   });
 
   it("開くボタンのセレクタが「下書き保存」「確認画面へ」に当たっても押さない", async () => {

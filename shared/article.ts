@@ -33,7 +33,33 @@ export type FrontMatter = {
   summary?: string;
   /** カテゴリ(front matter の category)。note には入れない。追加の対応先の編集画面で使う */
   category?: string;
+  /** 外部公開の範囲(front matter の「外部公開」。全文公開 → public、冒頭のみ公開 → limited)。note には入れない */
+  publishScope?: PublishScope;
+  /** 読了目安時間を出すか(front matter の「読了目安時間」。表示する/表示しない・true/false)。note には入れない */
+  readingTime?: boolean;
 };
+
+/** 追加の対応先の「外部公開の範囲」。public は全文公開、limited は冒頭のみ公開 */
+export type PublishScope = "public" | "limited";
+
+/** front matter の「外部公開」の値 → PublishScope。分からない値は undefined(触らない) */
+export function parsePublishScope(v: unknown): PublishScope | undefined {
+  const t = scalarToString(v)?.replace(/[\s　]+/g, "");
+  if (!t) return undefined;
+  if (t === "全文公開" || t === "全文") return "public";
+  if (t === "冒頭のみ公開" || t === "冒頭のみ" || t === "冒頭") return "limited";
+  return undefined;
+}
+
+/** front matter の「読了目安時間」の値 → 出すか。分からない値は undefined(触らない) */
+export function parseReadingTime(v: unknown): boolean | undefined {
+  if (typeof v === "boolean") return v;
+  const t = scalarToString(v)?.replace(/[\s　]+/g, "").toLowerCase();
+  if (!t) return undefined;
+  if (["表示する", "表示", "出す", "true", "yes", "on"].includes(t)) return true;
+  if (["表示しない", "非表示", "出さない", "false", "no", "off"].includes(t)) return false;
+  return undefined;
+}
 
 /** YAML の文字列 → 値。各パッケージの `yaml` の parse を渡す */
 export type YamlParse = (src: string) => unknown;
@@ -71,7 +97,7 @@ export function resolveArticleUrl(input: string): { mdUrl: string; baseUrl: stri
 
 /**
  * front matter(先頭の "---" で囲まれたブロック)を YAML として読む。
- * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account / summary / category だけで、他は無視する。
+ * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account / summary / category / 外部公開 / 読了目安時間 だけで、他は無視する。
  * - 値は文字列に揃える(数値などもそのまま文字列に)。null や空は「無し」
  * - hashtags は配列でも "a, b" / "#a #b" の文字列でもよい。`#` は外す
  * - `hashtags: #AI #個人開発`(引用符なし)は YAML ではコメントになるが、README で許している書き方なので
@@ -106,6 +132,10 @@ export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: Fron
     const s = scalarToString(h);
     if (s !== undefined) data.hashtags = splitList(s);
   }
+  const publishScope = parsePublishScope(obj["外部公開"]);
+  if (publishScope) data.publishScope = publishScope;
+  const readingTime = parseReadingTime(obj["読了目安時間"]);
+  if (readingTime !== undefined) data.readingTime = readingTime;
   const noteAccount = normalizeNoteAccount(scalarToString(obj.note_account));
   if (noteAccount) data.noteAccount = noteAccount;
   try {
@@ -175,6 +205,10 @@ export type RenderedArticle = {
   summary?: string;
   /** front matter の category(カテゴリ)。note には入れない */
   category?: string;
+  /** front matter の「外部公開」。note には入れない */
+  publishScope?: PublishScope;
+  /** front matter の「読了目安時間」。note には入れない */
+  readingTime?: boolean;
 };
 
 /** 下書きを入れる先。note の新しいタブか、今開いている追加の対応先の編集画面か */
@@ -314,5 +348,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
     ...(fm.noteAccount ? { noteAccount: fm.noteAccount } : {}),
     ...(fm.summary !== undefined ? { summary: fm.summary } : {}),
     ...(fm.category !== undefined ? { category: fm.category } : {}),
+    ...(fm.publishScope ? { publishScope: fm.publishScope } : {}),
+    ...(fm.readingTime !== undefined ? { readingTime: fm.readingTime } : {}),
   };
 }
