@@ -280,6 +280,8 @@ function applyDestinationControls() {
   }
   // ログイン中のアカウントは、入れる先にかかわらず、読めたものを「(ドメイン): [アイコン] 名前」で並べて出す
   // (ドメインを見出しにするので、どのサイトのアカウントかを取り違えない)。記事の指定(note_account)は note に入れるときだけ
+  // ② の一覧も、入れる先に合わせて出し直す(入れる先は、開いたあとで決まることがある)
+  renderFieldsSummary();
   $("account").hidden = !loggedInAccount;
   $("extra-site-account").hidden = !extraSiteAccountShown;
   renderAccountTarget();
@@ -783,19 +785,24 @@ const fieldsEditEl = $<HTMLDetailsElement>("fields-edit");
  * 値が無いものは「なし」。タイトルが無いときは開いて知らせる
  */
 function renderFieldsSummary() {
-  const rows: [string, string][] = [
-    ["タイトル", titleEl.value.trim()],
-    ["ハッシュタグ", hashtagsEl.value.trim()],
-    ["マガジン", magazineEl.value.trim()],
-    ["価格", priceEl.value.trim() ? `${priceEl.value.trim()} 円` : ""],
+  // マガジン・価格は note にだけある設定。追加の対応先に入れるときは入らないので、一覧でもそう出す(欄と同じ)
+  const noteOnly = destination() !== "note";
+  const rows: [string, string, boolean][] = [
+    ["タイトル", titleEl.value.trim(), false],
+    ["ハッシュタグ", hashtagsEl.value.trim(), false],
+    ["マガジン", magazineEl.value.trim(), noteOnly],
+    ["価格", priceEl.value.trim() ? `${priceEl.value.trim()} 円` : "", noteOnly],
   ];
   const nodes: Node[] = [];
-  for (const [label, value] of rows) {
+  for (const [label, value, unavailable] of rows) {
     const dt = document.createElement("dt");
     dt.textContent = label;
     const dd = document.createElement("dd");
-    dd.textContent = value || (label === "タイトル" ? "(ありません。「直す」で入れてください)" : "なし");
+    dd.textContent = unavailable
+      ? `${value ? `${value} ` : ""}${UNAVAILABLE_NOTE}`
+      : value || (label === "タイトル" ? "(ありません。「直す」で入れてください)" : "なし");
     if (!value && label === "タイトル") dd.classList.add("missing");
+    if (unavailable) dd.classList.add("unavailable");
     nodes.push(dt, dd);
   }
   $("fields-summary").replaceChildren(...nodes);

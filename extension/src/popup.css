@@ -82,3 +82,4 @@ details details { margin-left: 12px; }
 .fields-summary dd.missing { color: #a12622; }
 #fields-edit { margin-top: 6px; }
 #fields-edit .grid { margin-top: 6px; }
+.fields-summary dd.unavailable { color: #888; }
