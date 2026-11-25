@@ -238,8 +238,10 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
   const open = await waitFor(S.categoryOpen, fieldWait);
   if (!open) throw new Error("「カテゴリを選択」のボタンが見つかりません。画面で選んでください");
   const value = query<HTMLInputElement>(S.categoryValue, { hidden: true });
-  const current = norm(open.textContent);
-  if (value?.value && current.endsWith(norm(sub)) && (!main || current.startsWith(norm(main)))) return `${open.textContent?.trim()}(前から)`;
+  // すでに選ばれていれば押さない。開くボタンの文字(「大 > 小」)を分けて、それぞれ名前全体で比べる
+  const current = splitCategory(open.textContent ?? "");
+  const same = norm(current.sub) === norm(sub) && (!main || norm(current.main) === norm(main));
+  if (value?.value && current.main && same) return `${open.textContent?.trim()}(前から)`;
 
   click(open, "カテゴリを選択");
   const dialog = await waitFor(S.categoryDialog, fieldWait);
@@ -279,8 +281,8 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
   click(button, `カテゴリ: ${mainName} > ${sub}`);
   const chosen = await waitUntil(() => {
     const v = query<HTMLInputElement>(S.categoryValue, { hidden: true });
-    const t = norm(query(S.categoryOpen, { hidden: true })?.textContent);
-    return (v && v.value && v.value !== before) || t.endsWith(norm(sub)) ? true : null;
+    const t = splitCategory(query(S.categoryOpen, { hidden: true })?.textContent ?? "");
+    return (v && v.value && v.value !== before) || norm(t.sub) === norm(sub) ? true : null;
   }, 2_000);
   // 選んでも開いたままなら閉じる
   await sleep(300);

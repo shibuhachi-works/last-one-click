@@ -342,6 +342,16 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.ok(!r.clicks.includes("btn_selectCategory"));
   });
 
+  it("選ばれているカテゴリと名前の一部だけ合うときは、選ばれているとみない", async () => {
+    await page.evaluate(() => {
+      (document.querySelector('input[name="category"]') as HTMLInputElement).value = "貯める/家計管理の準備";
+      document.querySelector(".btn_selectCategory")!.textContent = "貯める > 家計管理の準備";
+    });
+    const r = await run({ ...ARTICLE, category: "準備" });
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: カテゴリ「準備」が見つかりません")), r.result!.lines.join("\n"));
+    assert.equal(r.categoryOpen, false);
+  });
+
   it("外部公開の範囲・読了目安時間を、front matter のとおりに合わせる。結果に、入れていない欄として出さない", async () => {
     const r = await run({ ...ARTICLE, publishScope: "public", readingTime: true });
     assert.equal(r.scope, "publishScope_public");
