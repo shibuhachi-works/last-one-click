@@ -331,8 +331,8 @@ function accountRow(host: string, iconUrl: unknown, name?: string, suffix?: stri
 /**
  * 追加の対応先のログイン中のアカウントを、「(ドメイン): [アイコン] 名前」と出す。
  * 開いている追加の対応先のタブ(今のタブを先に。無ければ最近見たタブ)の content script に 1 回だけ聞く。
- * ページに出ているものを読むだけで、追加の対応先には問い合わせない。タブが無いか読めなければ何も出さない。
- * 名前はマイページなどの左の欄にだけあるので、編集画面だけを開いているときはアイコンだけになる。読んだものは保存しない
+ * 名前はマイページの左の欄にだけあるので、開いているページに無ければ、そのタブがマイページを 1 回だけ GET で読む
+ * (extension/src/lib/extra-site-account.ts)。タブが無いか読めなければ何も出さない。読んだものは保存しない
  */
 async function showExtraSiteAccount(): Promise<void> {
   if (!EXTRA_SITE_ENABLED || extraSiteAccountAsked) return;
@@ -346,7 +346,7 @@ async function showExtraSiteAccount(): Promise<void> {
   if (!account || (!account.name && !account.iconUrl)) return;
   const el = $<HTMLParagraphElement>("extra-site-account");
   el.replaceChildren(...accountRow(EXTRA_SITE_HOST, account.iconUrl, account.name));
-  el.title = `お使いの Chrome で ${EXTRA_SITE_HOST} にログインしているアカウントです(開いているページから読みました)。違っていたら、${EXTRA_SITE_HOST} でログインし直してから入れてください。`;
+  el.title = `お使いの Chrome で ${EXTRA_SITE_HOST} にログインしているアカウントです。違っていたら、${EXTRA_SITE_HOST} でログインし直してから入れてください。`;
   extraSiteAccountShown = true;
   applyDestination();
 }

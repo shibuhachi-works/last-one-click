@@ -22,6 +22,6 @@
   "categorySubName": [".sub_cat_name"],
   "categoryClose": ["#selectCategory .modal-header button.close", "#selectCategory .btn-close"],
   "readingTime": ["#setting_estimatedReadingTime"],
-  "accountIcon": [".btn_mypage img.rounded-circle"],
-  "accountName": []
+  "accountIcon": [".btn_mypage img.rounded-circle", ".mypageSide .profile_img img.rounded-circle"],
+  "accountName": [".mypageSide .profile_name"]
 }
