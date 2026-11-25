@@ -20,6 +20,7 @@ import {
   waitForNewEditor,
   type NewEditorDeps,
   type ExtraSiteApi,
+  pickExtraSiteTab,
 } from "./extra-site.js";
 
 type Fake = ExtraSiteApi & { granted: boolean; registered: boolean; calls: string[]; answer: boolean; editor: boolean };
@@ -415,5 +416,23 @@ describe("新規記事のエディタを開いて待つ(waitForNewEditor)", () =
   it("タブが閉じられたら止まる。待ちきれなければ止まる", async () => {
     await assert.rejects(waitForNewEditor(1, deps([null])), /タブが閉じられました/);
     await assert.rejects(waitForNewEditor(1, deps([{ url: EDIT, loading: false }], () => false), 60_000), /1 分待っても開きませんでした。ログインしてから/);
+  });
+});
+
+describe("pickExtraSiteTab", () => {
+  const lib = (id: number, lastAccessed: number, path = "/history") => ({ id, url: `https://library.libecity.com${path}`, lastAccessed });
+  it("今のタブが追加の対応先なら、それを選ぶ", () => {
+    assert.equal(pickExtraSiteTab(lib(1, 1), [lib(1, 1), lib(2, 9)]), 1);
+  });
+  it("今のタブが違えば、いちばん最近見た追加の対応先のタブを選ぶ", () => {
+    assert.equal(pickExtraSiteTab({ id: 5, url: "https://note.com/" }, [lib(2, 3), lib(3, 7), { id: 4, url: "https://note.com/x", lastAccessed: 99 }]), 3);
+  });
+  it("ホストが似ているだけのタブ・http のタブは選ばない。無ければ undefined", () => {
+    const tabs = [
+      { id: 6, url: "https://library.libecity.com.example.com/", lastAccessed: 9 },
+      { id: 7, url: "http://library.libecity.com/", lastAccessed: 9 },
+    ];
+    assert.equal(pickExtraSiteTab(undefined, tabs), undefined);
+    assert.equal(pickExtraSiteTab(undefined, []), undefined);
   });
 });

@@ -17,7 +17,9 @@ import {
   disableExtraSite,
   enableExtraSite,
   extraSiteUnsupportedNotes,
+  EXTRA_SITE_ORIGIN,
   isExtraSiteUrl,
+  pickExtraSiteTab,
   shouldFillExtraSite,
   shouldOfferExtraSite,
   type ExtraSiteOffer,
@@ -27,7 +29,7 @@ import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
 import { loadPopupAccount } from "../../shared/popup-account";
-import { STORAGE, type AccountResponse, type DiagnoseResponse, type ExtraSiteFillResponse, type Message, type WindowHandoff } from "./lib/types";
+import { STORAGE, type AccountResponse, type DiagnoseResponse, type ExtraSiteAccountResponse, type ExtraSiteFillResponse, type Message, type WindowHandoff } from "./lib/types";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 /**
@@ -225,6 +227,9 @@ const NOTE_ONLY_CONTROLS = [insertTocEl, embedUrlsEl, creditLinkEl, magazineEl, 
 const UNAVAILABLE_NOTE = "(このページでは使えません)";
 /** 追加の対応先の許可があるか(開発用のビルドだけ。showExtraSiteSetting で決まる) */
 let extraSiteGranted = false;
+/** 追加の対応先のアカウントを出せたか(読めたときだけ true) */
+let extraSiteAccountShown = false;
+let extraSiteAccountAsked = false;
 /**
  * 新しいタブで追加の対応先の新規記事を開いて入れるか。今のタブが編集画面でなく、許可があり、
  * 記事の target が note 以外のとき(note と同じく、別のページからも作れるように)
@@ -278,6 +283,8 @@ function applyDestinationControls() {
   // 追加の対応先に入れるときは、note のアカウント(「ログイン中」「記事の指定」)を出さない。
   // 入れる先は note ではないので、note のアカウントを出すと、どのアカウントで入るのかを取り違える
   $("account").hidden = toExtraSite || !loggedInAccount;
+  // 追加の対応先に入れるときだけ、そちらのアカウントを出す(読めたときだけ)
+  $("extra-site-account").hidden = !toExtraSite || !extraSiteAccountShown;
   renderAccountTarget();
 }
 /**
@@ -300,8 +307,44 @@ function checkTargetNow() {
     targetProblemShown = null;
   }
 }
+/**
+ * 追加の対応先のログイン中のアカウントを、「(ドメイン): [アイコン] 名前」と出す。
+ * 開いている追加の対応先のタブ(今のタブを先に。無ければ最近見たタブ)の content script に 1 回だけ聞く。
+ * ページに出ているものを読むだけで、追加の対応先には問い合わせない。タブが無いか読めなければ何も出さない。
+ * 名前はマイページなどの左の欄にだけあるので、編集画面だけを開いているときはアイコンだけになる。読んだものは保存しない
+ */
+async function showExtraSiteAccount(): Promise<void> {
+  if (!EXTRA_SITE_ENABLED || extraSiteAccountAsked) return;
+  extraSiteAccountAsked = true;
+  const [current] = isWindow ? [] : await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+  const tabs = await chrome.tabs.query({ url: EXTRA_SITE_ORIGIN }).catch(() => []);
+  const tabId = pickExtraSiteTab(current, tabs);
+  if (tabId === undefined) return;
+  const res = (await chrome.tabs.sendMessage(tabId, { type: "extraSiteAccount" } satisfies Message).catch(() => null)) as ExtraSiteAccountResponse | null;
+  const account = res?.account;
+  if (!account || (!account.name && !account.iconUrl)) return;
+  const el = $<HTMLParagraphElement>("extra-site-account");
+  const nodes: Node[] = [document.createTextNode(`${EXTRA_SITE_HOST}:`)];
+  if (typeof account.iconUrl === "string" && account.iconUrl.startsWith("https://")) {
+    const img = document.createElement("img");
+    img.src = account.iconUrl;
+    img.alt = "";
+    img.referrerPolicy = "no-referrer";
+    nodes.push(img);
+  }
+  if (account.name) {
+    const name = document.createElement("b");
+    name.textContent = account.name;
+    nodes.push(name);
+  }
+  el.replaceChildren(...nodes);
+  el.title = `お使いの Chrome で ${EXTRA_SITE_HOST} にログインしているアカウントです(開いているページから読みました)。違っていたら、${EXTRA_SITE_HOST} でログインし直してから入れてください。`;
+  extraSiteAccountShown = true;
+  applyDestination();
+}
 function showExtraSiteSetting(granted: boolean) {
   extraSiteGranted = granted;
+  if (granted) void showExtraSiteAccount();
   applyDestination();
   extraSiteRowEl.hidden = !granted;
   extraSiteToggleEl.checked = granted;

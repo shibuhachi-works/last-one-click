@@ -67,6 +67,13 @@ export type ExtraSiteSelectors = {
   publishScopePublic: string[];
   /** 読了目安時間を出すかの checkbox */
   readingTime: string[];
+  /** ログイン中のアカウントのアイコンの画像(ヘッダーの右上。編集画面にもある) */
+  accountIcon: string[];
+  /**
+   * ログイン中のアカウントの名前(マイページの左の欄など。編集画面には無い)。
+   * 作りがまだ分かっていないので、既定値は空。診断で分かったら selectors/extra-site.json に足す
+   */
+  accountName: string[];
 };
 
 /** selectors/extra-site.json が無い・読めないときの値。ファイルがあっても、欠けた項目はこの値を使う */
@@ -83,6 +90,8 @@ export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
   publishScopeLimited: ["#publishScope_limited"],
   publishScopePublic: ["#publishScope_public"],
   readingTime: ["#setting_estimatedReadingTime"],
+  accountIcon: [".btn_mypage img.rounded-circle"],
+  accountName: [],
 };
 
 /**
@@ -107,6 +116,24 @@ declare const __EXTRA_SITE_SELECTORS__: unknown;
 /** 拡張に同梱した selectors/extra-site.json と既定値を合わせたもの(テストでは既定値) */
 export function extraSiteSelectors(): ExtraSiteSelectors {
   return resolveExtraSiteSelectors(typeof __EXTRA_SITE_SELECTORS__ !== "undefined" ? __EXTRA_SITE_SELECTORS__ : null);
+}
+
+/**
+ * 追加の対応先のログイン中のアカウント。ページに出ている名前・アイコンを読むだけ(問い合わせはしない)。
+ * 名前が読めないときは iconUrl だけ。画面に出すだけで、保存しない
+ */
+export type ExtraSiteAccount = { name?: string; iconUrl?: string };
+
+/** アカウントを聞くタブを選ぶ。今のタブが追加の対応先なら、それ。無ければ、いちばん最近見た追加の対応先のタブ */
+export function pickExtraSiteTab<T extends { id?: number; url?: string; active?: boolean; lastAccessed?: number }>(
+  current: T | undefined,
+  tabs: T[],
+): number | undefined {
+  if (current?.id !== undefined && isExtraSiteUrl(current.url)) return current.id;
+  const found = tabs
+    .filter((t) => t.id !== undefined && isExtraSiteUrl(t.url))
+    .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+  return found?.id;
 }
 
 /** 今のタブに下書きを入れられるか(タイトルと本文の欄がどちらもあるか)の確かめに使う */

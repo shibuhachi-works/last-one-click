@@ -10,5 +10,7 @@
   "summary": ["#summary", "textarea[name=\"summary\"]"],
   "publishScopeLimited": ["#publishScope_limited"],
   "publishScopePublic": ["#publishScope_public"],
-  "readingTime": ["#setting_estimatedReadingTime"]
+  "readingTime": ["#setting_estimatedReadingTime"],
+  "accountIcon": [".btn_mypage img.rounded-circle"],
+  "accountName": []
 }
