@@ -184,6 +184,51 @@ describe("syncExtraSite(起動時・Chrome の画面で許可を変えられた�
   });
 });
 
+describe("syncExtraSite(登録が見えないのに「同じ id がある」で失敗するとき)", () => {
+  it("少し待って登録が見えてきたら、消さずにそのまま使う(別のところの登録が終わる途中だったとき)", async () => {
+    const api = fakeApi({ granted: true });
+    api.register = async () => {
+      api.calls.push("register");
+      setTimeout(() => (api.registered = true), 50); // 別のところの登録が、少しあとで見えてくる
+      throw new Error("Duplicate script ID 'extra-site'");
+    };
+    assert.equal(await syncExtraSite(api), true);
+    assert.deepEqual(api.calls.filter((c) => c !== "contains"), ["register"]);
+  });
+
+  it("一度消してから、もう一度だけ登録する(許可を外して付け直したとき)", async () => {
+    const api = fakeApi({ granted: true });
+    let stale = true; // Chrome には残っているが、getRegisteredContentScripts には出てこない登録
+    api.register = async () => {
+      api.calls.push("register");
+      if (stale) throw new Error("Duplicate script ID 'extra-site'");
+      api.registered = true;
+    };
+    api.unregister = async () => {
+      api.calls.push("unregister");
+      stale = false;
+      api.registered = false;
+    };
+    assert.equal(await syncExtraSite(api), true);
+    assert.equal(api.registered, true);
+    assert.deepEqual(api.calls.filter((c) => c !== "contains"), ["register", "unregister", "register"]);
+  });
+
+  it("消して登録し直しても登録できなければ、エラーにする", async () => {
+    const api = fakeApi({ granted: true });
+    api.register = async () => {
+      api.calls.push("register");
+      throw new Error("Duplicate script ID 'extra-site'");
+    };
+    api.unregister = async () => {
+      api.calls.push("unregister");
+      throw new Error("Nonexistent script ID 'extra-site'");
+    };
+    await assert.rejects(syncExtraSite(api), /Duplicate script ID/);
+    assert.deepEqual(api.calls.filter((c) => c !== "contains"), ["register", "unregister", "register"]);
+  });
+});
+
 describe("EXTRA_SITE_EDITOR_PROBE(案内と診断に使う広めのセレクタ)", () => {
   it("タイトルと本文の両方に、1 つ以上ある", () => {
     assert.ok(EXTRA_SITE_EDITOR_PROBE.title.length > 0);
