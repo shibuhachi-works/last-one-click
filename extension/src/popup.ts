@@ -220,10 +220,12 @@ function refreshExtraSiteFillTarget() {
 }
 
 /**
- * note にだけある設定(目次・埋め込み・マガジン・価格・最後のクレジット)。
+ * note にだけある設定(目次・埋め込み・マガジン・価格・最後のクレジット・本文の確認を飛ばして公開設定まで進む)。
  * 入れる先が追加の対応先の編集画面のときは押せなくし、「(このページでは使えません)」を添える。チェックや欄の値は変えない
  */
-const NOTE_ONLY_CONTROLS = [insertTocEl, embedUrlsEl, creditLinkEl, magazineEl, priceEl];
+// 「本文の確認を飛ばして、公開設定まで進む」は、note の本文と公開設定が別の画面だからある設定。
+// 追加の対応先は記事の設定も 1 回で入れて止まるので、使わない(値も渡していない)
+const NOTE_ONLY_CONTROLS = [insertTocEl, embedUrlsEl, creditLinkEl, magazineEl, priceEl, skipReviewEl];
 const UNAVAILABLE_NOTE = "(このページでは使えません)";
 /** 追加の対応先の許可があるか(開発用のビルドだけ。showExtraSiteSetting で決まる) */
 let extraSiteGranted = false;
