@@ -7,7 +7,8 @@
 //      「確認画面へ」「下書き保存」は押さない
 import { isExtraSiteUrl } from "../../shared/extra-site";
 import { buildExtraSiteReport } from "./lib/diagnose-extra-site";
-import { fillExtraSite, resultMessage, showBanner } from "./lib/extra-site-fill";
+import { showBanner, showBannerStatus } from "./lib/extra-site-banner";
+import { fillExtraSite, resultMessage } from "./lib/extra-site-fill";
 import type { DiagnoseResponse, ExtraSiteFillResponse, Message } from "./lib/types";
 
 /** 入れている途中か(二重に押されたときに、重ねて入れない) */
@@ -35,7 +36,7 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: D
     // 入れ終わるのは待たずに返す(ポップアップは閉じてよい)。結果はページのバナーに出す
     sendResponse({ ok: true });
     showBanner("下書きを入れています…");
-    fillExtraSite(msg.article, msg.notes)
+    fillExtraSite(msg.article, msg.notes, { onProgress: showBannerStatus })
       .then((r) => {
         const m = resultMessage(r);
         showBanner(m.text, m.kind);

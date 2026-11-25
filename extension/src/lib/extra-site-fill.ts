@@ -15,6 +15,8 @@ export type FillOptions = {
   imageWaitMs?: number;
   /** 欄が出るのを待つ長さ */
   fieldWaitMs?: number;
+  /** いま進めていることの文(「タグを入れています…」など)。ページの知らせの文を書き換えるのに使う */
+  onProgress?: (what: string) => void;
 };
 
 /** 入れ終えたときの結果。lines はバナーに出す 1 行ずつ(✓・⚠・✗ で始まる) */
@@ -34,6 +36,7 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   const lines: string[] = [];
   let ok = true;
   const step = async (name: string, fn: () => Promise<string> | string) => {
+    opts.onProgress?.(name === "記事の設定を開く" ? "記事の設定を開いています…" : `${name}を入れています…`);
     try {
       const r = await fn();
       lines.push(r.startsWith("⚠") ? `${r.replace(/^⚠\s*/, `⚠ ${name}: `)}` : `✓ ${name}${r ? `: ${r}` : ""}`);
@@ -61,7 +64,7 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   });
 
   if (bodyOk && (article.images?.length || article.imageNotes?.length)) {
-    await step("本文の画像", () => insertBodyImages(S, article, opts.imageWaitMs ?? IMAGE_WAIT_MS, fieldWait));
+    await step("本文の画像", () => insertBodyImages(S, article, opts.imageWaitMs ?? IMAGE_WAIT_MS, fieldWait, opts.onProgress));
   }
 
   if (article.thumbnail || article.hashtags.length) {
@@ -95,7 +98,13 @@ async function pasteBody(body: HTMLElement, html: string) {
  * 本文の目印の位置にカーソルを置き、隠れたファイルの欄にファイルを入れて change を起こす。
  * 欄の accept に合わない画像(gif など)は入れず、目印を残して知らせる
  */
-async function insertBodyImages(S: ExtraSiteSelectors, a: ExtraSiteArticle, imageWait: number, fieldWait: number): Promise<string> {
+async function insertBodyImages(
+  S: ExtraSiteSelectors,
+  a: ExtraSiteArticle,
+  imageWait: number,
+  fieldWait: number,
+  onProgress?: (what: string) => void,
+): Promise<string> {
   const body = query(S.body);
   if (!body) throw new Error("本文の欄が見つかりません");
   const images = a.images ?? [];
@@ -106,7 +115,8 @@ async function insertBodyImages(S: ExtraSiteSelectors, a: ExtraSiteArticle, imag
   let stopped = false;
   let done = 0;
   const input = images.length ? await waitFor<HTMLInputElement>(S.bodyImageInput, fieldWait, { hidden: true }) : null;
-  for (const img of images) {
+  for (const [i, img] of images.entries()) {
+    onProgress?.(`本文の画像を入れています…(${i + 1}/${images.length} 枚目: ${img.name})`);
     if (!input) {
       failed.push(img.name);
       continue;
@@ -129,7 +139,7 @@ async function insertBodyImages(S: ExtraSiteSelectors, a: ExtraSiteArticle, imag
     if (!added) {
       // 待ちきれなかった画像が、あとで遅れて入ることがある。それを次の画像のものと取り違えて、
       // 次の画像の目印を消さないよう、残りの画像はここで入れるのをやめる
-      failed.push(img.name, ...images.slice(images.indexOf(img) + 1).map((i) => i.name));
+      failed.push(img.name, ...images.slice(i + 1).map((x) => x.name));
       stopped = true;
       break;
     }
@@ -218,43 +228,7 @@ function countOutside(scope: HTMLElement, input: HTMLInputElement | null, tag: s
 }
 
 // ---------------------------------------------------------------------------
-// ページの中に出す知らせ(バナー)。中身は textContent で入れる(innerHTML は使わない)
-
-const BANNER_ID = "last-one-click-extra-site-banner";
-
-export function showBanner(text: string, kind: "info" | "ok" | "warn" | "error" = "info") {
-  let el = document.getElementById(BANNER_ID);
-  if (!el) {
-    el = document.createElement("div");
-    el.id = BANNER_ID;
-    el.setAttribute("role", "status");
-    Object.assign(el.style, {
-      position: "fixed",
-      right: "16px",
-      bottom: "16px",
-      zIndex: "2147483647",
-      maxWidth: "420px",
-      maxHeight: "60vh",
-      overflow: "auto",
-      padding: "12px 14px",
-      borderRadius: "8px",
-      boxShadow: "0 4px 16px rgba(0,0,0,.2)",
-      font: "13px/1.6 system-ui, sans-serif",
-      whiteSpace: "pre-wrap",
-      color: "#222",
-    });
-    const close = document.createElement("span");
-    close.textContent = "×";
-    close.setAttribute("aria-label", "閉じる");
-    Object.assign(close.style, { float: "right", cursor: "pointer", marginLeft: "8px" });
-    // ボタン要素にはしない(押す・押さないの判定の外にある、知らせを閉じるだけのもの)
-    close.addEventListener("mousedown", () => el?.remove());
-    el.append(close, document.createElement("div"));
-    document.body.append(el);
-  }
-  el.style.background = { info: "#eef4ff", ok: "#e9f7ee", warn: "#fff6e0", error: "#fdecec" }[kind];
-  (el.lastElementChild as HTMLElement).textContent = text;
-}
+// 入れ終えたときの知らせ(出すのは ./extra-site-banner.ts)
 
 /** 入れ終えたときのバナーの文 */
 export function resultMessage(r: FillResult): { text: string; kind: "ok" | "warn" } {
