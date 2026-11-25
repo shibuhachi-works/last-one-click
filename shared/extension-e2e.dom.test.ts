@@ -239,6 +239,9 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.locator("#fields").waitFor({ state: "visible" });
     await prepare(popup);
     assert.ok((await popup.locator("#title").inputValue()).length > 0, "タイトルが読み取れていません");
+    // ② の欄は、普段はたたみ、入る値を短い一覧で出す(直すときだけ「直す」で開く)
+    assert.equal(await popup.locator("#fields-edit").evaluate((d) => (d as HTMLDetailsElement).open), false);
+    assert.match((await popup.locator("#fields-summary").textContent()) ?? "", new RegExp(`タイトル${(await popup.locator("#title").inputValue()).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 
     // 新しいタブは about:blank で作られてから note の URL に移るので、作られたあとで URL を待つ
     const editorPromise = context.waitForEvent("page", { timeout: 15_000 });
@@ -341,9 +344,9 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await popup.close();
     assert.deepEqual(errors, []);
   });
-  it("「URL だけの行を埋め込みにする」は既定でチェックありで、URL だけの行が埋め込みになり、文の中のリンクはそのまま", async () => {
+  it("URL だけの行は、いつも埋め込みになり、文の中のリンクはそのまま(切るチェックは無い)", async () => {
     const { editor, errors } = await draftFromPopup(async (popup) => {
-      assert.equal(await popup.locator("#embed-urls").isChecked(), true, "既定はチェックあり");
+      assert.equal(await popup.locator("#embed-urls").count(), 0, "埋め込みを切るチェックは外した");
     });
     const cards = await editor.locator("#body figure.embed").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.url));
     assert.deepEqual(cards, ["https://example.com/embed-me"]);
@@ -352,11 +355,6 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.ok(lines.some((t) => t?.includes("https://example.com/in-text")), "文の中のリンクが消えました");
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /埋め込み ✓\(1 件\)/);
-    // チェックは次回も覚えている
-    const popup = await context.newPage();
-    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
-    await popup.waitForFunction(() => (document.getElementById("embed-urls") as HTMLInputElement).checked, null, { timeout: 5_000 });
-    await popup.close();
     assert.deepEqual(errors, []);
   });
   it("見出しの無い記事には、目次を入れずにバナーで知らせる", async () => {
@@ -392,7 +390,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("md と一緒にドロップした画像を、本文の ![説明](ファイル名) の位置に入れる。md に無い画像は見出し画像になる", async () => {
     const md = "---\ntitle: 画像のテスト\n---\n\n## 見出し\n\n前の段落\n\n![図1](fig1.png \"図1 のキャプション\")\n\n後ろの段落\n";
     const { editor, errors } = await draftFromPopup(async (popup) => {
-      assert.equal(await popup.locator("#insert-images").isChecked(), true, "既定はチェックあり");
+      assert.equal(await popup.locator("#insert-images").count(), 0, "本文の画像を切るチェックは外した");
       await dropFiles(popup, md, ["fig1.png", "cover.png"]);
       const picked = (await popup.locator("#picked").textContent()) ?? "";
       assert.match(picked, /見出し画像: cover\.png/);
@@ -605,7 +603,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("URL だけの行が上限(20 件)を超えたら、超えた件数をバナーで知らせる", async () => {
     const many = Array.from({ length: 21 }, (_, i) => `https://example.com/many-${i + 1}`).join("\n\n");
     const { editor, errors } = await draftFromPopup(
-      async (popup) => assert.equal(await popup.locator("#embed-urls").isChecked(), true),
+      async () => {},
       `---\ntitle: 上限のテスト\n---\n\n## 見出し\n\n${many}\n`,
       "一部は入力できませんでした",
     );
@@ -634,7 +632,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       assert.ok(await credit.isVisible());
       assert.match((await popup.locator("label:has(#credit-link)").textContent()) ?? "", /リンクと、ハッシュタグ #LastOneClick を入れる/);
       // 「記事の設定」の見出しの横には、リンクは出ない
-      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次・埋め込み・画像)");
+      assert.equal(await popup.locator("#article-options-on").textContent(), "(目次)");
     });
     const body = await editor.locator("#body").innerHTML();
     assert.match(body, /<hr>\s*<p>この記事は、<a href="https:\/\/chromewebstore\.google\.com\/detail\/last-one-click\/jomapffkhcdpnodaffobmpfofnnaihnd">Last One Click<\/a> で下書きしました。<\/p>\s*$/);
