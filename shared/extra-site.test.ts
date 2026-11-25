@@ -420,7 +420,8 @@ describe("新規記事のエディタを開いて待つ(waitForNewEditor)", () =
 });
 
 describe("pickExtraSiteTab", () => {
-  const lib = (id: number, lastAccessed: number, path = "/history") => ({ id, url: `https://library.libecity.com${path}`, lastAccessed });
+  type Tab = { id?: number; url?: string; lastAccessed?: number };
+  const lib = (id: number, lastAccessed: number, path = "/history"): Tab => ({ id, url: `https://library.libecity.com${path}`, lastAccessed });
   it("今のタブが追加の対応先なら、それを選ぶ", () => {
     assert.equal(pickExtraSiteTab(lib(1, 1), [lib(1, 1), lib(2, 9)]), 1);
   });
@@ -428,7 +429,7 @@ describe("pickExtraSiteTab", () => {
     assert.equal(pickExtraSiteTab({ id: 5, url: "https://note.com/" }, [lib(2, 3), lib(3, 7), { id: 4, url: "https://note.com/x", lastAccessed: 99 }]), 3);
   });
   it("ホストが似ているだけのタブ・http のタブは選ばない。無ければ undefined", () => {
-    const tabs = [
+    const tabs: Tab[] = [
       { id: 6, url: "https://library.libecity.com.example.com/", lastAccessed: 9 },
       { id: 7, url: "http://library.libecity.com/", lastAccessed: 9 },
     ];
