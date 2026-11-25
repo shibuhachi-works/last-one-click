@@ -13,54 +13,26 @@
 
 **使い方の記事**:[AIが書いた記事から 3ステップでnoteの下書きを作る方法(note)](https://note.com/shibuhachi/n/n9c41926f2a3a)。md の型・AI への頼み方・GitHub から読み込む手順などを、詳しく書いています。
 
-対象は「AI を使って投稿する人」。入力は AI の出力そのもの(Markdown)で、人が手で整形する前提にしません。
-現在対応している媒体は **note** です(説明文のとおり、現在は note に対応しています)。X / TikTok / Instagram も同じ方針(下書きまで作り、投稿は本人のクリック)で順次追加します。
-現状と今後の計画は [docs/ROADMAP.md](docs/ROADMAP.md) にまとめています。
-記事のリポジトリにマージしたら、手元の PC(Debian のデスクトップ)で自動で下書きを作ることもできます(公開はしません): [docs/auto-draft-linux.md](docs/auto-draft-linux.md)。
+## 使い方
 
-| | 用途 | 入口 |
-|---|---|---|
-| **[extension/](extension/)** Chrome 拡張「Last One Click」 | 配布用。普段の Chrome で動き、認証情報に触れない | md ファイル(貼り付け・GitHub URL は上級者向け) |
-| **tools/** Playwright 版 | 自分用・開発用。壊れた箇所を Inspector で調べられる | GitHub URL |
+1. note.com にログインしておく
+2. ツールバーの拡張アイコンを押し、ポップアップの順に進める
+   - **① ファイルを入れる**: md ファイルと画像(記事のフォルダ・ZIP でもよい)をドロップする
+   - **② 入れる内容を確かめる**: md から読んだタイトル・ハッシュタグ・マガジン・価格が出る。直すときは「直す」
+   - **③ 下書きを作る**: ログイン中の note アカウントを確かめて、「note の下書きを作成」を押す
+3. note のエディタが新しいタブで開き、タイトル・本文・見出し画像・本文の画像が入ったところで止まる。右下のバナーの「公開設定を入れる」で、ハッシュタグ・マガジン(有料記事なら価格も)が入ったところで止まる
+4. 内容を確かめて、**自分で「投稿する」を押す**
 
-拡張は、ポップアップと編集画面の右下のバナーに、ログイン中の note アカウントのアイコンと名前を出します。アカウントを 2 つ持っているときに、違うアカウントで投稿しないためです(Cookie は読みません。名前とアイコンは画面に出すだけで、保存も送信もしません)。
+公開ボタンは**設計上、絶対に押しません**。note には公式の投稿 API がなく、完全自動の公開は利用規約・アカウント凍結のおそれがあるためです。
+note の Cookie・パスワードには触れません。ポップアップとバナーに、ログイン中の note アカウントのアイコンと名前を出します(違うアカウントで投稿しないため。保存も送信もしません)。
 
-どちらも `selectors/note.json`(note の DOM セレクタ)を共有しています。以下は Playwright 版の説明です。拡張は [extension/README.md](extension/README.md) を見てください。
+ポップアップの細かい設定(目次・本文の確認を飛ばす・GitHub から読み込む など)は [extension/README.md](extension/README.md) にあります。
 
-**人間がやるのは2つだけ**:記事ディレクトリの URL を渡すことと、最後に公開ボタンを押すこと。
+## 記事(md)の書き方
 
-```
-記事の md ファイル + サムネイル を git に push
-        ↓
-npm run draft -- <記事ディレクトリの GitHub URL>
-        ↓
-Chrome が開き、タイトル・本文・サムネイル・ハッシュタグ・マガジンが入力された状態で停止
-        ↓
-内容を確認して、自分で「公開に進む」→「投稿する」を押す
-```
+記事ごとにフォルダを作り、`article.md` と見出し画像を入れておくと、フォルダごとドロップできます(ZIP でもよい)。
 
-公開ボタンは**設計上、スクリプトからは絶対に押しません**。note には公式の投稿 API がなく、
-完全自動公開は利用規約・アカウント凍結のリスクがあるためです。
-
-## セットアップ(初回のみ)
-
-```bash
-npm install
-npx playwright install chromium
-npm run login     # 開いた Chrome で note にログイン → ターミナルで Enter
-```
-
-ログイン状態は `.profile/` に保存されます(`.gitignore` 済み。Cookie を含むので絶対にコミットしない)。
-
-Playwright 版は自動操作の検知を外す指定を入れていません。Chromium で note の画面がうまく開けない場合は、`PIGEON_BROWSER_CHANNEL=chrome` を付けて実 Chrome で起動するか、Chrome 拡張版を使ってください。
-
-private リポジトリの記事を扱う場合は `.env.example` を `.env` にコピーして `GITHUB_TOKEN` を設定してください。
-
-## 記事の書き方
-
-`posts/<日付-スラッグ>/` に `article.md` と 見出し画像を置きます。
-
-md の見本(書き換えて使う型と説明)は [templates/note/](templates/note/) にあります。拡張でできることを全部入れてあるので、そのまま読み込んで試すこともできます(Chrome 拡張版・Playwright 版のどちらでも)。
+md の見本(書き換えて使う型と説明)は [templates/note/](templates/note/) にあります。拡張でできることを全部入れてあるので、そのまま読み込んで試すこともできます。
 
 ```markdown
 ---
@@ -105,59 +77,14 @@ Markdown(GFM)を note のエディタが受け付ける形に変換して貼り�
 | HTML コメント | `<!-- メモ -->` | (v0.1.8 から)取り除く(自分用のメモが本文に入らない。コードの中に書いたものは残す。「ここから有料」の印は有料のラインに使い、印として読めない書き方のときは文字のまま出す) |
 | 脚注・チェックボックス | `[^1]` / `- [ ]` | 文字として残る |
 
-## 使い方
+## 開発する人へ
 
-```bash
-# 1. まず md ファイルが正しく読めるかだけ確認(ブラウザは開かない)
-npm run preview -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
-#    → .preview/index.html を開いて見た目をチェック
+- **Chrome 拡張の開発・ビルド・ストアに出す手順**: [extension/README.md](extension/README.md)
+- **Playwright 版(自分用・開発用。壊れた箇所を Inspector で調べる)**: [docs/playwright.md](docs/playwright.md)
+- **記事のリポジトリにマージしたら、手元の PC(Debian)で自動で下書きを作る**: [docs/auto-draft-linux.md](docs/auto-draft-linux.md)(公開はしません)
+- **現状と今後の計画**: [docs/ROADMAP.md](docs/ROADMAP.md)。X / TikTok / Instagram も同じ方針(下書きまで作り、投稿は本人のクリック)で順次追加します
 
-# 2. note の下書きを組み立てる
-npm run draft -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
-```
-
-URL は `tree/`(ディレクトリ)でも `blob/.../article.md`(ファイル)でも raw URL でも構いません。
-
-## note の画面が変わって動かなくなったら
-
-note の DOM は予告なく変わります。**これは前提**なので、壊れたときの直し方を書いておきます。
-
-1. `npm run draft` を実行すると、失敗したステップで Playwright Inspector が開いて止まる
-2. Inspector の「Pick locator」で、本来操作したかった要素をクリックする
-3. 表示されたセレクタをリポジトリ直下の `selectors/note.json` の該当キーに貼る
-4. もう一度 `npm run draft`
-
-セレクタはすべて `selectors/note.json` に集約してあり、Chrome 拡張も同じファイルを読みます。
-値は 2026-10-29 に実機で全工程 ✓ を確認済みです。note の画面が変わって ✗ になったら、この手順で合わせ直してください。
-
-## ファイル構成
-
-```
-tools/
-  draft.ts          # メイン。取得 → 入力 → 公開手前で停止
-  preview.ts        # ブラウザなしで md のパース結果を確認
-  login.ts          # 初回ログイン用
-  lib/
-    article.ts      # GitHub から取得してサムネイルを Buffer で持つ(残りは shared/article.ts)
-    browser.ts      # 永続プロファイルで Chromium 起動
-    selectors.ts    # selectors/note.json を読んで Playwright 用セレクタに変換
-shared/             # 拡張と Playwright 版で共通の純粋ロジック(テストもここ)
-  article.ts        # GitHub URL の正規化・front matter・タイトルの決定・md→HTML
-  markdown-safe.ts  # 生の HTML を通さない(HTML コメントは取り除く)renderer と、DOM を使わない text/plain 化
-  github-url.ts     # トークンを付けてよい送り先の判定
-  forbidden-click.ts  # 「投稿する」「公開する」を押さない安全装置
-  selectors-schema.ts # selectors/note.json の検査
-  text-match.ts     # ボタン文言の完全一致
-selectors/note.json      # note の DOM セレクタ(拡張と共有。壊れたらここだけ直す)
-extension/          # Chrome 拡張版
-templates/note/     # md の見本と見出し画像の見本
-```
-
-## 今後の拡張候補
-
-- **サムネイル自動生成**:md の push をトリガーに GitHub Actions で画像生成 API を叩いて commit すれば、人間は md ファイルを push するだけになる
-- **壊れ検知**:GitHub Actions で週1回、見本の記事(templates/note)に対して Playwright 版を公開設定画面まで走らせる(公開はしない)。note が変わった翌週には気づける
-- **ダブルクリック起動**:ターミナルを開きたくない場合は、URL をダイアログで聞く `.command` / `.bat` を作って `npm run draft` を呼ぶ
+拡張と Playwright 版は、`selectors/note.json`(note の画面のセレクタ)を共有しています。
 
 ## ライセンス
 
