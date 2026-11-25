@@ -280,11 +280,10 @@ function applyDestinationControls() {
     }
     if (note) note.hidden = !toExtraSite;
   }
-  // 追加の対応先に入れるときは、note のアカウント(「ログイン中」「記事の指定」)を出さない。
-  // 入れる先は note ではないので、note のアカウントを出すと、どのアカウントで入るのかを取り違える
-  $("account").hidden = toExtraSite || !loggedInAccount;
-  // 追加の対応先に入れるときだけ、そちらのアカウントを出す(読めたときだけ)
-  $("extra-site-account").hidden = !toExtraSite || !extraSiteAccountShown;
+  // ログイン中のアカウントは、入れる先にかかわらず、読めたものを「(ドメイン): [アイコン] 名前」で並べて出す
+  // (ドメインを見出しにするので、どのサイトのアカウントかを取り違えない)。記事の指定(note_account)は note に入れるときだけ
+  $("account").hidden = !loggedInAccount;
+  $("extra-site-account").hidden = !extraSiteAccountShown;
   renderAccountTarget();
 }
 /**
@@ -307,6 +306,28 @@ function checkTargetNow() {
     targetProblemShown = null;
   }
 }
+/** アカウントの 1 行の中身: 「(ドメイン):」と、[アイコン] 名前 (@ID)。アイコンは https のときだけ */
+function accountRow(host: string, iconUrl: unknown, name?: string, suffix?: string): Node[] {
+  const label = document.createElement("span");
+  label.className = "host";
+  label.textContent = `${host}:`;
+  const who = document.createElement("span");
+  who.className = "who";
+  if (typeof iconUrl === "string" && iconUrl.startsWith("https://")) {
+    const img = document.createElement("img");
+    img.src = iconUrl;
+    img.alt = "";
+    img.referrerPolicy = "no-referrer";
+    who.append(img);
+  }
+  if (name) {
+    const b = document.createElement("b");
+    b.textContent = name;
+    who.append(b);
+  }
+  if (suffix) who.append(document.createTextNode(suffix));
+  return [label, who];
+}
 /**
  * 追加の対応先のログイン中のアカウントを、「(ドメイン): [アイコン] 名前」と出す。
  * 開いている追加の対応先のタブ(今のタブを先に。無ければ最近見たタブ)の content script に 1 回だけ聞く。
@@ -324,20 +345,7 @@ async function showExtraSiteAccount(): Promise<void> {
   const account = res?.account;
   if (!account || (!account.name && !account.iconUrl)) return;
   const el = $<HTMLParagraphElement>("extra-site-account");
-  const nodes: Node[] = [document.createTextNode(`${EXTRA_SITE_HOST}:`)];
-  if (typeof account.iconUrl === "string" && account.iconUrl.startsWith("https://")) {
-    const img = document.createElement("img");
-    img.src = account.iconUrl;
-    img.alt = "";
-    img.referrerPolicy = "no-referrer";
-    nodes.push(img);
-  }
-  if (account.name) {
-    const name = document.createElement("b");
-    name.textContent = account.name;
-    nodes.push(name);
-  }
-  el.replaceChildren(...nodes);
+  el.replaceChildren(...accountRow(EXTRA_SITE_HOST, account.iconUrl, account.name));
   el.title = `お使いの Chrome で ${EXTRA_SITE_HOST} にログインしているアカウントです(開いているページから読みました)。違っていたら、${EXTRA_SITE_HOST} でログインし直してから入れてください。`;
   extraSiteAccountShown = true;
   applyDestination();
@@ -535,21 +543,9 @@ async function showAccount(): Promise<void> {
   loggedInAccount = account;
   renderAccountTarget();
   const el = $<HTMLParagraphElement>("account");
-  const nodes: Node[] = [document.createTextNode("ログイン中:")];
-  if (typeof account.iconUrl === "string" && account.iconUrl.startsWith("https://")) {
-    const img = document.createElement("img");
-    img.src = account.iconUrl;
-    img.alt = "";
-    img.referrerPolicy = "no-referrer";
-    nodes.push(img);
-  }
-  const name = document.createElement("b");
-  name.textContent = account.name;
-  nodes.push(name);
-  if (account.id && account.id !== account.name) nodes.push(document.createTextNode(`(@${account.id})`));
-  el.replaceChildren(...nodes);
+  el.replaceChildren(...accountRow("note.com", account.iconUrl, account.name, account.id && account.id !== account.name ? `(@${account.id})` : undefined));
   el.title = "お使いの Chrome で note にログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
-  el.hidden = destination() === "extra-site";
+  el.hidden = false;
 }
 void showAccount();
 
