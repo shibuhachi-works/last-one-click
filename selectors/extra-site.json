@@ -13,6 +13,6 @@
   "publishScopeLimited": ["#publishScope_limited"],
   "publishScopePublic": ["#publishScope_public"],
   "readingTime": ["#setting_estimatedReadingTime"],
-  "accountIcon": [".btn_mypage img.rounded-circle"],
-  "accountName": []
+  "accountIcon": [".btn_mypage img.rounded-circle", ".mypageSide .profile_img img.rounded-circle"],
+  "accountName": [".mypageSide .profile_name"]
 }
