@@ -1,5 +1,5 @@
 // 下書きを作るボタン(#submit)と「新しい下書きとして作る」の中身: 記事を組み立てて、新しいタブ・開いている記事・追加の対応先に送る(popup.ts から分けた。動きは変えていない)。
-import { REWRITE_UNDO_NOTE, checkNoteUrl, noteEditKey, noteUrlProblem } from "../../../../shared/note-rewrite";
+import { checkNoteUrl, noteEditKey, noteUrlProblem } from "../../../../shared/note-rewrite";
 import { buildArticle } from "../article";
 import { EXTRA_SITE_HOST } from "../../../../shared/extra-site";
 import { loadSelectors } from "../selectors";
@@ -17,7 +17,7 @@ export async function submitArticle(forceNew: boolean) {
   submitNewEl.disabled = true;
   state.submitting = true;
   try {
-    if (!markdownEl.value.trim()) throw new Error("記事の md ファイルをドロップするか、「md ファイルを選ぶ」で選んでください。");
+    if (!markdownEl.value.trim()) throw new Error("md ファイルを選んでください。");
 
     setStatus("記事を組み立て中...", { near: "submit" });
     const article = await buildArticle({
@@ -78,10 +78,9 @@ export async function submitArticle(forceNew: boolean) {
     await chrome.tabs.update(tab.id, { active: true });
 
     setStatus(
-      `note を開きました。` +
-        (skipBodyReview ? "入力が終わったら、「投稿する」を自分で押してください。" : "続きは右下のバナーで案内します。") +
+      `note を開きました。続きは右下のバナーで案内します。` +
         (source === "remote" ? "" : `\n(selectors: ${source})`) +
-        (warning ? `\n注意: GitHub 上の selectors が使えなかったので同梱の値を使っています(${warning})` : ""),
+        (warning ? `\n注意: 同梱の selectors を使っています(${warning})` : ""),
       { error: Boolean(warning), near: "submit" },
     );
   } catch (e) {
@@ -104,17 +103,17 @@ export async function rewriteNoteTab(target: { tabId: number; key: string }, art
   if (problem) throw new Error(problem);
   // 押すまでのあいだに、そのタブで別の記事に移っていないか
   const tab = await chrome.tabs.get(target.tabId).catch(() => undefined);
-  if (noteEditKey(tab?.url) !== target.key) throw new Error("書き換える記事のタブが、別のページに移っています。記事の編集画面でポップアップを開き直してください。");
+  if (noteEditKey(tab?.url) !== target.key) throw new Error("別のページに移っています。記事の編集画面で開き直してください。");
   await chrome.storage.local.set({
     [STORAGE.pendingArticle]: { ...article, tabId: target.tabId, rewriteKey: target.key, skipBodyReview: false, insertToc: insertTocEl.checked, embedUrls: true },
   });
   const res = (await chrome.tabs.sendMessage(target.tabId, { type: "noteRewrite" } satisfies Message).catch(() => null)) as NoteRewriteResponse | null;
   if (!res?.ok) {
     await chrome.storage.local.remove(STORAGE.pendingArticle);
-    throw new Error(res?.error ?? "今開いている記事のページを再読み込みしてから、もう一度押してください(再読み込みで、まだ保存していない変更は消えます)。");
+    throw new Error(res?.error ?? "ページを再読み込みしてから、もう一度押してください。");
   }
   if (isWindow) await chrome.tabs.update(target.tabId, { active: true }).catch(() => undefined);
-  setStatus(`今開いている記事に書き換えを始めました。続きはページの右下に出ます。\n中身を確かめて、よければ自分で保存してください。\n${REWRITE_UNDO_NOTE}`, { near: "submit" });
+  setStatus("書き換えを始めました。続きは右下に出ます。", { near: "submit" });
 }
 
 /**
@@ -125,10 +124,10 @@ export async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnTyp
   const { notes, extraArticle } = extraSiteMessage(article);
   const message: Message = { type: "extraSiteFill", article: extraArticle, notes };
   const res = (await chrome.tabs.sendMessage(tabId, message).catch(() => null)) as ExtraSiteFillResponse | null;
-  if (!res) throw new Error("今開いているページを再読み込みしてから、もう一度押してください。");
+  if (!res) throw new Error("ページを再読み込みしてから、もう一度押してください。");
   if (!res.ok) throw new Error(res.error);
   setStatus(
-    "今開いているページに入れ始めました。続きはページの右下に出ます。\n「下書き保存」か「確認画面へ」を、ページで押してください。" + notesText(notes),
+    "入れ始めました。続きは右下に出ます。" + notesText(notes),
     { error: notes.length > 0, near: "submit" },
   );
 }
@@ -140,7 +139,7 @@ export async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnTyp
 export async function openExtraSiteAndFill(article: Awaited<ReturnType<typeof buildArticle>>) {
   const { notes, extraArticle } = extraSiteMessage(article);
   // 閉じる前に読めるよう、知らせを先に出しておく
-  setStatus(`${EXTRA_SITE_HOST} の新規記事を新しいタブで開いています。続きはそのページの右下に出ます。` + notesText(notes), { error: notes.length > 0, near: "submit" });
+  setStatus("新規記事を新しいタブで開いています。続きは右下に出ます。" + notesText(notes), { error: notes.length > 0, near: "submit" });
   const res = (await chrome.runtime.sendMessage({ type: "extraSiteOpenAndFill", article: extraArticle, notes } satisfies Message).catch(() => null)) as ExtraSiteFillResponse | null;
   if (!res) throw new Error("新しいタブを開けませんでした。もう一度押してください。");
   if (!res.ok) throw new Error(res.error);

@@ -8,19 +8,19 @@
 <body>
   <div class="head">
     <h1>Last One Click <small style="font-weight:400;color:#666">note の下書きツール</small></h1>
-    <button id="open-window" type="button" class="small" title="ポップアップを別ウィンドウで開きます。ツールバーから出た画面は Finder などに切り替えると閉じるので、ファイルをドロップするときはこちらを使ってください。">ウィンドウで開く</button>
+    <button id="open-window" type="button" class="small" title="別ウィンドウで開きます。ファイルをドロップするときに使ってください。">ウィンドウで開く</button>
   </div>
   <p id="status-window" class="status" hidden></p>
   <div id="extra-site-offer" class="extra-site-offer" hidden>
-    <p id="extra-site-offer-editor">今開いているページの新規記事エディタにも、下書きを入れられます。</p>
-    <p id="extra-site-offer-site" hidden>今開いているサイト(library.libecity.com)でも、下書きを入れられるようにできます。</p>
+    <p id="extra-site-offer-editor">このページにも、下書きを入れられます。</p>
+    <p id="extra-site-offer-site" hidden>このサイトでも、下書きを入れられるようにできます。</p>
     <button id="extra-site-enable" type="button" class="small">使えるようにする</button>
   </div>
   <p id="status-extra-site-offer" class="status" hidden></p>
   <h2 class="step first">① ファイルを入れる</h2>
   <div id="dropzone" class="dropzone">
     <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-    <p class="dz-title">md ファイルと画像(または記事のフォルダ・ZIP)をここにドロップ</p>
+    <p class="dz-title">md ファイルと画像(フォルダ・ZIP も可)をドロップ</p>
     <p class="dz-sub">または
       <button id="pick-md" type="button" class="pick">md ファイルを選ぶ</button>
       <button id="pick-image" type="button" class="pick">画像を選ぶ</button>
@@ -34,15 +34,15 @@
   <div id="step-check">
   <h2 class="step">② 入れる内容を確かめる</h2>
   <div id="fields" hidden>
-    <p class="fields-head">note に入れる内容<small class="hint-inline tip" title="md ファイルから読み取った値です。直したければここで直せます。空にすると「なし」になります。">(md ファイルから)</small></p>
+    <p class="fields-head">note に入れる内容<small class="hint-inline tip" title="md ファイルから読んだ値です。「直す」で直せます。">(md ファイルから)</small></p>
     <dl id="fields-summary" class="fields-summary"></dl>
     <details id="fields-edit">
       <summary>直す</summary>
       <div class="grid">
-        <label>タイトル<input id="title" type="text" placeholder="(md ファイルにタイトルがありません。入力してください)"></label>
-        <label>ハッシュタグ<input id="hashtags" type="text" placeholder="(なし。カンマ区切りで追加できます)"></label>
-        <label>マガジン<input id="magazine" type="text" placeholder="(なし。note のマガジン名と完全一致)"></label>
-        <label>価格(有料)<input id="price" type="text" inputmode="numeric" placeholder="(なし。無料のまま。有料にするときは円で入れる)"></label>
+        <label>タイトル<input id="title" type="text" placeholder="(タイトルを入れてください)"></label>
+        <label>ハッシュタグ<input id="hashtags" type="text" placeholder="(なし。カンマ区切り)"></label>
+        <label>マガジン<input id="magazine" type="text" placeholder="(なし)"></label>
+        <label>価格(有料)<input id="price" type="text" inputmode="numeric" placeholder="(なし。有料にするときは円で)"></label>
       </div>
     </details>
   </div>
@@ -50,7 +50,7 @@
   <div id="markdown-box" hidden>
     <details id="markdown-fold">
       <summary>読み込んだ md を見る</summary>
-      <label for="markdown">読み込んだ内容<small id="markdown-note" class="hint-inline tip" title="確認用です。直すときは md ファイルか、note のエディタで直してください。">(確認用)</small></label>
+      <label for="markdown">読み込んだ内容<small id="markdown-note" class="hint-inline tip" title="確認用です。">(確認用)</small></label>
     <textarea id="markdown" readonly placeholder="---
 title: 記事タイトル
 hashtags: [AI, 個人開発]
@@ -70,18 +70,18 @@ magazine: マガジン名
   <p id="account-target" class="account-target" hidden></p>
   <div id="rewrite-box" class="rewrite-box" hidden>
     <p id="rewrite-target" class="rewrite-target"></p>
-    <p class="hint">タイトル・本文・見出し画像を、md の内容に置き換えます。ハッシュタグ・マガジン・価格は変えません。<br>拡張は「更新する」「下書き保存」を押しません。元に戻したいときは、それを押さずに閉じてください(記事は変わりません)。</p>
+    <p class="hint">タイトル・本文・見出し画像を置き換えます。</p>
   </div>
   <button id="submit" type="button" class="primary">note の下書きを作成</button>
   <button id="submit-new" type="button" class="submit-new" hidden>新しい下書きとして作る</button>
   <p id="status" class="status" hidden></p>
-  <p id="submit-hint" class="hint">note が新しいタブで開き、タイトル・本文・見出し画像を入れたところで止まります。<br>投稿するボタンは自分で押してください。</p>
-  <label class="check hint-check tip" title="入れると、本文の最後に区切り線と「この記事は、Last One Click で下書きしました。」の 1 行(ストアへのリンク付き)を入れ、ハッシュタグに #LastOneClick を足します。どちらも下書きと公開設定に入るので、公開する前に note の画面で確かめられます。"><input id="credit-link" type="checkbox" checked>記事の最後に「Last One Click で下書きしました」のリンクと、ハッシュタグ #LastOneClick を入れる</label>
+  <p id="submit-hint" class="hint">note を新しいタブで開いて、下書きを入れます。</p>
+  <label class="check hint-check tip" title="本文の最後に「この記事は、Last One Click で下書きしました。」(ストアへのリンク)を入れ、ハッシュタグに #LastOneClick を足します。"><input id="credit-link" type="checkbox" checked>記事の最後に「Last One Click で下書きしました」と #LastOneClick を入れる</label>
   <details id="article-options" class="article-options">
     <summary>記事の設定 <small id="article-options-on" class="hint-inline"></small></summary>
-    <label class="check hint-check tip" title="入れると、本文の先頭に note の目次を入れます。目次は本文の見出し(## と ###)から note が作ります。見出しが無い記事には入れません。"><input id="insert-toc" type="checkbox" checked>記事の先頭に目次を入れる</label>
-    <label class="check hint-check tip" title="入れると、ハッシュタグとマガジンまで一気に入れて止まります。note の公開設定を「キャンセル」で閉じるとハッシュタグとマガジンは消えるので、本文を先に確かめたいときは外しておいてください。"><input id="skip-review" type="checkbox">本文の確認を飛ばして、公開設定まで進む</label>
-    <label id="extra-site-row" class="check hint-check tip" title="切ると、library.libecity.com への許可を外します。また使うときは、library.libecity.com のページを開いてツールバーのアイコンを押してください。" hidden><input id="extra-site-toggle" type="checkbox" checked>追加の対応先(library.libecity.com)</label>
+    <label class="check hint-check tip" title="見出し(## と ###)から目次を作ります。見出しが無い記事には入れません。"><input id="insert-toc" type="checkbox" checked>記事の先頭に目次を入れる</label>
+    <label class="check hint-check tip" title="ハッシュタグとマガジンまで続けて入れます。"><input id="skip-review" type="checkbox">本文の確認を飛ばして、公開設定まで進む</label>
+    <label id="extra-site-row" class="check hint-check tip" title="切ると、このサイトへの許可を外します。" hidden><input id="extra-site-toggle" type="checkbox" checked>追加の対応先(library.libecity.com)</label>
     <p id="status-extra-site-toggle" class="status" hidden></p>
   </details>
 
@@ -89,7 +89,7 @@ magazine: マガジン名
     <summary>拡張機能の設定</summary>
     <p id="version" class="hint">Last One Click</p>
     <p class="hint"><a href="https://note.com/shibuhachi/n/n9c41926f2a3a" target="_blank" rel="noopener noreferrer">使い方の記事(note)</a></p>
-    <label class="check tip" title="この下に「GitHub から読み込む」、selectors の URL、GitHub トークンの欄が出ます。読み込んだ内容の欄も編集・貼り付けできるようになります。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
+    <label class="check tip" title="GitHub から読み込む・selectors の URL・GitHub トークンの欄を出します。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
     <p id="status-advanced" class="status" hidden></p>
     <div id="advanced-settings" hidden>
       <div id="advanced-github" hidden>
@@ -107,17 +107,28 @@ magazine: マガジン名
           <p id="status-github" class="status" hidden></p>
         </details>
       </div>
-      <label>selectors/note.json の URL<input id="selectors-url" type="url" placeholder="(既定値を使う)"></label>
-      <p class="hint">note の画面の定義ファイルの場所です。記事の URL ではありません(記事は「GitHub から読み込む」に貼ります)。普段は空のままにしてください。</p>
-      <label>GitHub トークン(private リポジトリのみ)<input id="github-token" type="password" autocomplete="off"></label>
-      <p class="hint">記事を読むには「Contents: Read」、PR の URL から読むには「Pull requests: Read」も要ります。</p>
-      <button id="save-settings" type="button">保存</button>
-      <p id="status-settings" class="status" hidden></p>
-      <p class="hint">トークンは Last One Click の中(chrome.storage.local)にだけ保存され、GitHub 以外には送られません。</p>
+      <div class="indent">
+        <label for="github-token">GitHub トークン(非公開のリポジトリだけ)</label>
+        <div class="row">
+          <input id="github-token" type="password" autocomplete="off">
+          <button id="save-settings" type="button">保存</button>
+        </div>
+        <p id="status-settings" class="status" hidden></p>
+        <p class="hint">要る権限は「Contents: Read」と「Pull requests: Read」です。<br>トークンはこの拡張の中にだけ保存し、GitHub にだけ送ります。</p>
+      </div>
+      <details id="selectors-fold">
+        <summary>selectors/note.json の URL</summary>
+        <div class="row">
+          <input id="selectors-url" type="url" placeholder="(既定値を使う)" aria-label="selectors/note.json の URL">
+          <button id="save-selectors" type="button">保存</button>
+        </div>
+        <p id="status-selectors" class="status" hidden></p>
+        <p class="hint">普段は空のままにしてください(記事の URL ではありません)。</p>
+      </details>
     </div>
     <details>
       <summary>診断(動かないとき)</summary>
-      <p class="hint">note のエディタを開いたタブで「DOM 情報を取得」を押すと、ページ上の入力欄・ボタン等の一覧をコピーします。<br>それを貼ってもらえれば selectors/note.json を直せます。<br>認証情報や記事本文は含みません。</p>
+      <p class="hint">note のエディタのタブで押すと、画面の部品の一覧をコピーします。<br>記事の本文やログイン情報は含みません。</p>
       <div class="row">
         <button id="diagnose" type="button">DOM 情報を取得</button>
         <button id="diagnose-copy" type="button" aria-live="polite" disabled>コピー</button>

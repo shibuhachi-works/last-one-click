@@ -77,7 +77,7 @@ export function pullHead(info: PullInfo): { repo: string; sha: string } {
   const repo = info?.head?.repo?.full_name ?? "";
   const sha = info?.head?.sha ?? "";
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
-    throw new Error("この PR のブランチがあるリポジトリが見つかりません(消されたフォークなど)。");
+    throw new Error("この PR のリポジトリが見つかりません。");
   }
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("この PR の最新のコミットが読めませんでした。");
   return { repo, sha };
@@ -121,9 +121,9 @@ export async function findPullArticles(
 
 /** API が返した失敗を、読む人向けの文にする */
 export function pullApiError(status: number, ref: PullRef, rateLimited: boolean): string {
-  if (rateLimited) return "GitHub の API の回数の上限に達しました。しばらく待つか、GitHub トークンを入れてください。";
-  if (status === 404) return `PR が見つかりません: ${ref.repo}#${ref.number}(非公開のリポジトリなら、GitHub トークンを入れてください)`;
-  if (status === 401) return "GitHub トークンが使えません。設定のトークンを確かめてください。";
+  if (rateLimited) return "GitHub の回数の上限です。\nしばらく待つか、GitHub トークンを入れてください。";
+  if (status === 404) return `PR が見つかりません: ${ref.repo}#${ref.number}。\n非公開のリポジトリなら、GitHub トークンを入れてください。`;
+  if (status === 401) return "GitHub トークンが使えません。";
   // トークンは通ったが、PR を読む権限が無い(記事を読む「Contents: Read」だけのトークンなど)。回数の上限は上で別に知らせる
   if (status === 403) {
     return `この PR を読めません: ${ref.repo}#${ref.number}。\nGitHub トークンに「Pull requests: Read」の権限を付けてください。`;

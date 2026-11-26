@@ -115,7 +115,7 @@ describe("本文の「ここから有料」の印", () => {
   });
 
   it("price なし: 直し方を添えてエラー。ポップアップの欄(final)で価格を入れれば通る", async () => {
-    await assert.rejects(render(`無料\n\n${PAYWALL_MARKER}\n\n有料\n`, "---\ntitle: T\n---\n"), /price がありません.*price: 300/);
+    await assert.rejects(render(`無料\n\n${PAYWALL_MARKER}\n\n有料\n`, "---\ntitle: T\n---\n"), /price がありません。価格を入れるか、印の行を消してください/);
     const src = `---\ntitle: T\n---\n無料\n\n${PAYWALL_MARKER}\n\n有料\n`;
     await assert.rejects(renderArticle(src, convert, { title: "T", final: true }), /price がありません/);
     const a = await renderArticle(src, convert, { title: "T", price: "500", final: true });

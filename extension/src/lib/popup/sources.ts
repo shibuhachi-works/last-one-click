@@ -5,7 +5,7 @@ import { findRelative, findThumbnail, pickArticleMarkdown } from "../../../../sh
 import { fetchMarkdownFromGitHub, localImageNames, localImageSrcs } from "../article";
 import { setStatus } from "./dom";
 import { state } from "./state";
-import { submitLabel, markdownEl, titleEl, markdownFileEl, markdownBoxEl, MAX_MD_BYTES, fieldsEditEl } from "./elements";
+import { markdownEl, titleEl, markdownFileEl, markdownBoxEl, MAX_MD_BYTES, fieldsEditEl } from "./elements";
 import { checkTargetNow } from "./destination";
 import { forgetSource, fillFieldsFromMarkdown, setThumbnailFile, renderPicked } from "./fields";
 
@@ -16,12 +16,12 @@ export async function loadGitHubArticle(url: string, label?: string) {
   state.baseUrl = r.baseUrl;
   fillFieldsFromMarkdown(r.markdown, { newSource: true });
   const what = label ? `「${label}」を` : "";
-  setStatus(`${what}読み込みました。内容を確認して「${submitLabel()}」を押してください。`, { near: "github" });
+  setStatus(`${what}読み込みました。`, { near: "github" });
   checkTargetNow(); // target が入れる先と合わなければ、読み込みの知らせより先にこちらを出す
 }
 
 export async function loadMarkdownFile(file: File) {
-  if (file.size > MAX_MD_BYTES) throw new Error(`ファイルが大きすぎます(${Math.round(file.size / 1024)} KB)。2 MB 以下の md ファイルを選んでください。`);
+  if (file.size > MAX_MD_BYTES) throw new Error(`ファイルが大きすぎます(${Math.round(file.size / 1024)} KB。2 MB まで)。`);
   const text = await file.text();
   if (text.includes("\u0000")) throw new Error("テキストのファイル(.md)を選んでください。");
   markdownEl.value = text;
@@ -37,8 +37,8 @@ export async function loadMarkdownFile(file: File) {
   const { titleMissing } = fillFieldsFromMarkdown(text, { newSource: true });
   setStatus(
     `${file.name} を読み込みました。` +
-      (titleMissing ? "md ファイルにタイトルが無いので「タイトル」に入力してください。" : `内容を確認して「${submitLabel()}」を押してください。`) +
-      (hasThumbnail ? "\n見出し画像はファイルからは辿れないので、ドロップするか「画像を選ぶ」で画像を選んでください。" : ""),
+      (titleMissing ? "タイトルを入れてください。" : "") +
+      (hasThumbnail ? "見出し画像も選んでください。" : ""),
     { error: titleMissing, near: "drop" },
   );
   checkTargetNow(); // target が入れる先と合わなければ、読み込みの知らせより先にこちらを出す
@@ -75,7 +75,7 @@ export async function loadLooseFiles(files: File[]) {
   }
   const ignored = files.filter((f) => f !== md && !body.includes(f) && f !== thumb).length;
   if (ignored) got.push(`(ほか ${ignored} 個は使いません)`);
-  setStatus(`${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。`, { near: "drop" });
+  setStatus(`${got.join(" / ")} を受け取りました。`, { near: "drop" });
   checkTargetNow(); // target が入れる先と合わなければ、受け取りの知らせより先にこちらを出す
 }
 
@@ -112,7 +112,7 @@ export async function loadBundle(items: Array<{ path: string; file: File }>, lab
   }
   renderPicked();
   if (body.length) got.push(`本文の画像: ${body.length} 枚`);
-  const missingThumb = thumbName && !thumb ? `\nfront matter の見出し画像(${thumbName})が見つかりませんでした。ドロップするか「画像を選ぶ」で選んでください。` : "";
-  setStatus(`${label} から ${got.join(" / ")} を受け取りました。「${submitLabel()}」を押してください。${missingThumb}`, { near: "drop" });
+  const missingThumb = thumbName && !thumb ? `\n見出し画像(${thumbName})が見つかりません。選んでください。` : "";
+  setStatus(`${label} から ${got.join(" / ")} を受け取りました。${missingThumb}`, { near: "drop" });
   checkTargetNow(); // target が入れる先と合わなければ、受け取りの知らせより先にこちらを出す
 }

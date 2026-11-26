@@ -33,7 +33,7 @@ describe("本文の画像の上限(#99)", () => {
     assert.equal(images.length, MAX_BODY_IMAGES);
     assert.deepEqual(images.map((i) => i.name), names.slice(0, 20));
     assert.ok(!calls.includes("img21.png"), "21 枚目は読まない");
-    assert.deepEqual(imageNotes, ["本文の画像が 21 枚あり、上限の 20 枚を超えた 1 枚は入れていません"]);
+    assert.deepEqual(imageNotes, ["上限の 20 枚を超えた 1 枚は入れていません"]);
   });
 
   it("合計が残りの大きさを超える記事: 超えた画像は入れず、入った分は残りの大きさを超えない", async () => {
@@ -45,7 +45,7 @@ describe("本文の画像の上限(#99)", () => {
     const total = images.reduce((n, i) => n + i.base64.length, 0);
     assert.ok(total <= budget, `${total} <= ${budget}`);
     assert.equal(imageNotes.length, 1);
-    assert.match(imageNotes[0], /^画像の合計が大きすぎるため入れていない画像があります\(big\.png。/);
+    assert.match(imageNotes[0], /^大きすぎて入れていない画像があります\(big\.png。/);
   });
 
   it("同じ画像を 2 回使う記事: ファイルは 1 回だけ読み、2 か所とも入れる", async () => {

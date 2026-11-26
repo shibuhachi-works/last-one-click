@@ -19,7 +19,7 @@ export function pickArticleMarkdown<T extends BundleItem>(items: T[]): T {
     .sort((a, b) => depth(a.path) - depth(b.path));
   if (named.length && (named.length === 1 || depth(named[0].path) < depth(named[1].path))) return named[0];
   const list = mds.slice(0, 5).map((i) => i.path).join(", ");
-  throw new Error(`md ファイルが ${mds.length} 個あり、どれが記事か決められません(${list}${mds.length > 5 ? " ほか" : ""})。記事の md を article.md という名前にするか、1 記事ずつドロップしてください。`);
+  throw new Error(`md ファイルが ${mds.length} 個あります(${list}${mds.length > 5 ? " ほか" : ""})。記事の md を article.md にしてください。`);
 }
 
 /**
@@ -97,7 +97,7 @@ export async function collectFolderFiles<F>(
   let seen = 0;
   async function walk(entry: FsFileEntry<F> | FsDirEntry<F>, prefix: string): Promise<void> {
     if (entry.name.startsWith(".") || entry.name === "__MACOSX") return;
-    if (++seen > maxEntries) throw new Error(`フォルダの中のファイルが多すぎます(${maxEntries} 個まで)。記事のフォルダだけをドロップしてください。`);
+    if (++seen > maxEntries) throw new Error(`ファイルが多すぎます(${maxEntries} 個まで)。記事のフォルダだけをドロップしてください。`);
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isFile) {
       if (!keep(path)) return;

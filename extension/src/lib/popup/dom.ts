@@ -13,6 +13,7 @@ export const STATUS_IDS = {
   github: "status-github",
   diagnose: "status-diagnose",
   settings: "status-settings",
+  selectors: "status-selectors",
   advanced: "status-advanced",
   extraSiteOffer: "status-extra-site-offer",
   extraSiteToggle: "status-extra-site-toggle",

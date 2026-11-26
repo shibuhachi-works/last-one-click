@@ -809,7 +809,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       // 「記事の設定」の中ではなく、たたまれていない所にあり、文言にリンクとハッシュタグの両方が書いてある
       assert.equal(await popup.locator("#article-options #credit-link").count(), 0);
       assert.ok(await credit.isVisible());
-      assert.match((await popup.locator("label:has(#credit-link)").textContent()) ?? "", /リンクと、ハッシュタグ #LastOneClick を入れる/);
+      assert.match((await popup.locator("label:has(#credit-link)").textContent()) ?? "", /記事の最後に「Last One Click で下書きしました」と #LastOneClick を入れる/);
       // 「記事の設定」の見出しの横には、リンクは出ない
       assert.equal(await popup.locator("#article-options-on").textContent(), "(目次)");
     });
@@ -917,7 +917,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     assert.deepEqual(rest, [], "知らせは 1 か所だけ");
     assert.equal(err.id, "status-diagnose");
     assert.equal(err.role, "alert");
-    assert.match(err.text, /note のタブが見つかりません/);
+    assert.match(err.text, /note のエディタを開いてから押してください/);
     // 診断のボタンの並び(.row)のすぐ下にある
     assert.equal(await popup.locator("#status-diagnose").evaluate((el) => el.previousElementSibling?.querySelector("#diagnose") !== null), true);
 
@@ -926,7 +926,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     await editor.goto("https://editor.note.com/notes/e2e-diagnose/edit/");
     await editor.waitForTimeout(1_000);
     await safeClickLike(popup, "#diagnose");
-    await popup.waitForFunction(() => /診断結果を取得/.test(document.getElementById("status-diagnose")?.textContent ?? ""), null, { timeout: 10_000 });
+    await popup.waitForFunction(() => /コピーしました|取得しました/.test(document.getElementById("status-diagnose")?.textContent ?? ""), null, { timeout: 10_000 });
     const [ok, ...rest2] = await shown(popup);
     assert.deepEqual(rest2, []);
     assert.equal(ok.id, "status-diagnose");
@@ -1019,12 +1019,12 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
       const target = popup.locator("#account-target");
       await target.waitFor({ state: "visible" });
-      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。note でアカウントを切り替えてから作成してください。");
+      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の設定(other_writer)と違います。");
       assert.equal(await target.evaluate((el) => el.classList.contains("mismatch")), true);
       assert.equal(await popup.locator("#submit").isDisabled(), false);
       // 同じアカウントの記事を読み直すと、「記事の指定」だけに戻る
       await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(withAccount("sample_writer")) });
-      await popup.waitForFunction(() => document.getElementById("account-target")?.textContent === "記事の指定: sample_writer", null, { timeout: 5_000 });
+      await popup.waitForFunction(() => document.getElementById("account-target")?.textContent === "記事の設定: sample_writer", null, { timeout: 5_000 });
       assert.equal(await target.evaluate((el) => el.classList.contains("mismatch")), false);
       // note_account の無い記事では出さない
       await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
@@ -1049,7 +1049,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       const target = popup.locator("#account-target");
       await target.waitFor({ state: "visible", timeout: 10_000 });
       await popup.waitForFunction(() => document.getElementById("account-target")?.classList.contains("mismatch"), null, { timeout: 10_000 });
-      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。note でアカウントを切り替えてから作成してください。");
+      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の設定(other_writer)と違います。");
       await popup.close();
     });
   });
