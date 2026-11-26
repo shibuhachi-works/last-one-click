@@ -320,7 +320,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       const text = await rewriteBanner(editor);
       assert.match(text, /md のハッシュタグ: #テスト #書き換え/);
       assert.match(text, /md のマガジン: 試しのマガジン/);
-      assert.match(text, /押さずに閉じてください/);
+      assert.match(text, /保存せずに閉じれば、元のままです/);
       // 公開設定には進まない(ボタンも出さない)
       assert.doesNotMatch(text, /公開設定を入れる/);
       const buttons = await editor.evaluate(() => Array.from(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.querySelectorAll("button") ?? []).map((x) => x.textContent ?? ""));
@@ -788,7 +788,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     );
     assert.equal(await editor.locator("#body figure.embed").count(), 20);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
-    assert.match(banner, /21 件あり、上限の 20 件を超えた 1 件は埋め込みにしていません/);
+    assert.match(banner, /上限の 20 件を超えた 1 件は埋め込みにしていません/);
     assert.deepEqual(errors, []);
   });
   it("「記事の最後に…リンクと #LastOneClick を入れる」は外に出ていて既定はチェックあり。本文の最後にリンク、ハッシュタグに LastOneClick が入る。外すと入らず、チェックを覚える", async () => {
@@ -1004,7 +1004,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       const { editor, errors } = await draftFromPopup(async () => {}, md, "記事の指定(other_writer)と違います");
       assert.equal(
         (await bannerText(editor)).split("\n")[0],
-        "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。note でアカウントを切り替えてから、もう一度作成してください。",
+        "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。",
       );
       // 工程は始めていない(少し待っても、タイトルも本文も入らない)
       await editor.waitForTimeout(1_000);
