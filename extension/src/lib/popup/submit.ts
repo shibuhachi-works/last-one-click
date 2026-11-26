@@ -1,5 +1,5 @@
 // 下書きを作るボタン(#submit)と「新しい下書きとして作る」の中身: 記事を組み立てて、新しいタブ・開いている記事・追加の対応先に送る(popup.ts から分けた。動きは変えていない)。
-import { REWRITE_UNDO_NOTE, checkNoteUrl, noteEditKey, noteUrlProblem } from "../../../../shared/note-rewrite";
+import { checkNoteUrl, noteEditKey, noteUrlProblem } from "../../../../shared/note-rewrite";
 import { buildArticle } from "../article";
 import { EXTRA_SITE_HOST } from "../../../../shared/extra-site";
 import { loadSelectors } from "../selectors";

@@ -5,7 +5,7 @@ import { findRelative, findThumbnail, pickArticleMarkdown } from "../../../../sh
 import { fetchMarkdownFromGitHub, localImageNames, localImageSrcs } from "../article";
 import { setStatus } from "./dom";
 import { state } from "./state";
-import { submitLabel, markdownEl, titleEl, markdownFileEl, markdownBoxEl, MAX_MD_BYTES, fieldsEditEl } from "./elements";
+import { markdownEl, titleEl, markdownFileEl, markdownBoxEl, MAX_MD_BYTES, fieldsEditEl } from "./elements";
 import { checkTargetNow } from "./destination";
 import { forgetSource, fillFieldsFromMarkdown, setThumbnailFile, renderPicked } from "./fields";
 
