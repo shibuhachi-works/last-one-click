@@ -1,39 +1,26 @@
 // ポップアップ。入力を ArticlePayload に組み立てて chrome.storage に置き、
 // note のエディタを新しいタブで開く。実際の入力は content.ts が行う。
 import { parse as parseYaml } from "yaml";
-import type { CurrentUser } from "../../shared/current-user";
+import { type CurrentUser } from "../../shared/current-user";
 import { sameNoteAccount } from "../../shared/note-account";
 import { parseFrontMatter, targetProblem, type Destination } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
 import { REWRITE_UNDO_NOTE, checkNoteUrl, noteEditKey, noteUrlProblem } from "../../shared/note-rewrite";
 import { parsePullUrl } from "../../shared/github-pr";
-import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
-import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
+import { collectFolderFiles, findRelative, findThumbnail, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
+import { MAX_ZIP_ENTRIES, isBundleFile } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, findPullArticlesOnGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
-import {
-  EXTRA_SITE_ENABLED,
-  EXTRA_SITE_HOST,
-  EXTRA_SITE_SUBMIT_LABEL,
-  EXTRA_SITE_NEW_SUBMIT_LABEL,
-  disableExtraSite,
-  enableExtraSite,
-  extraSiteUnsupportedNotes,
-  EXTRA_SITE_ORIGIN,
-  isExtraSiteUrl,
-  pickExtraSiteTab,
-  shouldFillExtraSite,
-  shouldOfferExtraSite,
-  type ExtraSiteOffer,
-  syncExtraSite,
-} from "../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, EXTRA_SITE_HOST, EXTRA_SITE_SUBMIT_LABEL, EXTRA_SITE_NEW_SUBMIT_LABEL, disableExtraSite, enableExtraSite, EXTRA_SITE_ORIGIN, isExtraSiteUrl, pickExtraSiteTab, shouldFillExtraSite, shouldOfferExtraSite, type ExtraSiteOffer, syncExtraSite } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
 import { loadPopupAccount } from "../../shared/popup-account";
 import { STORAGE, type AccountResponse, type DiagnoseResponse, type ExtraSiteAccountResponse, type ExtraSiteFillResponse, type Message, type NoteArticleResponse, type NoteRewriteResponse, type WindowHandoff } from "./lib/types";
+import { $, STATUS_IDS, setStatus, accountRow } from "./lib/popup/dom";
+import { isZip, zipItems } from "./lib/popup/zip";
+import { notesText, extraSiteMessage } from "./lib/popup/extra-site-message";
 
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 /**
  * 「note の下書きを作成」ボタンの名前。案内の文には、この関数でボタンの文字をそのまま入れる
  * (ボタンの名前を変えたときに、案内の文だけ古い名前のまま残らないように。shared/popup-labels.test.ts でも確かめる)
@@ -127,43 +114,6 @@ if (isWindow) {
       setStatus("入力途中の内容を引き継ぎました。", { near: "drop" });
     }
   });
-}
-
-/**
- * 知らせを出す場所。押したボタン(操作した所)のすぐそばに出す(#141)。
- * 「note の下書きを作成」の知らせは、今までどおり #status(ボタンのすぐ下)
- */
-const STATUS_IDS = {
-  submit: "status",
-  window: "status-window",
-  drop: "status-drop",
-  github: "status-github",
-  diagnose: "status-diagnose",
-  settings: "status-settings",
-  advanced: "status-advanced",
-  extraSiteOffer: "status-extra-site-offer",
-  extraSiteToggle: "status-extra-site-toggle",
-} as const;
-type StatusPlace = keyof typeof STATUS_IDS;
-
-/** 知らせを near の場所に出す。同時に出すのは 1 か所だけ(前の知らせは消す) */
-function setStatus(msg: string, { error = false, near }: { error?: boolean; near: StatusPlace }) {
-  for (const [place, id] of Object.entries(STATUS_IDS)) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    if (place !== near) {
-      el.hidden = true;
-      el.textContent = "";
-      el.removeAttribute("role");
-      continue;
-    }
-    el.hidden = false;
-    // 読み上げにも届くように、エラーは alert、それ以外は status
-    el.setAttribute("role", error ? "alert" : "status");
-    // 可読性のため、一文ごとに改行して出す(CSS の white-space: pre-line で改行を効かせる)
-    el.textContent = msg.replace(/。(?=.)/g, "。\n");
-    el.classList.toggle("error", error);
-  }
 }
 
 // 設定の読み書き
@@ -384,28 +334,6 @@ function checkTargetNow() {
     submitStatusEl.removeAttribute("role");
     targetProblemShown = null;
   }
-}
-/** アカウントの 1 行の中身: 「(ドメイン):」と、[アイコン] 名前 (@ID)。アイコンは https のときだけ */
-function accountRow(host: string, iconUrl: unknown, name?: string, suffix?: string): Node[] {
-  const label = document.createElement("span");
-  label.className = "host";
-  label.textContent = `${host}:`;
-  const who = document.createElement("span");
-  who.className = "who";
-  if (typeof iconUrl === "string" && iconUrl.startsWith("https://")) {
-    const img = document.createElement("img");
-    img.src = iconUrl;
-    img.alt = "";
-    img.referrerPolicy = "no-referrer";
-    who.append(img);
-  }
-  if (name) {
-    const b = document.createElement("b");
-    b.textContent = name;
-    who.append(b);
-  }
-  if (suffix) who.append(document.createTextNode(suffix));
-  return [label, who];
 }
 /**
  * 追加の対応先のログイン中のアカウントを、「(ドメイン): [アイコン] 名前」と出す。
@@ -837,17 +765,6 @@ async function loadLooseFiles(files: File[]) {
   checkTargetNow(); // target が入れる先と合わなければ、受け取りの知らせより先にこちらを出す
 }
 
-const MAX_ZIP_FILE_BYTES = 60 * 1024 * 1024;
-function isZip(f: File): boolean {
-  return /\.zip$/i.test(f.name) || f.type === "application/zip" || f.type === "application/x-zip-compressed";
-}
-/** ZIP の中の md と画像を、File にして返す(path は ZIP の中のパス) */
-async function zipItems(zip: File): Promise<Array<{ path: string; file: File }>> {
-  if (zip.size > MAX_ZIP_FILE_BYTES) throw new Error(`ZIP ファイルが大きすぎます(${MAX_ZIP_FILE_BYTES / 1024 / 1024}MB まで)。`);
-  const entries = await readZip(new Uint8Array(await zip.arrayBuffer()));
-  return entries.map((e) => ({ path: e.path, file: new File([e.data as BlobPart], e.path.slice(e.path.lastIndexOf("/") + 1), { type: mimeTypeOf(e.path) }) }));
-}
-
 /**
  * 記事のフォルダ・ZIP をまとめて受け取ったとき。記事の md を 1 つ選び、
  * 本文に ![説明](ファイル名) で書いてある画像を本文の画像に、front matter の thumbnail に当たる画像を見出し画像にする
@@ -1126,35 +1043,4 @@ async function openExtraSiteAndFill(article: Awaited<ReturnType<typeof buildArti
   const res = (await chrome.runtime.sendMessage({ type: "extraSiteOpenAndFill", article: extraArticle, notes } satisfies Message).catch(() => null)) as ExtraSiteFillResponse | null;
   if (!res) throw new Error("新しいタブを開けませんでした。もう一度押してください。");
   if (!res.ok) throw new Error(res.error);
-}
-
-/** 入らない書き方の知らせの文(無ければ空) */
-function notesText(notes: string[]): string {
-  return notes.length ? `\n\n${EXTRA_SITE_HOST} のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : "";
-}
-
-/** 追加の対応先に渡す記事と、入らない書き方の知らせ */
-function extraSiteMessage(article: Awaited<ReturnType<typeof buildArticle>>) {
-  // 目次・埋め込み・マガジン・価格は、このページでは押せなくしてあるので知らせない。本文の書き方と画像だけ知らせる
-  const notes = extraSiteUnsupportedNotes({
-    html: article.html,
-    insertToc: false,
-    embedUrls: false,
-    images: article.images,
-  });
-  return {
-    notes,
-    extraArticle: {
-      title: article.title,
-      hashtags: article.hashtags,
-      html: article.html,
-      thumbnail: article.thumbnail,
-      images: article.images,
-      imageNotes: article.imageNotes,
-      ...(article.summary !== undefined ? { summary: article.summary } : {}),
-      ...(article.category !== undefined ? { category: article.category } : {}),
-      ...(article.publishScope ? { publishScope: article.publishScope } : {}),
-      ...(article.readingTime !== undefined ? { readingTime: article.readingTime } : {}),
-    },
-  };
 }
