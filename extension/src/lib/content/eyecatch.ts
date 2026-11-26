@@ -32,8 +32,8 @@ export async function setThumbnailGuarded(S: Selectors, file: File, guard: FileP
       document.querySelector<HTMLElement>(S.thumbnail.addButton) ??
       findByText("button", S.thumbnail.addButtonText) ??
       (title && guessButton ? findEyecatchButton(title) : null);
-    if (!btn && !guessButton) throw new Error("見出し画像のボタンが見つからないので、差し替えていません。画面で差し替えてください(「DOM 情報を取得」の結果を送ってもらえれば直せます)。");
-    if (!btn) throw new Error("見出し画像のボタンが見つかりません。手動で設定してください(「DOM 情報を取得」の結果を送ってもらえれば直せます)。");
+    if (!btn && !guessButton) throw new Error("見出し画像のボタンが見つかりません。画面で差し替えてください。");
+    if (!btn) throw new Error("見出し画像のボタンが見つかりません。画面で入れてください。");
     input = await activateEyecatchButton(S, btn, guard);
   }
 
@@ -50,7 +50,7 @@ export async function setThumbnailGuarded(S: Selectors, file: File, guard: FileP
 
   // トリミング確認が出たら、その中(ダイアログ内、または新しく現れた)の確定ボタンだけを押す
   const confirm = await waitForConfirm(S.thumbnail.confirmText, confirmBefore, 20_000);
-  if (!confirm) throw new StopError("画像は渡しました。トリミングの「保存」が見つからないので、出ていれば自分で押してください");
+  if (!confirm) throw new StopError("トリミングの「保存」が見つかりません。出ていれば押してください");
 
   // 「保存」が現れた直後は画像がまだ読み込まれていないことがある(実機: ✓ なのに記事に画像が付かなかった)。
   // 渡した画像がダイアログ(無ければページ)に表示されるまで待ってから押す。表示されなければ押さない
@@ -63,7 +63,7 @@ export async function setThumbnailGuarded(S: Selectors, file: File, guard: FileP
   const loaded = await waitUntil(() => freshImage(dialog ?? document), 30_000);
   if (!loaded) {
     // トリミング画面が開いたままの可能性があるので、後続(公開設定への移動)には進まない
-    throw new StopError("画像は渡しましたが、トリミング画面に画像が表示されないので「保存」は押していません。表示されていれば自分で押してください");
+    throw new StopError("トリミング画面に画像が出ません。出ていれば「保存」を押してください");
   }
   await sleep(1_000); // 描画が落ち着くまで
   const label = (confirm.textContent ?? "").trim();
@@ -79,11 +79,11 @@ export async function setThumbnailGuarded(S: Selectors, file: File, guard: FileP
   }, 60_000);
   if (!shown) {
     throw new StopError(
-      `トリミングの「${label}」は押しましたが、記事側に見出し画像が表示されるのを確認できませんでした(アップロードが遅いか失敗した可能性)`,
+      `見出し画像の表示を確認できませんでした`,
     );
   }
   await sleep(1_500); // 保存処理が落ち着くまで
-  return `トリミングの「${label}」を押し、見出し画像が表示されました`;
+  return "表示されました";
 }
 
 /**
@@ -155,10 +155,9 @@ export async function activateEyecatchButton(S: Selectors, btn: HTMLElement, gua
     }
   }
   if (!input) {
-    throw new Error(
-      `見出し画像のボタンを押しましたが、画像の入力欄が出ませんでした。手動で設定してください。` +
-        `経過: ${log.join(" / ")}。押したボタン: ${rect(btn)} ${describe(btn)}`,
-    );
+    // 経過は開発者向けにコンソールへ出し、バナーには短い文だけを出す
+    console.warn(`[lastclick-pigeon] 見出し画像: 経過: ${log.join(" / ")}。押したボタン: ${rect(btn)} ${describe(btn)}`);
+    throw new Error("画像を選ぶ欄が出ませんでした。画面で入れてください。");
   }
   return input;
 }

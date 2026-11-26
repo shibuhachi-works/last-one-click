@@ -167,18 +167,18 @@ export function findPaywallTarget(containerSel: string, widgetSel: string, chang
 
 /** findPaywallTarget の結果(ok / already 以外)を、直し方つきの文にする */
 export function paywallFailureMessage(t: Pick<PaywallTarget, "status" | "count">): string {
-  const manual = "画面で手でラインを引いてください。";
+  const manual = "手でラインを引いてください。";
   switch (t.status) {
     case "no-screen":
       return `有料エリア設定の画面が出ませんでした。\n${manual}`;
     case "no-anchor":
-      return `「${PAYWALL_MARKER}」の直前のブロックに文字が無い(画像や区切り線など)ので、ラインを引く場所を決められません。\n${manual}`;
+      return `「${PAYWALL_MARKER}」の直前が文字の段落ではありません。\n${manual}`;
     case "not-found":
-      return `「${PAYWALL_MARKER}」の直前の段落と同じ文字のブロックが、有料エリア設定の画面に見つかりません。\n${manual}`;
+      return `「${PAYWALL_MARKER}」の直前の段落が見つかりません。\n${manual}`;
     case "many":
-      return `「${PAYWALL_MARKER}」の直前の段落と同じ文字のブロックが ${t.count} つあり、どこに引くか決められません。\n${manual}`;
+      return `「${PAYWALL_MARKER}」の直前の段落と同じ段落が ${t.count} つあります。\n${manual}`;
     case "no-button":
-      return `「${PAYWALL_MARKER}」の直前の段落のすぐ下に「ラインをこの場所に変更」が見つかりません。\n${manual}`;
+      return `「ラインをこの場所に変更」が見つかりません。\n${manual}`;
     default:
       return manual;
   }
