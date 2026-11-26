@@ -71,6 +71,10 @@ export function renderRewrite() {
   if (on) {
     $("rewrite-target").textContent = `今開いている記事:『${state.rewriteTarget!.title || "(タイトルなし)"}』`;
     submitHintEl.textContent = "今開いているタブに入れます。";
+  } else if (state.extraSiteFillTabId !== undefined) {
+    submitHintEl.textContent = "今開いているページに下書きを入れます。";
+  } else if (extraSiteNewMode()) {
+    submitHintEl.textContent = "新規記事を新しいタブで開いて、下書きを入れます。";
   } else {
     submitHintEl.innerHTML = noteSubmitHint;
   }
@@ -151,12 +155,12 @@ export function applyDestinationControls() {
     }
   }
   renderRewrite();
-  // ログイン中のアカウントは、入れる先にかかわらず、読めたものを「(ドメイン): [アイコン] 名前」で並べて出す
-  // (ドメインを見出しにするので、どのサイトのアカウントかを取り違えない)。記事の指定(note_account)は note に入れるときだけ
   // ② の一覧も、入れる先に合わせて出し直す(入れる先は、開いたあとで決まることがある)
   renderFieldsSummary();
-  $("account").hidden = !state.loggedInAccount;
-  $("extra-site-account").hidden = !state.extraSiteAccountShown;
+  // ログイン中のアカウントは、入れる先のサイトのものだけを「(ドメイン): [アイコン] 名前」で出す(#191)。
+  // 記事の設定(note_account)は note に入れるときだけ
+  $("account").hidden = !state.loggedInAccount || toExtraSite;
+  $("extra-site-account").hidden = !state.extraSiteAccountShown || !toExtraSite;
   renderAccountTarget();
 }
 
