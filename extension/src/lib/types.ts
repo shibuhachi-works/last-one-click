@@ -12,6 +12,8 @@ export type ArticlePayload = {
    * あれば、工程を始める前にログイン中のアカウントと比べ、違えば何も入れずに止める。無ければ比べない
    */
   noteAccount?: string;
+  /** front matter の note_url(書き換える記事の URL。#174) */
+  noteUrl?: string;
   /** front matter の summary・category。note には入れない(追加の対応先の編集画面でだけ使う) */
   summary?: string;
   category?: string;
@@ -34,6 +36,11 @@ export type ArticlePayload = {
    * false(既定)なら、タイトル・本文・見出し画像を入れたところで止まり、バナーの「公開設定を入れる」を待つ
    */
   skipBodyReview: boolean;
+  /**
+   * 開いている記事の編集画面を書き換えるとき(#174)、その記事の ID。無ければ新しい下書きを作る(今までどおり)。
+   * あれば、今の本文を消してから入れ、公開設定(ハッシュタグ・マガジン・価格・有料ライン)には進まない
+   */
+  rewriteKey?: string;
   /** 本文の先頭に note の目次を入れるか(「記事の先頭に目次を入れる」のチェック) */
   insertToc: boolean;
   /** URL だけの行を note の埋め込み(カード)にするか(「URL だけの行を埋め込みにする」のチェック) */
@@ -57,6 +64,10 @@ export type Message =
   | { type: "whoami" }
   | { type: "selectors" }
   | { type: "account" }
+  /** popup → note の content script(#174)。開いている記事のタイトルを読む(書き換える前の確かめに出す) */
+  | { type: "noteArticle" }
+  /** popup → note の content script(#174)。このタブ向けの pending(書き換え)を読んで、入れ始める */
+  | { type: "noteRewrite" }
   /** popup → 追加の対応先の content script(#120)。今開いているタブに下書きを入れる。notes は入らない書き方の知らせ */
   | { type: "extraSiteFill"; article: ExtraSiteArticle; notes: string[] }
   /** popup → service worker。新しいタブで新規記事のエディタを開き、開いたら extraSiteFill を送る(note と同じく、別のページからも作れるように) */
@@ -69,6 +80,10 @@ export type Message =
 export type ExtraSiteAccountResponse = { account: ExtraSiteAccount | null };
 /** 追加の対応先の content script の返事。入れ始めたら ok(入れ終わるのは待たない。結果はページのバナーに出す) */
 export type ExtraSiteFillResponse = { ok: true } | { ok: false; error: string };
+/** 開いている note の記事(#174)。タイトルが読めなければ title は空 */
+export type NoteArticleResponse = { key: string | null; title: string };
+/** 書き換えを始めたか。入れ終わるのは待たない(結果はページのバナーに出す) */
+export type NoteRewriteResponse = { ok: true } | { ok: false; error: string };
 export type WhoAmIResponse = { tabId: number | null };
 /**
  * content script → service worker。content script は note.com の origin で動くので、
@@ -123,4 +138,6 @@ export type WindowHandoff = {
   thumbnail?: ArticlePayload["thumbnail"];
   /** 大きすぎて渡せなかった画像の名前(新しい側で再選択を案内する) */
   skippedImageName?: string;
+  /** 書き換える記事の編集画面のタブ(#174)。ウィンドウで開いても、同じ記事を書き換えられるように */
+  rewriteTabId?: number;
 };

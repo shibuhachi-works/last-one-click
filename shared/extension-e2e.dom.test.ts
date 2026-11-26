@@ -268,6 +268,101 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     return { editor, errors };
   }
 
+  /**
+   * すでにある記事の編集画面(/notes/<ID>/edit)を開き、前のタイトルと本文を入れておく(#174)。
+   * ポップアップは、その編集画面が今のタブとして見えるようにして開く(テストのポップアップは自分がタブなので、chrome.tabs.query を差し替える)
+   */
+  async function openRewrite(key: string) {
+    const editor = await context.newPage();
+    await editor.goto(`https://editor.note.com/notes/${key}/edit/`);
+    await editor.evaluate(() => {
+      (document.getElementById("title") as HTMLTextAreaElement).value = "前のタイトル";
+      document.getElementById("body")!.innerHTML = "<p>前の本文です</p><h2>前の見出し</h2><p>前の最後の行</p>";
+    });
+    const popup = await context.newPage();
+    await popup.addInitScript(() => {
+      type Tab = { id?: number; url?: string };
+      type Tabs = { query: (q: Record<string, unknown>) => Promise<Tab[]> };
+      const tabs = (globalThis as unknown as { chrome: { tabs: Tabs } }).chrome.tabs;
+      const query = tabs.query.bind(tabs);
+      tabs.query = async (q) => (q.active && q.currentWindow && !q.url ? query({ url: "https://editor.note.com/notes/*" }) : query(q));
+    });
+    const errors: string[] = [];
+    popup.on("pageerror", (e) => errors.push(e.message));
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    return { editor, popup, errors };
+  }
+  const rewriteBanner = (page: Page) => page.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
+
+  it("開いている記事の編集画面を、md の内容で書き換える。公開設定には進まず、ハッシュタグなどは並べて知らせるだけ(#174)", async () => {
+    const { editor, popup, errors } = await openRewrite("n0123abcd");
+    try {
+      await popup.locator("#rewrite-box").waitFor({ state: "visible", timeout: 10_000 });
+      assert.match((await popup.locator("#rewrite-target").textContent()) ?? "", /『前のタイトル』/);
+      assert.equal((await popup.locator("#submit").textContent())?.trim(), "この記事を書き換える");
+      assert.equal(await popup.locator("#submit-new").isVisible(), true);
+      // 本文の確認を飛ばして公開設定まで進む、は書き換えでは使えない
+      assert.equal(await popup.locator("#skip-review").isDisabled(), true);
+      assert.match((await popup.locator("label:has(#skip-review)").textContent()) ?? "", /書き換えでは使えません/);
+
+      const md = "---\ntitle: 新しいタイトル\nhashtags: [テスト, 書き換え]\nmagazine: 試しのマガジン\nnote_url: https://note.com/someone/n/n0123abcd\n---\n\n## 新しい見出し\n\n新しい本文です\n";
+      await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
+      await popup.locator("#fields").waitFor({ state: "visible" });
+      assert.equal(await popup.locator("#submit").isDisabled(), false);
+      await safeClickLike(popup, "#submit");
+      await popup.waitForFunction(() => /書き換えを始めました/.test(document.getElementById("status")?.textContent ?? ""), null, { timeout: 10_000 });
+
+      await editor.waitForFunction(() => /書き換えました/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? ""), null, { timeout: 30_000 });
+      assert.equal(await editor.locator("#title").inputValue(), "新しいタイトル");
+      const body = await editor.locator("#body").innerText();
+      assert.match(body, /新しい本文です/);
+      assert.doesNotMatch(body, /前の本文|前の見出し|前の最後の行/, "前の本文は消してから入れる");
+      const text = await rewriteBanner(editor);
+      assert.match(text, /md のハッシュタグ: #テスト #書き換え/);
+      assert.match(text, /md のマガジン: 試しのマガジン/);
+      assert.match(text, /押さずに閉じてください/);
+      // 公開設定には進まない(ボタンも出さない)
+      assert.doesNotMatch(text, /公開設定を入れる/);
+      const buttons = await editor.evaluate(() => Array.from(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.querySelectorAll("button") ?? []).map((x) => x.textContent ?? ""));
+      assert.ok(!buttons.some((t) => /公開設定|もう一度入れる/.test(t)), buttons.join(" / "));
+      assert.deepEqual(errors, []);
+    } finally {
+      await popup.close();
+      await editor.close();
+    }
+  });
+
+  it("md の note_url が開いている記事と違えば、書き換えのボタンを押せなくする。新しい下書きとしては作れる(#174)", async () => {
+    const { editor, popup } = await openRewrite("n0123abcd");
+    try {
+      await popup.locator("#rewrite-box").waitFor({ state: "visible", timeout: 10_000 });
+      const md = "---\ntitle: 別の記事\nnote_url: https://note.com/someone/n/nffff0000\n---\n\n本文\n";
+      await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
+      await popup.locator("#fields").waitFor({ state: "visible" });
+      await popup.waitForFunction(() => (document.getElementById("submit") as HTMLButtonElement).disabled);
+      assert.match((await popup.locator("#status").textContent()) ?? "", /nffff0000.*n0123abcd/s);
+      assert.equal(await popup.locator("#submit-new").isDisabled(), false);
+      // 開いている記事は変わっていない
+      assert.equal(await editor.locator("#title").inputValue(), "前のタイトル");
+    } finally {
+      await popup.close();
+      await editor.close();
+    }
+  });
+
+  it("note の新規作成の画面やほかのページでは、書き換えの表示を出さない(#174)", async () => {
+    const editor = await context.newPage();
+    await editor.goto("https://editor.note.com/notes/new");
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popup.waitForTimeout(500);
+    assert.equal(await popup.locator("#rewrite-box").isVisible(), false);
+    assert.equal(await popup.locator("#submit-new").isVisible(), false);
+    assert.equal((await popup.locator("#submit").textContent())?.trim(), "note の下書きを作成");
+    await popup.close();
+    await editor.close();
+  });
+
   it("target が note 以外の記事は、読み込んだ時点で知らせてボタンを押せなくする。target を消すと押せるようになる", async () => {
     const popup = await context.newPage();
     await popup.goto(`chrome-extension://${extensionId}/popup.html`);

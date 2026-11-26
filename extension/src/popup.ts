@@ -6,6 +6,7 @@ import { sameNoteAccount } from "../../shared/note-account";
 import { parseFrontMatter, targetProblem, type Destination } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
+import { REWRITE_UNDO_NOTE, checkNoteUrl, noteEditKey, noteUrlProblem } from "../../shared/note-rewrite";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
 import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
@@ -29,7 +30,7 @@ import { chromeExtraSiteApi } from "./lib/extra-site";
 import { safeClick } from "./lib/safe-click";
 import { loadSelectors } from "./lib/selectors";
 import { loadPopupAccount } from "../../shared/popup-account";
-import { STORAGE, type AccountResponse, type DiagnoseResponse, type ExtraSiteAccountResponse, type ExtraSiteFillResponse, type Message, type WindowHandoff } from "./lib/types";
+import { STORAGE, type AccountResponse, type DiagnoseResponse, type ExtraSiteAccountResponse, type ExtraSiteFillResponse, type Message, type NoteArticleResponse, type NoteRewriteResponse, type WindowHandoff } from "./lib/types";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 /**
@@ -54,6 +55,7 @@ $("open-window").addEventListener("click", async () => {
       baseUrl,
       mdName: pickedMdName,
       fieldsEdited: { ...fieldsEdited },
+      ...(rewriteTarget ? { rewriteTabId: rewriteTarget.tabId } : {}),
     };
     const img = thumbnailEl.files?.[0];
     if (img && img.size <= HANDOFF_IMAGE_MAX_BYTES) handoff.thumbnail = await fileToPayload(img);
@@ -117,6 +119,7 @@ if (isWindow) {
     // 引き継いだ md の note_account も読み直す(fillFieldsFromMarkdown は呼ばない。直した欄を上書きしないため)
     articleNoteAccount = readNoteAccount(h.markdown);
     renderAccountTarget();
+    if (h.rewriteTabId !== undefined) void refreshRewriteTarget(h.rewriteTabId);
     if (h.skippedImageName) {
       setStatus(`入力途中の内容を引き継ぎましたが、見出し画像「${h.skippedImageName}」は大きいので渡せませんでした。もう一度ドロップするか「画像を選ぶ」で選んでください。`, { error: true, near: "drop" });
     } else if (h.markdown || h.thumbnail) {
@@ -216,6 +219,62 @@ function refreshExtraSiteFillTarget() {
 }
 
 /**
+ * 書き換える note の記事(#174)。今のタブが、すでにある記事の編集画面(/notes/<ID>/edit)のときだけ。
+ * そのときは主のボタンを「この記事を書き換える」にし、「新しい下書きとして作る」も出す
+ */
+let rewriteTarget: { tabId: number; key: string; title: string } | undefined;
+const REWRITE_SUBMIT_LABEL = "この記事を書き換える";
+const submitNewEl = $<HTMLButtonElement>("submit-new");
+const submitHintEl = $("submit-hint");
+const noteSubmitHint = submitHintEl.innerHTML;
+/**
+ * 書き換える記事を決め直す。ツールバーのポップアップは今のタブ、ウィンドウで開いたときは引き継いだタブ。
+ * タイトルは、そのタブの content script に聞く(読めなければ「(タイトルなし)」)
+ */
+async function refreshRewriteTarget(tabId?: number) {
+  const tab =
+    tabId !== undefined
+      ? await chrome.tabs.get(tabId).catch(() => undefined)
+      : isWindow
+        ? undefined
+        : (await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []))[0];
+  const key = noteEditKey(tab?.url);
+  if (!tab?.id || !key) {
+    rewriteTarget = undefined;
+  } else {
+    const res = (await chrome.tabs.sendMessage(tab.id, { type: "noteArticle" } satisfies Message).catch(() => null)) as NoteArticleResponse | null;
+    rewriteTarget = { tabId: tab.id, key, title: res?.title ?? "" };
+  }
+  checkTargetNow();
+}
+void refreshRewriteTarget();
+/** 書き換えになるか(書き換える記事があり、入れる先が note のとき) */
+function rewriteMode(): boolean {
+  return rewriteTarget !== undefined && destination() === "note";
+}
+/** md の note_url と、開いている記事が合わないときの知らせ。合えば(または書いていなければ)null */
+function noteUrlMismatch(): string | null {
+  if (!rewriteMode() || !markdownEl.value.trim()) return null;
+  try {
+    return noteUrlProblem(checkNoteUrl(parseFrontMatter(markdownEl.value, parseYaml).data.noteUrl, rewriteTarget!.key));
+  } catch {
+    return null;
+  }
+}
+/** 書き換えの表示(開いている記事の名前・新しい下書きのボタン・ボタンの下の説明)を、今の状態に合わせる */
+function renderRewrite() {
+  const on = rewriteMode();
+  $("rewrite-box").hidden = !on;
+  submitNewEl.hidden = !on;
+  if (on) {
+    $("rewrite-target").textContent = `今開いている記事:『${rewriteTarget!.title || "(タイトルなし)"}』`;
+    submitHintEl.textContent = "今開いているタブに入れて止まります。中身を確かめて、よければ自分で保存してください。";
+  } else {
+    submitHintEl.innerHTML = noteSubmitHint;
+  }
+}
+
+/**
  * note にだけある設定(目次・埋め込み・マガジン・価格・最後のクレジット・本文の確認を飛ばして公開設定まで進む)。
  * 入れる先が追加の対応先の編集画面のときは押せなくし、「(このページでは使えません)」を添える。チェックや欄の値は変えない
  */
@@ -248,6 +307,7 @@ function destination(): Destination {
 /** ボタンの文字を、入れる先に合わせる */
 function submitTextFor(): string {
   if (extraSiteFillTabId !== undefined) return EXTRA_SITE_SUBMIT_LABEL;
+  if (rewriteMode()) return REWRITE_SUBMIT_LABEL;
   return extraSiteNewMode() ? EXTRA_SITE_NEW_SUBMIT_LABEL : noteSubmitText;
 }
 /** 前に出した「target が合わない」の知らせ。合うようになったら、この知らせだけ消す */
@@ -278,6 +338,24 @@ function applyDestinationControls() {
     }
     if (note) note.hidden = !toExtraSite;
   }
+  // 書き換えでは、本文の確認を飛ばして公開設定まで進めない(公開設定の画面に移ると記事が保存される可能性があるため。#174)
+  if (!toExtraSite) {
+    const rewriting = rewriteMode();
+    skipReviewEl.disabled = rewriting;
+    const label = skipReviewEl.closest("label");
+    if (label) {
+      label.classList.toggle("unavailable", rewriting);
+      let note = label.querySelector<HTMLSpanElement>(".rewrite-note");
+      if (rewriting && !note) {
+        note = document.createElement("span");
+        note.className = "unavailable-note rewrite-note";
+        note.textContent = "(書き換えでは使えません)";
+        label.append(note);
+      }
+      if (note) note.hidden = !rewriting;
+    }
+  }
+  renderRewrite();
   // ログイン中のアカウントは、入れる先にかかわらず、読めたものを「(ドメイン): [アイコン] 名前」で並べて出す
   // (ドメインを見出しにするので、どのサイトのアカウントかを取り違えない)。記事の指定(note_account)は note に入れるときだけ
   // ② の一覧も、入れる先に合わせて出し直す(入れる先は、開いたあとで決まることがある)
@@ -293,7 +371,7 @@ function applyDestinationControls() {
 function checkTargetNow() {
   if (submitting) return;
   applyDestinationControls();
-  const problem = markdownEl.value.trim() ? targetProblem(markdownEl.value, destination(), parseYaml) : null;
+  const problem = markdownEl.value.trim() ? (targetProblem(markdownEl.value, destination(), parseYaml) ?? noteUrlMismatch()) : null;
   submitEl.disabled = problem !== null;
   const submitStatusEl = document.getElementById(STATUS_IDS.submit);
   if (problem) {
@@ -871,8 +949,15 @@ function renderPicked() {
 }
 
 // 本体
-submitEl.addEventListener("click", async () => {
+submitEl.addEventListener("click", () => void submitArticle(false));
+// 書き換えられる記事を開いていても、新しい下書きとして作れるように(#174)
+submitNewEl.addEventListener("click", () => void submitArticle(true));
+
+/** 「note の下書きを作成」(書き換えのときは「この記事を書き換える」)。forceNew なら、書き換えずに新しい下書きを作る */
+async function submitArticle(forceNew: boolean) {
+  if (submitting) return;
   submitEl.disabled = true;
+  submitNewEl.disabled = true;
   submitting = true;
   try {
     if (!markdownEl.value.trim()) throw new Error("記事の md ファイルをドロップするか、「md ファイルを選ぶ」で選んでください。");
@@ -912,6 +997,11 @@ submitEl.addEventListener("click", async () => {
       return;
     }
 
+    if (!forceNew && rewriteMode()) {
+      await rewriteNoteTab(rewriteTarget!, article);
+      return;
+    }
+
     const { selectors, source, warning } = await loadSelectors();
     // newNoteUrl は loadSelectors の中で note の origin であることを検査済み
     // 先に pending を置き(tabId: null)、タブを開いたら ID を埋める。content script はこの ID のタブでだけ動く
@@ -942,9 +1032,33 @@ submitEl.addEventListener("click", async () => {
   } finally {
     submitting = false;
     submitEl.disabled = false;
+    submitNewEl.disabled = false;
     checkTargetNow();
   }
-});
+}
+
+/**
+ * 開いている note の記事の編集画面を、md の内容で書き換える(#174)。新しいタブは開かない。
+ * このタブ向けの pending(rewriteKey 付き)を置いて、content script に始めてもらう。入れ終わるのは待たない(結果はページのバナーに出る)。
+ * 本文の確認を飛ばして公開設定まで進む、は使わない(公開設定の画面に移ると記事が保存される可能性があるため)
+ */
+async function rewriteNoteTab(target: { tabId: number; key: string }, article: Awaited<ReturnType<typeof buildArticle>>) {
+  const problem = noteUrlProblem(checkNoteUrl(article.noteUrl, target.key));
+  if (problem) throw new Error(problem);
+  // 押すまでのあいだに、そのタブで別の記事に移っていないか
+  const tab = await chrome.tabs.get(target.tabId).catch(() => undefined);
+  if (noteEditKey(tab?.url) !== target.key) throw new Error("書き換える記事のタブが、別のページに移っています。記事の編集画面でポップアップを開き直してください。");
+  await chrome.storage.local.set({
+    [STORAGE.pendingArticle]: { ...article, tabId: target.tabId, rewriteKey: target.key, skipBodyReview: false, insertToc: insertTocEl.checked, embedUrls: true },
+  });
+  const res = (await chrome.tabs.sendMessage(target.tabId, { type: "noteRewrite" } satisfies Message).catch(() => null)) as NoteRewriteResponse | null;
+  if (!res?.ok) {
+    await chrome.storage.local.remove(STORAGE.pendingArticle);
+    throw new Error(res?.error ?? "今開いている記事のページを再読み込みしてから、もう一度押してください(再読み込みで、まだ保存していない変更は消えます)。");
+  }
+  if (isWindow) await chrome.tabs.update(target.tabId, { active: true }).catch(() => undefined);
+  setStatus(`今開いている記事に書き換えを始めました。続きはページの右下に出ます。\n中身を確かめて、よければ自分で保存してください。\n${REWRITE_UNDO_NOTE}`, { near: "submit" });
+}
 
 /**
  * 今開いている追加の対応先の編集画面のタブに、記事を入れる(#120)。新しいタブは開かない。
