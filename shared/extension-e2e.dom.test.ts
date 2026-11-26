@@ -332,6 +332,27 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     }
   });
 
+  it("今の本文を消せなかったら(本文の欄が出ないときも)、本文は入れずに知らせる(#174)", async () => {
+    const { editor, popup } = await openRewrite("n0123abcd");
+    try {
+      await popup.locator("#rewrite-box").waitFor({ state: "visible", timeout: 10_000 });
+      // 本文の欄が出てこない画面にする(待っても見つからない)
+      await editor.evaluate(() => document.getElementById("body")!.remove());
+      const md = "---\ntitle: 新しいタイトル\n---\n\n新しい本文です\n";
+      await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
+      await popup.locator("#fields").waitFor({ state: "visible" });
+      await safeClickLike(popup, "#submit");
+      await editor.waitForFunction(() => /書き換えられませんでした/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? ""), null, { timeout: 30_000 });
+      const text = await rewriteBanner(editor);
+      assert.match(text, /今の本文を消す ✗/);
+      assert.match(text, /本文 —\(今の本文を消せなかったので、入れていません/);
+      assert.doesNotMatch(text, /本文 ✓|目次 ✓/);
+    } finally {
+      await popup.close();
+      await editor.close();
+    }
+  });
+
   it("md の note_url が開いている記事と違えば、書き換えのボタンを押せなくする。新しい下書きとしては作れる(#174)", async () => {
     const { editor, popup } = await openRewrite("n0123abcd");
     try {

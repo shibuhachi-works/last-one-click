@@ -265,6 +265,15 @@ async function rewriteArticle(S: Selectors, article: ArticlePayload, titleEl: HT
  * 空にならなければ投げる(前の本文の上に貼って混ざらないように)
  */
 async function clearBody(S: Selectors) {
+  // どんな失敗でも StopError にする(step は StopError のときだけ false を返し、本文の工程に進まない)
+  try {
+    return await clearBodyOnce(S);
+  } catch (e) {
+    throw e instanceof StopError ? e : new StopError(`今の本文を消せませんでした(${(e as Error).message})。本文は入れていません`);
+  }
+}
+
+async function clearBodyOnce(S: Selectors) {
   const el = await waitFor(S.body, 10_000);
   el.focus();
   const range = document.createRange();
