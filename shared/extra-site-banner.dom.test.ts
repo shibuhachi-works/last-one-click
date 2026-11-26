@@ -70,9 +70,9 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
       (globalThis as any).__show(m.text, m.kind);
     });
     assert.equal(await b.locator("#pill").isVisible(), true);
-    assert.match((await b.locator("#pill").textContent()) ?? "", /確かめてください/);
+    assert.match((await b.locator("#pill").textContent()) ?? "", /確認してください/);
     await b.locator("#pill").click();
-    // いちばん長い「確かめてください」と「たたむ」「閉じる」でも、見出しの行は 1 行
+    // いちばん長い「確認してください」と「たたむ」「閉じる」でも、見出しの行は 1 行
     assert.ok(((await b.locator(".head").boundingBox())?.height ?? 99) < 32, "見出しの行が折り返しています");
     assert.equal(await b.locator(".spin").count(), 0, "終わったあとも回る印が出ています");
     assert.equal(await b.locator("#wait").count(), 0);
@@ -81,7 +81,8 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
     assert.equal(await b.locator("#det").isVisible(), false);
     await b.getByRole("button", { name: "詳細" }).click();
     assert.equal(await b.locator("#det").isVisible(), true);
-    const colors = await b.locator("#det div").evaluateAll((ds) => ds.map((d) => (d as HTMLElement).style.color));
+    // ✓・⚠・✗ の行だけを比べる(入れていない欄の行などは除く)
+    const colors = await b.locator("#det div").evaluateAll((ds) => ds.filter((d) => /^[✓⚠✗]/.test(d.textContent ?? "")).map((d) => (d as HTMLElement).style.color));
     assert.equal(new Set(colors).size, 3, "✓・⚠・✗ の行が色分けされていません");
 
     await b.getByRole("button", { name: "知らせを閉じる" }).click();

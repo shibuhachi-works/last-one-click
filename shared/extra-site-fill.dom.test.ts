@@ -262,7 +262,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
     assert.equal(r.result!.ok, true);
     assert.ok(r.result!.lines.some((l) => l === "✓ タグ: 2 個"), r.result!.lines.join("\n"));
-    assert.ok(r.result!.lines.includes("⚠ library.libecity.com のエディタでは入らない書き方: 見本の知らせ"));
+    assert.ok(r.result!.lines.includes("⚠ 入らない書き方: 見本の知らせ"));
   });
 
   it("gif は入れずに目印を残し、知らせる", async () => {
@@ -270,7 +270,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.match(r.body, /［画像2・ab12: b\.gif］/);
     assert.ok(!r.bodyImages.includes("b.gif"));
     const line = r.result!.lines.find((l) => l.includes("本文の画像"));
-    assert.match(line ?? "", /^⚠ 本文の画像: 1 枚は入れました。.*png・jpg だけ.*b\.gif/);
+    assert.match(line ?? "", /^⚠ 本文の画像: 1 枚は入れました。png・jpg ではないので入れていません\(b\.gif\)/);
   });
 
   it("押すのは記事の設定を開くボタンだけ。「確認画面へ」「下書き保存」は押さず、フォームも送らない", async () => {
@@ -323,13 +323,13 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     const r = await run({ ...ARTICLE, category: "その他" });
     assert.equal(r.category, "");
     assert.equal(r.categoryOpen, false);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「その他」というカテゴリが 2 つあります。大きなカテゴリも書いてください")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「その他」が 2 つあります。「大カテゴリ > その他」の形で書いてください")), r.result!.lines.join("\n"));
     const r2 = await run({ ...ARTICLE, category: "見本のカテゴリ" });
     assert.equal(r2.category, "");
     assert.equal(r2.categoryOpen, false);
-    assert.ok(r2.result!.lines.some((l) => l.startsWith("✗ カテゴリ: カテゴリ「見本のカテゴリ」が見つかりません")), r2.result!.lines.join("\n"));
+    assert.ok(r2.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「見本のカテゴリ」が見つかりません")), r2.result!.lines.join("\n"));
     const r3 = await run({ ...ARTICLE, category: "増やす > ITリテラシー" });
-    assert.ok(r3.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 大きなカテゴリ「増やす」が見つかりません")), r3.result!.lines.join("\n"));
+    assert.ok(r3.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「増やす」が見つかりません")), r3.result!.lines.join("\n"));
   });
 
   it("すでに同じカテゴリが選ばれていれば、押さない", async () => {
@@ -348,7 +348,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
       document.querySelector(".btn_selectCategory")!.textContent = "貯める > 家計管理の準備";
     });
     const r = await run({ ...ARTICLE, category: "準備" });
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: カテゴリ「準備」が見つかりません")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「準備」が見つかりません")), r.result!.lines.join("\n"));
     assert.equal(r.categoryOpen, false);
   });
 
@@ -372,13 +372,13 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
   it("要約が欄の上限より長ければ、入れずに ✗ を出す", async () => {
     const r = await run({ ...ARTICLE, summary: "あ".repeat(141) });
     assert.equal(r.summary, "");
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 要約が 141 字で、欄の上限(140 字)を超えています")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
   it("絵文字を含む要約は、欄の上限と同じ数え方(UTF-16)で比べる", async () => {
     const r = await run({ ...ARTICLE, summary: "あ".repeat(130) + "😀".repeat(6) });
     assert.equal(r.summary, "");
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 要約が 136 字で、欄の上限(140 字)を超えています")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
   it("いったん入ったタグが一度だけ消えたら、入れ直して ⚠ で知らせる", async () => {
@@ -386,7 +386,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     const r = await run(ARTICLE);
     assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
     assert.ok(
-      r.result!.lines.some((l) => l === "⚠ タグ: 2 個。一度目は残らなかったので入れ直しました(一つめ, 二つめ。タグのボタンだけが消えていました)。画面で確かめてください"),
+      r.result!.lines.some((l) => l === "⚠ タグ: 2 個(入れ直しました: 一つめ, 二つめ)"),
       r.result!.lines.join("\n"),
     );
   });
@@ -406,7 +406,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     await page.evaluate(() => ((window as any).__tagRebuild = true));
     const r = await run(ARTICLE);
     assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
-    assert.ok(r.result!.lines.some((l) => l.includes("タグの欄ごと作り直されていました")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("⚠ タグ: 2 個(入れ直しました: ")), r.result!.lines.join("\n"));
   });
 
   it("入れ直しても消えるなら ✗ で知らせる。タグは最後に入れる", async () => {
@@ -415,7 +415,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.deepEqual(r.tags, []);
     const tagLine = r.result!.lines.findIndex((l) => l.startsWith("✗ タグ:"));
     assert.ok(
-      r.result!.lines[tagLine]?.startsWith("✗ タグ: 1 個も残っていません。入れ直しても残りませんでした。いったん入ったあと、画面から消えたタグがあります(一つめ, 二つめ。タグのボタンだけが消えていました)"),
+      r.result!.lines[tagLine]?.startsWith("✗ タグ: 0 個。消えたタグ(一つめ, 二つめ)"),
       r.result!.lines.join("\n"),
     );
     // 記事の設定のうち、タグがいちばん後(読了目安時間よりも後)
@@ -427,7 +427,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     const r = await run(ARTICLE);
     // 公認タグ(一つめ)は候補のボタンで入る。打って入れる二つめは、Enter で欄が空になるだけで入らない
     assert.deepEqual(r.tags, ["一つめ"]);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個は入れました。入れ直しても残りませんでした。入ったか確かめられなかったタグがあります(二つめ)")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個。確認できなかったタグ(二つめ)")), r.result!.lines.join("\n"));
   });
 
   it("開くボタンのセレクタが「下書き保存」「確認画面へ」に当たっても押さない", async () => {
@@ -479,7 +479,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
       ],
     });
     const line = r.result!.lines.find((l) => l.includes("本文の画像"));
-    assert.match(line ?? "", /^✗ 本文の画像: .*それより後の画像は入れていません.*slow\.png, c\.png/);
+    assert.match(line ?? "", /^✗ 本文の画像: 待ちきれなかった画像より後は入れていません。入れられなかった画像があります\(slow\.png, c\.png\)/);
     assert.match(r.body, /［画像2・ab12: c\.png］/);
     assert.ok(!r.bodyImages.includes("c.png"));
     // 遅れて入った画像があっても、後の画像の目印は残る

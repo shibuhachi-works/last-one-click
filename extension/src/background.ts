@@ -11,7 +11,7 @@
 //      (note と同じく、別のページからも作れるように。タブを開くとポップアップは閉じるので、ここで待つ)
 // 記事の中身には触らない。
 import { fetchCurrentUser } from "../../shared/current-user";
-import { EXTRA_SITE_ENABLED, EXTRA_SITE_HOST, EXTRA_SITE_NEW_ARTICLE_URL, fillProbe, isExtraSiteUrl, syncExtraSite, waitForNewEditor } from "../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, EXTRA_SITE_NEW_ARTICLE_URL, fillProbe, isExtraSiteUrl, syncExtraSite, waitForNewEditor } from "../../shared/extra-site";
 import { chromeExtraSiteApi } from "./lib/extra-site";
 import { loadSelectors } from "./lib/selectors";
 import type { AccountResponse, ExtraSiteFillResponse, Message, SelectorsResponse, WhoAmIResponse } from "./lib/types";
@@ -82,7 +82,7 @@ async function openAndFillExtraSite(article: Extract<Message, { type: "extraSite
         if (!isExtraSiteUrl(url)) return;
         void sendToTab(tabId, {
           type: "extraSiteNotice",
-          text: `新規記事のエディタが開くのを待っています。${EXTRA_SITE_HOST} にログインすると、編集画面に移ったところで、そのまま下書きを入れます(最大 10 分待ちます)。`,
+          text: "エディタが開くのを待っています。\nログインすると、そのまま下書きを入れます。",
           // info だと「操作せずにお待ちください」が出る。ここはログインの操作をしてもらうので warn にする
           kind: "warn",
         }, 6);
