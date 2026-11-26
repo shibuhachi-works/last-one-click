@@ -84,3 +84,11 @@ details details { margin-left: 12px; }
 #fields-edit { margin-top: 6px; }
 #fields-edit .grid { margin-top: 6px; }
 .fields-summary dd.unavailable { color: #888; }
+
+/* 開いている記事の書き換え(#174) */
+.rewrite-box { margin: 8px 0 6px; padding: 8px 10px; border: 1px solid #e0c97a; border-radius: 8px; background: #fffaeb; }
+.rewrite-box[hidden] { display: none; }
+.rewrite-target { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.rewrite-box .hint { margin-top: 4px; }
+.submit-new { display: block; width: 100%; margin-top: 6px; }
+.submit-new[hidden] { display: none; }

@@ -17,12 +17,15 @@ import { hasTocHeadings } from "../../shared/toc";
 import { installFilePickerGuard, type FilePickerGuard } from "../../shared/file-picker-guard";
 import { diagnoseCurrentUser, fetchCurrentUser, type CurrentUser } from "../../shared/current-user";
 import { checkNoteAccount, noteAccountMismatchMessage, noteAccountUnknownMessage } from "../../shared/note-account";
+import { REWRITE_UNDO_NOTE, checkNoteUrl, noteEditKey, noteUrlProblem, rewriteSkippedLines } from "../../shared/note-rewrite";
 import {
   STORAGE,
   type AccountResponse,
   type ArticlePayload,
   type DiagnoseResponse,
   type Message,
+  type NoteArticleResponse,
+  type NoteRewriteResponse,
   type Selectors,
   type SelectorsResponse,
   type WhoAmIResponse,
@@ -35,7 +38,7 @@ const ACCOUNT_STEP = "アカウント";
 const TAB_ID_WAIT_MS = 3_000;
 
 // ポップアップからの診断要求。pending の有無に関係なく、note のどのページでも応える
-chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: DiagnoseResponse | AccountResponse) => void) => {
+chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: DiagnoseResponse | AccountResponse | NoteArticleResponse | NoteRewriteResponse) => void) => {
   if (msg?.type === "diagnose") {
     requestSelectors()
       .then(async ({ selectors }) => {
@@ -54,7 +57,48 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: D
       .then((account) => sendResponse({ account }));
     return true;
   }
+  if (msg?.type === "noteArticle") {
+    // 書き換える前の確かめ(#174)。開いている記事の ID と、タイトルの欄の今の文字を返すだけ(書き込まない)
+    requestSelectors()
+      .then(({ selectors }) => readTitleText(selectors))
+      .catch(() => "")
+      .then((title) => sendResponse({ key: noteEditKey(location.href), title }));
+    return true;
+  }
+  if (msg?.type === "noteRewrite") {
+    // ポップアップが、このタブ向けの pending(書き換え)を置いてから送ってくる(#174)。ページは読み込み直さない
+    if (running) {
+      sendResponse({ ok: false, error: "このページでは、もう入れている途中です。終わるまで待ってください。" });
+      return;
+    }
+    sendResponse({ ok: true });
+    void run();
+    return;
+  }
 });
+
+/** 入れている途中か(読み込み時と、書き換えの知らせで 2 回動かないように) */
+let running = false;
+
+async function run() {
+  if (running) return;
+  running = true;
+  try {
+    await main();
+  } catch (e) {
+    banner(`エラー: ${(e as Error).message}`, "error");
+  } finally {
+    running = false;
+  }
+}
+
+/** タイトルの欄の今の文字(#174)。読めなければ空 */
+function readTitleText(S: Selectors): string {
+  const el = document.querySelector<HTMLElement>(S.title);
+  if (!el) return "";
+  const v = el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement ? el.value : (el.textContent ?? "");
+  return v.replace(/\s+/g, " ").trim().slice(0, 120);
+}
 
 /**
  * ログイン中の note アカウント(#106)。読めなければ null。投げない。
@@ -64,7 +108,7 @@ function readAccount(S: Selectors): Promise<CurrentUser | null> {
   return fetchCurrentUser(S.account, location.origin).catch(() => null);
 }
 
-main().catch((e) => banner(`エラー: ${(e as Error).message}`, "error"));
+void run();
 
 async function main() {
   const article = await getPendingForThisTab();
@@ -97,6 +141,11 @@ async function main() {
       return;
     }
     if (check.kind === "unknown") results.push(`${ACCOUNT_STEP} ⚠️ ${noteAccountUnknownMessage(check)}`);
+  }
+
+  if (article.rewriteKey) {
+    await rewriteArticle(S, article, titleEl, results, checkedAccount ?? null, source);
+    return;
   }
 
   banner(`入力中... (selectors: ${source})`);
@@ -150,6 +199,93 @@ async function main() {
     return;
   }
   await runPublishSettings(S, article, results, keyRef);
+}
+
+/**
+ * 開いている記事の編集画面を、md の内容で書き換える(#174)。
+ * タイトル・本文(今の本文を消してから)・目次・本文の画像・埋め込み・見出し画像を入れて止まる。
+ * 公開設定の画面に移ると記事が保存される可能性があるので、「公開に進む」は押さず、公開設定(ハッシュタグ・マガジン・価格・有料ライン)は入れない。
+ * 「更新する」「下書き保存」も押さない。保存せずに閉じれば、記事は変わらない
+ */
+async function rewriteArticle(S: Selectors, article: ArticlePayload, titleEl: HTMLElement, results: string[], account: CurrentUser | null, source: string) {
+  const open = articleKey(location.pathname);
+  if (open !== article.rewriteKey) {
+    banner(`⚠️ 書き換えを始めたときと別の記事が開いているので、何も入れていません。\n書き換えたい記事の編集画面で、もう一度ポップアップから押してください。`, "error");
+    return;
+  }
+  const problem = noteUrlProblem(checkNoteUrl(article.noteUrl, open));
+  if (problem) {
+    banner(`⚠️ ${problem}\n\nタイトル・本文などは入れていません。`, "error");
+    return;
+  }
+
+  banner(`書き換え中... (selectors: ${source})`);
+  const keyRef: ArticleKeyRef = { key: open };
+  await step("タイトル", results, () => fillTitle(titleEl, article));
+  // 今の本文を消せなかったら、本文の工程(目次・本文・画像・埋め込み)は入れない(前の本文と混ざらないように)
+  const cleared = await step("今の本文を消す", results, () => clearBody(S));
+  if (cleared) {
+    const tocRef: TocRef = { node: null };
+    if (article.insertToc && !hasTocHeadings(article.html)) results.push("目次 —(見出しが無いので入れていません)");
+    else if (article.insertToc) await step("目次", results, () => insertToc(S, tocRef));
+    await step("本文", results, () => pasteBody(S, article, tocRef));
+    if (article.images?.length || article.imageNotes?.length) await step("本文の画像", results, () => insertBodyImages(S, article));
+    if (article.embedUrls) await step("埋め込み", results, () => embedUrlLines(S));
+  } else {
+    results.push("本文 —(今の本文を消せなかったので、入れていません。本文は手で入れ替えてください)");
+  }
+  // 見出し画像は、ボタンを selectors の指定か文字で見つけたときだけ入れる(位置で探すと、すでにある見出し画像の
+  // 「削除」などのアイコンを押すおそれがあるため)
+  await step("見出し画像", results, () => setThumbnail(S, article, { guessButton: false }));
+  scrollToTop(titleEl);
+  // 入れ終えたあとで別の記事に移っていたら(keyRef と違えば)、知らせだけ変える。拡張はこのあと何も押さない
+  const moved = !isSameArticle(keyRef.key, articleKey(location.pathname));
+
+  const failed = results.some((r) => r.includes("✗"));
+  const skipped = rewriteSkippedLines(article);
+  banner(
+    accountWarning(results) +
+      (moved ? "⚠️ 入れている途中で、別の記事に移りました。書き換えた記事を開いて確かめてください。\n\n" : "") +
+      (failed
+        ? `⚠️ 一部は書き換えられませんでした。画面で確かめ、足りないものは手で直してください。\n\n`
+        : `✅ タイトル・本文・見出し画像を、md の内容に書き換えました。\n\n`) +
+      `中身を確かめて、よければ自分で保存してください(公開済みの記事は「公開に進む」→「更新する」、下書きは「下書き保存」)。\n${REWRITE_UNDO_NOTE}\n` +
+      (skipped.length
+        ? `\n書き換えでは、公開設定(ハッシュタグ・マガジン・価格・有料ライン)は入れていません。変えたいときは公開設定の画面で自分で入れてください。\n${skipped.join("\n")}\n`
+        : "") +
+      `\n${results.join("\n")}`,
+    failed || moved ? "warn" : "ok",
+    [],
+    account ?? (await readAccount(S)),
+  );
+}
+
+/**
+ * 書き換えで、今の本文を消す(#174)。本文の中を全部選んで消し、空になったかを確かめる。
+ * 空にならなければ投げる(前の本文の上に貼って混ざらないように)
+ */
+async function clearBody(S: Selectors) {
+  // どんな失敗でも StopError にする(step は StopError のときだけ false を返し、本文の工程に進まない)
+  try {
+    return await clearBodyOnce(S);
+  } catch (e) {
+    throw e instanceof StopError ? e : new StopError(`今の本文を消せませんでした(${(e as Error).message})。本文は入れていません`);
+  }
+}
+
+async function clearBodyOnce(S: Selectors) {
+  const el = await waitFor(S.body, 10_000);
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
+  await sleep(200);
+  document.execCommand("delete", false);
+  const empty = await waitUntil(() => ((el.innerText ?? "").trim() === "" && !el.querySelector("img, iframe, figure") ? true : null), 3_000);
+  if (!empty) throw new StopError("今の本文を消せませんでした。本文は入れていません");
+  return "消しました";
 }
 
 /**
@@ -615,7 +751,7 @@ function caretToEnd(root: HTMLElement, target: Node) {
   sel.addRange(range);
 }
 
-async function setThumbnail(S: Selectors, a: ArticlePayload) {
+async function setThumbnail(S: Selectors, a: ArticlePayload, opts: { guessButton?: boolean } = {}) {
   if (!a.thumbnail) return "なし";
   const file = base64ToFile(a.thumbnail);
 
@@ -623,13 +759,13 @@ async function setThumbnail(S: Selectors, a: ArticlePayload) {
   // 拡張のクリックは合成イベントなのでふつうは開かないが、人が直前にタブを触っているとブラウザが開いてしまう
   const guard = installFilePickerGuard();
   try {
-    return await setThumbnailGuarded(S, file, guard);
+    return await setThumbnailGuarded(S, file, guard, opts.guessButton ?? true);
   } finally {
     guard.stop();
   }
 }
 
-async function setThumbnailGuarded(S: Selectors, file: File, guard: FilePickerGuard) {
+async function setThumbnailGuarded(S: Selectors, file: File, guard: FilePickerGuard, guessButton: boolean) {
   // (1) file input が DOM にあれば直接セット(hidden でも可)
   let input = document.querySelector<HTMLInputElement>(S.thumbnail.fileInput);
   if (!input) {
@@ -639,7 +775,8 @@ async function setThumbnailGuarded(S: Selectors, file: File, guard: FilePickerGu
     const btn =
       document.querySelector<HTMLElement>(S.thumbnail.addButton) ??
       findByText("button", S.thumbnail.addButtonText) ??
-      (title ? findEyecatchButton(title) : null);
+      (title && guessButton ? findEyecatchButton(title) : null);
+    if (!btn && !guessButton) throw new Error("見出し画像のボタンが見つからないので、差し替えていません。画面で差し替えてください(「DOM 情報を取得」の結果を送ってもらえれば直せます)。");
     if (!btn) throw new Error("見出し画像のボタンが見つかりません。手動で設定してください(「DOM 情報を取得」の結果を送ってもらえれば直せます)。");
     input = await activateEyecatchButton(S, btn, guard);
   }

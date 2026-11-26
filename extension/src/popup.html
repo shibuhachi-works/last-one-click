@@ -68,9 +68,14 @@ magazine: マガジン名
     <p id="extra-site-account" class="account" hidden></p>
   </div>
   <p id="account-target" class="account-target" hidden></p>
+  <div id="rewrite-box" class="rewrite-box" hidden>
+    <p id="rewrite-target" class="rewrite-target"></p>
+    <p class="hint">タイトル・本文・見出し画像を、md の内容に置き換えます。ハッシュタグ・マガジン・価格は変えません。<br>拡張は「更新する」「下書き保存」を押しません。元に戻したいときは、それを押さずに閉じてください(記事は変わりません)。</p>
+  </div>
   <button id="submit" type="button" class="primary">note の下書きを作成</button>
+  <button id="submit-new" type="button" class="submit-new" hidden>新しい下書きとして作る</button>
   <p id="status" class="status" hidden></p>
-  <p class="hint">note が新しいタブで開き、タイトル・本文・見出し画像を入れたところで止まります。<br>投稿するボタンは自分で押してください。</p>
+  <p id="submit-hint" class="hint">note が新しいタブで開き、タイトル・本文・見出し画像を入れたところで止まります。<br>投稿するボタンは自分で押してください。</p>
   <label class="check hint-check tip" title="入れると、本文の最後に区切り線と「この記事は、Last One Click で下書きしました。」の 1 行(ストアへのリンク付き)を入れ、ハッシュタグに #LastOneClick を足します。どちらも下書きと公開設定に入るので、公開する前に note の画面で確かめられます。"><input id="credit-link" type="checkbox" checked>記事の最後に「Last One Click で下書きしました」のリンクと、ハッシュタグ #LastOneClick を入れる</label>
   <details id="article-options" class="article-options">
     <summary>記事の設定 <small id="article-options-on" class="hint-inline"></small></summary>

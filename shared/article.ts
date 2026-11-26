@@ -29,6 +29,11 @@ export type FrontMatter = {
    * あれば、拡張が工程を始める前にログイン中のアカウントと比べ、違えば止める(#102)。無ければ比べない
    */
   noteAccount?: string;
+  /**
+   * 書き換える記事の URL(front matter の note_url。#174)。開いている記事の編集画面と違えば、書き換えない。
+   * 新しい下書きを作るときは使わない
+   */
+  noteUrl?: string;
   /** 要約(front matter の summary)。note には入れない。追加の対応先の編集画面の「要約」の欄に入れる */
   summary?: string;
   /** カテゴリ(front matter の category)。note には入れない。追加の対応先の編集画面で使う */
@@ -97,7 +102,7 @@ export function resolveArticleUrl(input: string): { mdUrl: string; baseUrl: stri
 
 /**
  * front matter(先頭の "---" で囲まれたブロック)を YAML として読む。
- * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account / summary / category / 外部公開 / 読了目安時間 だけで、他は無視する。
+ * 使うキーは title / hashtags / magazine / thumbnail / price / target / note_account / note_url / summary / category / 外部公開 / 読了目安時間 だけで、他は無視する。
  * - 値は文字列に揃える(数値などもそのまま文字列に)。null や空は「無し」
  * - hashtags は配列でも "a, b" / "#a #b" の文字列でもよい。`#` は外す
  * - `hashtags: #AI #個人開発`(引用符なし)は YAML ではコメントになるが、README で許している書き方なので
@@ -138,6 +143,8 @@ export function parseFrontMatter(md: string, parseYaml: YamlParse): { data: Fron
   if (readingTime !== undefined) data.readingTime = readingTime;
   const noteAccount = normalizeNoteAccount(scalarToString(obj.note_account));
   if (noteAccount) data.noteAccount = noteAccount;
+  const noteUrl = scalarToString(obj.note_url)?.trim();
+  if (noteUrl) data.noteUrl = noteUrl;
   try {
     const price = parsePrice(obj.price);
     if (price !== undefined) data.price = price;
@@ -201,6 +208,8 @@ export type RenderedArticle = {
   target?: string;
   /** front matter の note_account(記事を作る note のアカウントの ID)。無ければ比べない(#102) */
   noteAccount?: string;
+  /** front matter の note_url(書き換える記事の URL)。#174 */
+  noteUrl?: string;
   /** front matter の summary(要約)。note には入れない */
   summary?: string;
   /** front matter の category(カテゴリ)。note には入れない */
@@ -346,6 +355,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
     ...(price !== undefined ? { price } : {}),
     ...(paywallAnchor !== undefined ? { paywallAnchor } : {}),
     ...(fm.noteAccount ? { noteAccount: fm.noteAccount } : {}),
+    ...(fm.noteUrl ? { noteUrl: fm.noteUrl } : {}),
     ...(fm.summary !== undefined ? { summary: fm.summary } : {}),
     ...(fm.category !== undefined ? { category: fm.category } : {}),
     ...(fm.publishScope ? { publishScope: fm.publishScope } : {}),
