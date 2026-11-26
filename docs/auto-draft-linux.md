@@ -45,7 +45,7 @@ note の「下書き」から開いて確かめ、ハッシュタグ・マガジ
 
 - 下書きにするのは、見張るフォルダ(例 `posts/`)の下に**新しく足された** `article.md` だけです。手直し・名前の変更・削除では作りません(足したあと、同じ区間の中で名前を変えた記事は、変えたあとの名前で作ります)。同じ記事の下書きを二度は作りません
 - `save` では、**ハッシュタグとマガジンは入りません。** note の公開設定の画面は、閉じると入れたものが消えるためです。公開するときに入れてください(`hold` では入ります)
-- **本文の画像は、まだ入りません。** 本文の画像とキャプションは、いまは Chrome 拡張だけの機能です。見出し画像は入ります
+- 入れるのは Chrome 拡張と同じ工程です(見張り役は、拡張を読み込んだブラウザを動かします。#178)。本文の画像・目次・埋め込みも入ります
 - 見張り役が使うのは、Playwright 版(専用のブラウザ)です。ふだん使っているブラウザとは別で、note のログイン状態はこのリポジトリの `.profile/` に保存されます(コミットされません)。ログイン状態を、GitHub など PC の外に出すことはありません
 
 ## 1. 準備(1 回だけ)
@@ -57,6 +57,7 @@ sudo apt install git libnotify-bin libsecret-tools
 git clone https://github.com/shibuhachi-works/last-one-click.git ~/last-one-click
 cd ~/last-one-click
 npm ci
+(cd extension && npm ci)   # 見張り役は、下書きを作るたびに拡張をビルドして読み込む
 npx playwright install --with-deps chromium   # ブラウザと、動かすのに要るライブラリ(sudo を聞かれる)
 npm run login      # 開いたブラウザで note にログインして、窓を閉じる
 ```
@@ -190,4 +191,5 @@ Slack なら、api.slack.com/apps でアプリを作り、「Incoming Webhooks�
 | ブラウザが起動しない(画面が無い) | `systemctl --user show-environment` に `DISPLAY` か `WAYLAND_DISPLAY` があるか見る。無ければ、デスクトップの端末で `systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY` を実行する |
 | タイマーが動かない | `systemctl --user status graphical-session.target` が active か見る。デスクトップによっては active にならないので、そのときは `.timer` の `WantedBy=` を `default.target` に変えて、enable し直す |
 | 変更されたファイルが多すぎて… | 一度に 300 ファイル以上が変わったとき。`.watch-state.json` の `lastSha` を、記事のリポジトリの main の先頭に書き換えてやり直す(その間に足された記事は、手で下書きにする) |
-| note に弾かれる(ロボットと判断される) | `.watch.env` に `PIGEON_BROWSER_CHANNEL=chrome` を足して、PC に入っている Google Chrome で動かす |
+| note に弾かれる(ロボットと判断される) | 見張り役は拡張を読み込むため、Playwright の Chromium でしか動きません(Google Chrome はコマンドから拡張を読み込めない)。弾かれるときは、Chrome 拡張版で下書きを作ってください |
+| 拡張のビルドに失敗しました | `cd ~/last-one-click/extension && npm ci` をやり直す |

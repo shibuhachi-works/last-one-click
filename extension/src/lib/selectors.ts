@@ -4,11 +4,11 @@
 //   3. それも無ければ拡張に同梱した selectors/note.json
 // note の DOM が変わっても、GitHub 上の JSON を直せば拡張の再配布なしで復旧できる。
 import { validateSelectorsJson } from "../../../shared/selectors-schema";
-import { checkSelectorsUrl } from "../../../shared/selectors-url";
+import { DEFAULT_SELECTORS_URL, checkSelectorsUrl } from "../../../shared/selectors-url";
 import { STORAGE, type Selectors } from "./types";
 
-/** リポジトリの selectors/note.json。フォークした場合はここか、ポップアップの「拡張機能の設定」で差し替える */
-export const DEFAULT_SELECTORS_URL = "https://raw.githubusercontent.com/shibuhachi-works/last-one-click/main/selectors/note.json";
+/** リポジトリの selectors/note.json(中身は shared/selectors-url.ts。Playwright 版とそろえるため) */
+export { DEFAULT_SELECTORS_URL };
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
 

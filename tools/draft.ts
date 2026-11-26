@@ -1,510 +1,198 @@
-// GitHub 上の記事ディレクトリ URL を受け取り、note の下書きを組み立てて
-// 「公開ボタンの手前」で止める。公開は人間が押す。
+// GitHub の記事の URL を受け取り、Chrome 拡張「Last One Click」を読み込んだブラウザで note の下書きを作る。
+// note の画面に入れるのは拡張(extension/src/content.ts)で、このスクリプトは拡張を動かすだけ(#178)。
+// 拡張に機能を足せば、ここでも同じように使える。公開は人間が押す。
 //
 //   npm run draft -- https://github.com/you/last-one-click/tree/main/posts/2026-10-28-xxx
 //
-// --save を付けると、人を待たずに動く(見張り役 tools/watch.ts から使う)。
-// タイトル・本文・見出し画像を入れて「下書き保存」を押し、ブラウザを閉じて終わる。
-// 公開設定(ハッシュタグ・マガジン)は入れない(公開設定の画面を閉じると note 側で消えるため)。
-// 押すのは「下書き保存」だけで、公開ボタンには触らない。
+// URL は、記事のフォルダ(tree)・article.md(blob)・raw・PR(…/pull/123)のどれでもよい(拡張の「GitHub から読み込む」と同じ)。
 //
-// --hold を付けると、下書き保存のあと、公開設定(ハッシュタグ・マガジン・有料と価格・本文の印の位置の有料エリア)まで入れて、窓を開いたまま待つ
-// (Inspector は出さない)。人がリモートデスクトップなどで確かめて「投稿する」を自分で押し、
-// 窓を閉じると終わる。待つ前に下書き保存しておくので、待っている間に PC が止まっても下書きは残る。
+// 引数なし: タイトル・本文・見出し画像から公開設定(ハッシュタグ・マガジン・有料と価格・有料ライン)まで入れて止まる。
+//   ブラウザで確かめて「投稿する」を自分で押し、ブラウザを閉じると終わる。
+// --save(見張り役 tools/watch.ts から): タイトル・本文・見出し画像を入れて「下書き保存」を押し、ブラウザを閉じて終わる。
+//   公開設定(ハッシュタグ・マガジン)は入れない(公開設定の画面を閉じると note 側で消えるため)。
+// --hold(見張り役から): 下書き保存のあと、拡張のバナーの「公開設定を入れる」で公開設定まで入れて、窓を開いたまま待つ。
+//   人がリモートデスクトップなどで確かめて「投稿する」を自分で押し、窓を閉じると終わる。
+//
+// 終わりのコード: 0 うまくいった / 1 失敗 / 2 note にログインしていない / 3 note のメンテナンス中(見張り役が見分ける)
 //
 // スクリプト名が publish だと npm 自身の publish コマンド(レジストリへの公開)と
 // ぶつかって動かないので draft にしている。
 //
-// 途中でセレクタが合わなくなったら、止まった箇所の Playwright Inspector で
-// 要素を Pick して tools/lib/selectors.ts を直す。
-import { mkdirSync, writeFileSync } from "node:fs";
-import path from "node:path";
+// 押すのは、拡張のポップアップのボタン・「下書き保存」・拡張のバナーの「公開設定を入れる」だけ。どれも safeClick を通し、
+// 「投稿する」「公開する」などは押さない(note の画面の中で押すのは拡張で、拡張も自分の safeClick を通す)。
 import type { Locator, Page } from "playwright";
 import { collectClickLabels } from "../shared/click-labels.js";
 import { assertClickAllowed } from "../shared/forbidden-click.js";
-import { findEyecatchButton } from "../shared/eyecatch-button.js";
-import { findPaidControls } from "../shared/paid-price.js";
-import { findPaywallTarget, paywallFailureMessage, type PaywallTarget } from "../shared/paywall.js";
-import { htmlToText } from "../shared/markdown-safe.js";
-import { matchesAnyText } from "../shared/text-match.js";
-import { loadArticle, type Article } from "./lib/article.js";
-import { launchPersistent } from "./lib/browser.js";
+import { STORAGE } from "../extension/src/lib/types.js";
+import {
+  bannerButton,
+  bannerFailed,
+  buildExtension,
+  launchWithExtension,
+  openPopup,
+  overrideExtensionStorage,
+  readBanner,
+  saveDraft,
+  submitFromPopup,
+  waitBannerDone,
+  type BannerResult,
+} from "./lib/extension.js";
 import { notify } from "./lib/notify.js";
 import { NOTE } from "./lib/selectors.js";
 
-/** ボタンになりうる要素(下の関数より先に置く。関数はこのファイルの上のほうの処理から呼ばれるため) */
-const BUTTONS = 'button, [role="button"]';
+/** 拡張が入れ終わるまで待つ長さ(本文の画像のアップロードを待つことがあるので長め) */
+const FILL_TIMEOUT_MS = 10 * 60 * 1000;
 
 const args = process.argv.slice(2);
 /** 人を待たずに、下書き保存までして終わる */
 const SAVE = args.includes("--save");
 /** 下書き保存 → 公開設定まで入れて、人が窓を閉じるまで待つ */
 const HOLD = args.includes("--hold");
-/** 入力の途中には人がいない(失敗したら止めずに閉じる) */
-const UNATTENDED = SAVE || HOLD;
 if (SAVE && HOLD) {
   console.error("--save と --hold は、どちらか一方だけを付けてください。");
   process.exit(1);
 }
 const input = args.find((a) => !a.startsWith("--"));
 if (!input) {
-  console.error("使い方: npm run draft -- [--save | --hold] <GitHub の記事ディレクトリ URL>");
+  console.error("使い方: npm run draft -- [--save | --hold] <GitHub の記事の URL(フォルダ・article.md・PR)>");
   process.exit(1);
 }
 
-console.log(`記事を取得中: ${input}`);
-const article = await loadArticle(input);
-console.log(`  title    : ${article.title}`);
-console.log(`  hashtags : ${article.hashtags.join(", ") || "(なし)"}`);
-console.log(`  magazine : ${article.magazine ?? "(なし)"}`);
-console.log(`  price    : ${article.price ? `${article.price} 円(有料)` : "(なし。無料)"}`);
-if (article.paywallAnchor !== undefined) console.log(`  paywall  : 「${article.paywallAnchor.slice(0, 30)}」のすぐ下から有料`);
-console.log(`  thumbnail: ${article.thumbnail?.name ?? "(なし)"}`);
-
-const ctx = await launchPersistent();
-const page = await ctx.newPage();
-
-await page.goto(NOTE.newNoteUrl);
-if (NOTE.loginUrlPattern.test(page.url())) {
-  console.error("ログインしていません。先に `npm run login` を実行してください。");
-  await ctx.close();
-  // 見張り役が「ログインが切れた」と分かるように、ほかの失敗と分ける
-  process.exit(2);
+console.log("拡張をビルドしています...");
+try {
+  buildExtension();
+} catch (e) {
+  console.error((e as Error).message);
+  process.exit(1);
 }
 
+const { ctx, extensionId } = await launchWithExtension();
+/** 失敗で終わる(ブラウザは閉じる) */
+async function fail(message: string, code = 1): Promise<never> {
+  console.error(message);
+  await ctx.close().catch(() => {});
+  process.exit(code);
+}
+
+// ---------------------------------------------------------------------------
+// 1. 拡張のポップアップに記事を読み込み、下書きを作るボタンを押す
+
+const popup = await openPopup(ctx, extensionId);
+// この実行のあいだだけ、拡張の設定を変える(終わったら戻す):
+// - 「GitHub から読み込む」を出す(上級者向けの表示)
+// - 引数なしのときは、本文の確認を飛ばして公開設定まで進む(人が最後に確かめる)。--save / --hold は本文のところで止める
+// - 最後のクレジット(「Last One Click で下書きしました」と #LastOneClick)は、LOC_CREDIT_LINK=1 のときだけ入れる
+//   (Playwright 版は今まで入れていなかったので、黙って記事の内容を変えないように)
+// - GitHub トークン(環境変数 GITHUB_TOKEN)は、非公開のリポジトリの記事を読むときに使い、読み終わったら消す
+// - セレクタのキャッシュを消す(手元の selectors/note.json を読ませるため。tools/lib/extension.ts)
+const restoreStorage = await overrideExtensionStorage(popup, {
+  [STORAGE.advancedMode]: true,
+  [STORAGE.skipBodyReview]: !SAVE && !HOLD,
+  [STORAGE.creditLink]: process.env.LOC_CREDIT_LINK === "1",
+  [STORAGE.githubToken]: process.env.GITHUB_TOKEN || undefined,
+  [STORAGE.selectorsCache]: undefined,
+});
+let editor: Page;
+try {
+  await popup.reload();
+  editor = await submitFromPopup(popup, input, safeClick);
+} catch (e) {
+  await restoreStorage().catch(() => {});
+  await fail((e as Error).message);
+}
+await restoreStorage();
+await popup.close();
+
+// ---------------------------------------------------------------------------
+// 2. note の画面で、拡張が入れ終わるのを待つ
+
+await editor!.waitForLoadState("domcontentloaded").catch(() => {});
+if (NOTE.loginUrlPattern.test(editor!.url())) {
+  // 見張り役が「ログインが切れた」と分かるように、ほかの失敗と分ける
+  await fail("ログインしていません。先に `npm run login` を実行してください。", 2);
+}
 // note のメンテナンス中は、エディタの代わりにお知らせのページが出て、タイトル欄が見つからない。
 // セレクタのずれと見分けるため、タイトル欄が出ないときだけページの文字を見て、メンテナンスなら分けて終わる
-// (見張り役は終了コード 3 を見て、通知を出さずに次の回でやり直す)。
-// 普段のエディタにもメンテナンスの予告が出ることがあるので、タイトル欄が出たときは見ない
-if (!(await page.locator(NOTE.title).first().waitFor({ timeout: 15_000 }).then(() => true, () => false))) {
-  if (await isMaintenance(page)) {
-    console.error("note はメンテナンス中のようです(エディタが開かず、ページに「メンテナンス」と出ています)。終わってからやり直してください。");
-    await ctx.close();
-    process.exit(3);
+// (見張り役は終了コード 3 を見て、通知を出さずに次の回でやり直す)
+if (!(await editor!.locator(NOTE.title).first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) {
+  if (NOTE.loginUrlPattern.test(editor!.url())) await fail("ログインしていません。先に `npm run login` を実行してください。", 2);
+  if (await isMaintenance(editor!)) {
+    await fail("note はメンテナンス中のようです(エディタが開かず、ページに「メンテナンス」と出ています)。終わってからやり直してください。", 3);
   }
+  await fail(`note のエディタのタイトル欄が見つかりません(${editor!.url()})。selectors/note.json の title を確かめてください。`);
 }
 
-await step("タイトル入力", () => fillTitle(page, article));
-await step("本文貼り付け", () => pasteBody(page, article));
-await step("サムネイル設定", () => setThumbnail(page, article));
-
-if (SAVE) {
-  await step("下書き保存", () => saveDraft(page));
-  console.log(`\n✅ 下書きを保存しました: ${page.url()}`);
-  console.log("   note の「下書き」から開いて確かめ、ハッシュタグ・マガジンを入れて、自分で公開してください。");
-  await ctx.close();
-  process.exit(0);
+console.log("拡張が note に入れています...");
+let result: BannerResult;
+try {
+  result = await waitBannerDone(editor!, FILL_TIMEOUT_MS);
+} catch (e) {
+  await fail((e as Error).message);
 }
-if (HOLD) {
-  await step("下書き保存", () => saveDraft(page));
-  await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
-  if (await paidStep()) await paywallStep();
+printBanner(result!);
+
+if (SAVE || HOLD) {
+  // 入れる途中で失敗した工程があれば、保存せずに失敗で終わる(見張り役が知らせて、次の回でやり直す)
+  if (bannerFailed(result!)) await fail("拡張の入力で失敗した工程があるので、下書き保存はしていません。");
+  try {
+    await saveDraft(editor!, safeClick);
+  } catch (e) {
+    await fail((e as Error).message);
+  }
+  if (SAVE) {
+    console.log(`\n✅ 下書きを保存しました: ${editor!.url()}`);
+    console.log("   note の「下書き」から開いて確かめ、ハッシュタグ・マガジンを入れて、自分で公開してください。");
+    await ctx.close();
+    process.exit(0);
+  }
+  // --hold: 拡張のバナーの「公開設定を入れる」を押して、公開設定まで入れる
+  try {
+    const before = (await readBanner(editor!))?.text;
+    await safeClick(await bannerButton(editor!, "公開設定を入れる"), "draft.publishSettings");
+    printBanner(await waitBannerDone(editor!, FILL_TIMEOUT_MS, before));
+  } catch (e) {
+    // 下書きは保存済み。見張り役が「保存したが途中で止まった」と知らせる
+    await fail(`公開設定を入れられませんでした: ${(e as Error).message}`);
+  }
   console.log("\n✅ 公開の手前まで入れて、待っています(下書きは保存済み)。");
   console.log("   画面で確かめて、問題なければ自分で「投稿する」を押し、窓を閉じてください。");
   // 人が窓(タブ)かブラウザを閉じるまで待つ。時間の上限は付けない。
   // 通知(Webhook は最大 10 秒かかる)の間に閉じられても取り逃さないよう、通知の前に待ち受けを始める
-  const closed = new Promise<void>((resolve) => {
-    if (page.isClosed()) return resolve();
-    page.once("close", () => resolve());
-    ctx.once("close", () => resolve());
-  });
-  await notify("下書きが完了しました", `${article.title}。確かめて「投稿する」を押し、窓を閉じてください。`, { done: { title: article.title } });
+  const closed = waitClosed(editor!);
+  const title = await editor!.locator(NOTE.title).first().inputValue().catch(() => "");
+  await notify("下書きが完了しました", `${title}。確かめて「投稿する」を押し、窓を閉じてください。`, { done: { title } });
   await closed;
   await ctx.close().catch(() => {});
   console.log("窓が閉じられたので終わります。");
   process.exit(0);
 }
-await step("公開設定(タグ・マガジン)", () => fillPublishSettings(page, article));
-if (await paidStep()) await paywallStep();
 
-console.log("\n✅ 公開ボタンの手前まで入力しました。");
-console.log("   ブラウザで内容を確認し、問題なければ自分で公開ボタンを押してください。");
-console.log("   Inspector の ▶ (Resume) を押すとスクリプトが終了し、ブラウザも閉じます。\n");
-await page.pause();
-await ctx.close();
+console.log("\n✅ 拡張が入れ終わりました。");
+console.log("   ブラウザで内容を確かめ、問題なければ自分で「投稿する」を押してください。");
+console.log("   ブラウザ(または note のタブ)を閉じると、このスクリプトも終わります。\n");
+await waitClosed(editor!);
+await ctx.close().catch(() => {});
 
 // ---------------------------------------------------------------------------
 
-async function step(name: string, fn: () => Promise<void>) {
-  process.stdout.write(`- ${name} ... `);
-  try {
-    await fn();
-    console.log("OK");
-  } catch (e) {
-    console.log("FAILED");
-    console.error(`  ${(e as Error).message}`);
-    console.error("  セレクタがずれている可能性があります。Inspector で要素を確認して selectors.ts を直してください。");
-    // --save / --hold(見張り役から)は入力の途中に人がいないので、止めずに閉じて失敗で終わる
-    if (UNATTENDED) {
-      await ctx.close();
-      process.exit(1);
-    }
-    await page.pause();
-    throw e;
-  }
+/** バナーの結果を、ターミナルにも出す */
+function printBanner(r: BannerResult) {
+  const mark = r.state === "error" ? "✗" : bannerFailed(r) || r.state === "warn" ? "⚠️" : "✓";
+  console.log(`\n${mark} 拡張のバナー:\n${r.text.replace(/^/gm, "  ")}`);
 }
 
-/**
- * 有料・価格は別の工程にする。失敗しても止めずに先へ進む(入れたハッシュタグ・マガジンを残し、人が画面で直せるように)。
- * 「有料」を選んだあとに出る「有料エリア設定」は押さない(有料エリアは人が決める)
- */
-async function paidStep(): Promise<boolean> {
-  const price = article.price;
-  if (!price) return false;
-  process.stdout.write("- 有料・価格 ... ");
-  try {
-    await setPaidPrice(page, price);
-    console.log(article.paywallAnchor !== undefined ? `OK(${price} 円)` : `OK(${price} 円。有料エリアは「有料エリア設定」で自分で決めてください)`);
-    return true;
-  } catch (e) {
-    console.log("FAILED");
-    console.error(`  ${(e as Error).message}`);
-    console.error("  画面で「有料」を選んで、価格を手で入れてください(ハッシュタグ・マガジンは入っています)。");
-    return false;
-  }
-}
-
-/**
- * 本文に「ここから有料」の印があれば、「有料エリア設定」を押して、印の直前のブロックのすぐ下にラインを引く(拡張の setPaywallLine と同じ流れ)。
- * 別の工程にして、失敗しても止めない。ラインを引いたら止まる(「投稿する」などは押さない)
- */
-async function paywallStep() {
-  const anchor = article.paywallAnchor;
-  if (anchor === undefined) return;
-  process.stdout.write("- 有料エリア ... ");
-  try {
-    await setPaywallLine(page, anchor);
-    console.log("OK(印の直前の段落のすぐ下にラインを引きました。位置を画面で確かめてください)");
-  } catch (e) {
-    console.log("FAILED");
-    console.error(`  ${(e as Error).message}`);
-  }
-}
-
-async function setPaywallLine(page: Page, anchor: string) {
-  const P = NOTE.publishSettings;
-  const MARK = "data-lastclick-paywall-line";
-  const find = () =>
-    page.evaluate(
-      ([fn, container, widget, texts, line, anchor, mark]) => {
-        // 関数は文字列で送る(tsx の keepNames が入れる __name がページ側に無いため)
-        const f = new Function(`return (${fn})`)() as typeof findPaywallTarget;
-        const r = f(container, widget, texts, line, anchor);
-        document.querySelectorAll(`[${mark}]`).forEach((e) => e.removeAttribute(mark));
-        r.button?.setAttribute(mark, "1");
-        return { status: r.status, count: r.count } as Pick<PaywallTarget, "status" | "count">;
-      },
-      [findPaywallTarget.toString(), P.paywallContainer, P.paywallWidget, P.paywallChangeButtonTexts, P.paywallLine, anchor, MARK] as const,
-    );
-  if (!(await page.locator(P.paywallContainer).count())) {
-    const open = await waitByText(page, BUTTONS, P.paidAreaButtonTexts, "data-lastclick-paid-area", 5_000);
-    if (!open) throw new Error(`「有料エリア設定」のボタンが見つかりません。画面で手でラインを引いてください。見えているボタン: ${await visibleButtonTexts(page)}`);
-    await safeClick(open, "setPaywallLine.open");
-  }
-  // 画面が組み立てられるまで(ブロックとボタンが並ぶまで)待つ
-  const end = Date.now() + 10_000;
-  let t = await find();
-  while (t.status !== "ok" && t.status !== "already" && Date.now() < end) {
-    await page.waitForTimeout(500);
-    t = await find();
-  }
-  if (t.status === "already") return;
-  if (t.status !== "ok") throw new Error(paywallFailureMessage(t));
-  await safeClick(page.locator(`[${MARK}="1"]`).first(), "setPaywallLine.line");
-  const until = Date.now() + 5_000;
-  while ((await find()).status !== "already") {
-    if (Date.now() > until) throw new Error("「ラインをこの場所に変更」を押しましたが、ラインが動いたことを確かめられませんでした。画面でラインの位置を確かめてください。");
-    await page.waitForTimeout(250);
-  }
-}
-
-async function fillTitle(page: Page, a: Article) {
-  const el = page.locator(NOTE.title).first();
-  await el.waitFor({ timeout: 15_000 });
-  await safeClick(el, "fillTitle");
-  await el.fill(a.title);
-}
-
-/**
- * Markdown から変換した HTML を、クリップボードから貼り付けたのと同じ経路で入れる。
- * ProseMirror 系エディタは innerHTML の直接書き換えだと内部状態と食い違うため、
- * paste イベントに text/html を載せて渡すのが一番壊れにくい。
- */
-async function pasteBody(page: Page, a: Article) {
-  const el = page.locator(NOTE.body).first();
-  await el.waitFor({ timeout: 15_000 });
-  await safeClick(el, "pasteBody");
-  // text/plain は Node 側で作って渡す(以前は空の Range を渡していて空文字になっていた)
-  await el.evaluate(
-    (node, [html, plain]) => {
-      const dt = new DataTransfer();
-      dt.setData("text/html", html);
-      dt.setData("text/plain", plain);
-      node.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-    },
-    [a.html, htmlToText(a.html)] as const,
-  );
-  // 反映を少し待つ
-  await page.waitForTimeout(500);
-}
-
-/**
- * 見出し画像のボタン。selectors の指定(aria-label・文字)で探し、無ければ拡張と同じく画面上の位置で探す
- * (実機のボタンは文字も aria-label も無いアイコンボタン。shared/eyecatch-button.ts)。
- * 位置で見つけたボタンには印の属性を付けて、Playwright の locator で押す(クリックは safeClick を通す)
- */
-async function eyecatchButton(page: Page): Promise<Locator> {
-  const bySelector = page.locator(NOTE.thumbnail.addButton).first();
-  if (await bySelector.count()) return bySelector;
-  const MARK = "data-lastclick-eyecatch";
-  const found = await page
-    .locator(NOTE.title)
-    .first()
-    .evaluate(
-      (title, [fn, mark]) => {
-        // 関数は文字列で送る(tsx の keepNames が入れる __name がページ側に無いため。eyecatch-button.dom.test.ts と同じ)
-        const find = new Function(`return (${fn})`)() as (t: HTMLElement) => HTMLElement | null;
-        const btn = find(title as HTMLElement);
-        if (!btn) return false;
-        btn.setAttribute(mark, "1");
-        return true;
-      },
-      [findEyecatchButton.toString(), MARK] as const,
-    );
-  if (!found) throw new Error("見出し画像のボタンが見つかりません(タイトル欄の上にアイコンのボタンがありません)。");
-  return page.locator(`[${MARK}="1"]`).first();
-}
-
-async function setThumbnail(page: Page, a: Article) {
-  if (!a.thumbnail) return;
-  // 印の名前(関数の中に置く。ファイルの上のほうの処理から呼ばれ、下の const はまだ初期化されていないため)
-  /** 確定ボタンの文字に一致するボタン */
-  const CONFIRM_MARK = "data-lastclick-confirm";
-  /** 見出し画像を入れる前から画面にあった、確定ボタンと同じ文字のボタン */
-  const BEFORE_MARK = "data-lastclick-before";
-  const file = { name: a.thumbnail.name, mimeType: a.thumbnail.mimeType, buffer: a.thumbnail.buffer };
-  const input = page.locator(NOTE.thumbnail.fileInput).first();
-  // 画面にもとからある確定ボタンと同じ文字のボタンには印を付けておき、あとで押さない
-  // 見えているものだけに付ける。トリミングの画面は前から DOM にあって隠れているだけのことがあり、隠れたものに
-  // 印を付けると、その画面が出たときに確定ボタンを押せなくなる
-  await markByText(page, BUTTONS, NOTE.thumbnail.confirmTexts, CONFIRM_MARK);
-  await page
-    .locator(`[${CONFIRM_MARK}]`)
-    .filter({ visible: true })
-    .evaluateAll((els, mark) => els.forEach((e) => e.setAttribute(mark, "1")), BEFORE_MARK);
-
-  if (await input.count()) {
-    await input.setInputFiles(file);
-  } else {
-    // 見出し画像のボタンを押すと、メニュー(「画像をアップロード」)が開く。画像の入力欄はメニューを開いたときだけ
-    // DOM に現れる(拡張の content.ts と同じ実機の観察)。入力欄が出ればそこへ直接入れ、出なければメニューを押して
-    // 開いたファイル選択へ渡す
-    await safeClick(await eyecatchButton(page), "setThumbnail.addButton");
-    // 実機のメニュー項目は「画像をアップロード」と「推奨サイズ: …」が 1 つの要素に入っていて、完全一致では見つからない
-    // (拡張の content.ts の findSmallestByText と同じ観察)。文字を含む要素を探す(getByText は含む中でいちばん内側を返す)。
-    // 記事本文(入力欄)に同じ文字があっても押さないよう、入力欄の中は除く
-
-    const menu = NOTE.thumbnail.uploadMenuTexts
-      .map((t) => page.getByText(t))
-      .reduce((a, b) => a.or(b))
-      .and(outsideEditor(page))
-      .first();
-    const appeared = await Promise.race([
-      input.waitFor({ state: "attached", timeout: 10_000 }).then(() => "input" as const),
-      menu.waitFor({ state: "visible", timeout: 10_000 }).then(() => "menu" as const),
-    ]).catch(() => null);
-    if (appeared === "input") {
-      await input.setInputFiles(file);
-    } else if (appeared === "menu") {
-      const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 10_000 }), safeClick(menu, "setThumbnail.uploadMenu")]);
-      await chooser.setFiles(file);
-    } else {
-      throw new Error("見出し画像のボタンを押しましたが、メニューも画像の入力欄も出ませんでした。");
-    }
-  }
-
-  // トリミングの確定ボタン(「保存」など。完全一致なので「下書き保存」は当たらない)を押す。
-  // 実機のトリミングの画面は role="dialog" などの印が無いことがあるので、拡張(content.ts の waitForConfirm)と同じく、
-  // 画像を入れる前から画面にあったものを除いた、見えている確定ボタンを探す。見つからなければ失敗にする
-  // (確定しないまま進むと、見出し画像が入らず、画面も覆われたままになる)
-  const confirm = await waitByText(page, BUTTONS, NOTE.thumbnail.confirmTexts, CONFIRM_MARK, 20_000, `:not([${BEFORE_MARK}])`);
-  if (!confirm) {
-    throw new Error(`見出し画像のトリミングの確定ボタン(「保存」)が出ませんでした。見えているボタン: ${await visibleButtonTexts(page)}`);
-  }
-  // 画像の読み込みを少し待ってから押す
-  await page.waitForTimeout(1_500);
-  await safeClick(confirm, "setThumbnail.confirm");
-  // 保存のあとはアップロードが走る。確定ボタン(トリミングの画面)が消えるまで待ってから次へ進む
-  await confirm.waitFor({ state: "hidden", timeout: 60_000 }).catch(() => {
-    throw new Error("見出し画像のトリミングの画面が閉じませんでした(アップロードが遅いか失敗した可能性)。");
+/** タブかブラウザが閉じられるまで待つ */
+function waitClosed(page: Page): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (page.isClosed()) return resolve();
+    page.once("close", () => resolve());
+    ctx.once("close", () => resolve());
   });
-  await page.waitForTimeout(1_500);
 }
 
-async function fillPublishSettings(page: Page, a: Article) {
-  const tagInput = page.locator(NOTE.publishSettings.hashtagInput).first();
-  // 実機では、下書き保存のすぐあとに「公開に進む」を押すと、タイトルと本文が入っているのに
-  // 「タイトル、本文を入力してください」が出ることがある(閉じて押し直すと開く)。そのときは閉じて、待ってから押し直す
-  // 記事本文(入力欄)に同じ文があっても取り違えないよう、入力欄の中は除く(見出し画像のメニューと同じ)
-  const emptyAlert = page.getByText(/タイトル.{0,3}本文.{0,3}入力してください/).and(outsideEditor(page)).first();
-  for (let attempt = 1; ; attempt++) {
-    const open = await waitByText(page, BUTTONS, NOTE.openPublishSettingsTexts, "data-lastclick-open", 15_000);
-    if (!open) throw new Error(`「公開に進む」のボタンが見つかりません。見えているボタン: ${await visibleButtonTexts(page)}`);
-    await safeClick(open, "fillPublishSettings.open");
-    // 公開設定の画面は、別の URL へ移ってから組み立てられるので、少し長めに待つ
-    const result = await Promise.race([
-      tagInput.waitFor({ timeout: 30_000 }).then(() => "open" as const, () => null),
-      emptyAlert.waitFor({ timeout: 30_000 }).then(() => "empty" as const, () => null),
-    ]);
-    if (result === "open") break;
-    if (result === "empty" && attempt < 3) {
-      await closeEmptyAlert(page, emptyAlert);
-      await page.waitForTimeout(3_000 * attempt);
-      continue;
-    }
-    if (result === "empty") throw new Error("「公開に進む」を 3 回押しましたが、note が「タイトル、本文を入力してください」と出して進めませんでした。");
-    // 次に直すための手がかり: いまの URL と、見えている入力欄の placeholder・aria-label
-    const inputs = await page
-      .locator("input, textarea, [contenteditable='true']")
-      .evaluateAll((els) =>
-        els
-          .filter((e) => (e as HTMLElement).offsetParent !== null)
-          .map((e) => `${e.tagName.toLowerCase()}[${e.getAttribute("placeholder") ?? e.getAttribute("aria-label") ?? ""}]`)
-          .slice(0, 20),
-      )
-      .catch(() => [] as string[]);
-    throw new Error(
-      `ハッシュタグの入力欄が見つかりません。URL: ${page.url()} / 見えている入力欄: ${inputs.join(", ") || "なし"} / 見えているボタン: ${await visibleButtonTexts(page)}`,
-    );
-  }
-  for (const tag of a.hashtags) {
-    await tagInput.fill(tag);
-    await tagInput.press("Enter");
-  }
-
-  if (a.magazine) {
-    const toggle = await waitByText(page, BUTTONS, NOTE.publishSettings.magazineToggleTexts, "data-lastclick-magazine-toggle", 2_000);
-    if (toggle) await safeClick(toggle, "fillPublishSettings.magazineToggle");
-    const item = await waitByText(page, NOTE.publishSettings.magazineItemBase, [a.magazine], "data-lastclick-magazine", 10_000);
-    if (!item) throw new Error(`マガジン「${a.magazine}」が見つかりません。`);
-    await safeClick(item, "fillPublishSettings.magazineItem");
-  }
-
-  // 公開ボタンは「存在することの確認」だけ。絶対にクリックしない(印を付けて数えるだけ)。
-  if (!(await waitByText(page, BUTTONS, NOTE.publishSettings.publishButtonTexts, "data-lastclick-publish", 10_000))) {
-    throw new Error(`公開設定の画面になったことを確かめられませんでした(公開のボタンが見えません)。見えているボタン: ${await visibleButtonTexts(page)}`);
-  }
-}
-
-/** 公開設定の記事タイプで「有料」を選び、価格の欄に入れる(拡張の content.ts の setPaidPrice と同じ流れ) */
-async function setPaidPrice(page: Page, price: number) {
-  const MARK = "data-lastclick-paid";
-  const found = await page.evaluate(
-    ([fn, radio, texts, priceSel, mark]) => {
-      // 関数は文字列で送る(tsx の keepNames が入れる __name がページ側に無いため)
-      const find = new Function(`return (${fn})`)() as typeof findPaidControls;
-      const r = find(radio, texts, priceSel);
-      document.querySelectorAll(`[${mark}]`).forEach((e) => e.removeAttribute(mark));
-      r.label?.setAttribute(mark, "1");
-      return { label: Boolean(r.label), checked: r.checked };
-    },
-    [findPaidControls.toString(), NOTE.publishSettings.paidRadio, NOTE.publishSettings.paidLabelTexts, NOTE.publishSettings.priceInput, MARK] as const,
-  );
-  if (!found.checked) {
-    if (!found.label) throw new Error("記事タイプの「有料」が見つかりません。");
-    await safeClick(page.locator(`[${MARK}="1"]`).first(), "fillPublishSettings.paid");
-  }
-  const input = page.locator(NOTE.publishSettings.priceInput).first();
-  await input.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {
-    throw new Error("価格の欄が見つかりません。");
-  });
-  await input.fill(String(price));
-  if ((await input.inputValue()) !== String(price)) throw new Error(`価格の欄に ${price} を入れられませんでした。`);
-}
-
-/**
- * 「タイトル、本文を入力してください」のお知らせを閉じる。押すのは、そのお知らせを含むいちばん内側の箱の中の
- * 「閉じる」だけ(エディタの上にある別の「閉じる」は押さない)。見つからなければ Escape で閉じる
- */
-async function closeEmptyAlert(page: Page, alert: Locator) {
-  const box = alert.locator("xpath=ancestor::*[.//button][1]");
-  const close = box.locator("button").filter({ hasText: /^\s*閉じる\s*$/ }).first();
-  if (await close.isVisible().catch(() => false)) await safeClick(close, "fillPublishSettings.closeEmptyAlert");
-  else await page.keyboard.press("Escape");
-  await alert.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
-}
-
-/** 記事の入力欄(本文・タイトル)の外にある要素。記事に同じ文字があっても、画面の部品と取り違えないため */
-function outsideEditor(page: Page): Locator {
-  return page.locator('body *:not([contenteditable="true"] *):not([contenteditable="true"]):not(textarea)');
-}
-
-/** ページにメンテナンスのお知らせが出ているか(タイトル欄が見つからないときだけ呼ぶ) */
 async function isMaintenance(page: Page): Promise<boolean> {
   const text = await page.locator("body").innerText({ timeout: 5_000 }).catch(() => "");
   return /メンテナンス|maintenance/i.test(text);
-}
-
-/**
- * base に当たる要素のうち、文字が候補に一致するものに印(属性 mark)を付ける。一致の判定は拡張と同じ
- * (shared/text-match.ts の matchesAnyText: 表示文字か aria-label を正規化して完全一致。「保存」は「下書き保存」に当たらない)。
- * Playwright の `button:text-is("…")` は、文字がボタンの中の <span> などに入っていると当たらない(実機の note のボタンはこの形)
- */
-async function markByText(page: Page, base: string, texts: readonly string[], mark: string): Promise<void> {
-  const all = page.locator(base);
-  const labels = await all.evaluateAll((els) => els.map((e) => [e.textContent, e.getAttribute("aria-label")] as const));
-  const hits = labels.flatMap((l, i) => (matchesAnyText(l, texts) ? [i] : []));
-  await all.evaluateAll(
-    (els, [hits, mark]) => els.forEach((e, i) => (hits.includes(i) ? e.setAttribute(mark, "1") : e.removeAttribute(mark))),
-    [hits, mark] as const,
-  );
-}
-
-/** base に当たり文字が候補に一致する、見えている要素が出るまで待つ(extra は追加の条件の CSS)。出なければ null */
-async function waitByText(page: Page, base: string, texts: readonly string[], mark: string, timeout: number, extra = ""): Promise<Locator | null> {
-  const end = Date.now() + timeout;
-  for (;;) {
-    await markByText(page, base, texts, mark);
-    const el = page.locator(`[${mark}]${extra}`).filter({ visible: true }).first();
-    if (await el.count()) return el;
-    if (Date.now() > end) return null;
-    await page.waitForTimeout(500);
-  }
-}
-
-/** 見えているボタンの文字の一覧(見つからなかったときの手がかり。押しはしない) */
-async function visibleButtonTexts(page: Page): Promise<string> {
-  const texts = await page
-    .locator('button, [role="button"]')
-    .filter({ visible: true })
-    .evaluateAll((els) => els.map((e) => (e.textContent ?? "").trim().slice(0, 20) || `(${e.getAttribute("aria-label") ?? "文字なし"})`))
-    .catch(() => [] as string[]);
-  return texts.slice(0, 30).join(" / ") || "なし";
-}
-
-/** 「下書き保存」を押して、保存が終わるのを待つ。押すのはこのボタンだけ(公開ボタンには触らない) */
-async function saveDraft(page: Page) {
-  // 拡張と同じ一致判定で探し、見えているものを押す(同じ文字のボタンが隠れて複数あることがある)
-  const button = await waitByText(page, BUTTONS, ["下書き保存"], "data-lastclick-save", 15_000);
-  if (!button) throw new Error(`「下書き保存」のボタンが見つかりません。見えているボタン: ${await visibleButtonTexts(page)}`);
-  // 押したあとに note の API へ送られる保存の通信(GET 以外)を待ち、成功したことを確かめる。
-  // 確かめられなければ失敗にする(見張り役が「保存できた」と記録して、やり直さなくなるのを防ぐ)
-  const saved = page.waitForResponse((r) => r.request().method() !== "GET" && /^https:\/\/([a-z0-9-]+\.)?note\.com\/api\//.test(r.url()), {
-    timeout: 15_000,
-  });
-  await safeClick(button, "saveDraft");
-  const res = await saved.catch(() => {
-    throw new Error("下書き保存の通信が 15 秒以内に返ってきませんでした。");
-  });
-  if (!res.ok()) throw new Error(`下書き保存に失敗しました(HTTP ${res.status()})。`);
-  // 見張り役から動かしたときは、保存が済んだ印を残す(このあと止まっても、同じ記事を作り直さないため)
-  const marker = process.env.LOC_SAVED_MARKER;
-  if (marker) {
-    mkdirSync(path.dirname(marker), { recursive: true });
-    writeFileSync(marker, `${new Date().toISOString()} ${page.url()}\n`);
-  }
-  // 続く通信(画像など)が落ち着くのを少し待ってから閉じる
-  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
 }
 
 /**

@@ -15,7 +15,7 @@ export async function launchPersistent(): Promise<BrowserContext> {
     locale: "ja-JP",
     // 自動操作の検知を外す指定(--disable-blink-features=AutomationControlled)は入れない。
     // 規約との関係で説明しにくく、「公開ボタンを押さない」方針とも合わないため。
-    // Chromium が弾かれる場合は、実 Chrome(channel: "chrome")か Chrome 拡張版を使う。
-    ...(process.env.PIGEON_BROWSER_CHANNEL ? { channel: process.env.PIGEON_BROWSER_CHANNEL } : {}),
+    // ログイン(npm run login)と下書き(npm run draft)で同じブラウザを使う。下書きは拡張を読み込むので Playwright の Chromium だけ
+    // (Google Chrome はコマンドから拡張を読み込めない)。PIGEON_BROWSER_CHANNEL は使わない(#178)
   });
 }
