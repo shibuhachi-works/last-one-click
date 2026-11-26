@@ -168,7 +168,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         `--disable-extensions-except=${DIST}`,
         `--load-extension=${DIST}`,
         // 差し替えが間に合わなかったときの保険。note と GitHub の名前を手元に向け、本物には届かないようにする
-        "--host-resolver-rules=MAP note.com 127.0.0.1, MAP editor.note.com 127.0.0.1, MAP raw.githubusercontent.com 127.0.0.1",
+        "--host-resolver-rules=MAP note.com 127.0.0.1, MAP editor.note.com 127.0.0.1, MAP raw.githubusercontent.com 127.0.0.1, MAP api.github.com 127.0.0.1",
       ],
     });
     // note には出ていかない。エディタは模擬ページを返す
@@ -709,6 +709,69 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     } finally {
       await context.unroute(/^https:\/\/raw\.githubusercontent\.com\/o\/r\/main\/posts\/img-test\//, handler);
       // 上級者向けの表示は覚えられるので、ほかのテストに残さない
+      const p = await context.newPage();
+      await p.goto(`chrome-extension://${extensionId}/popup.html`);
+      await p.evaluate(() => (globalThis as unknown as { chrome: { storage: { local: { remove: (k: string) => Promise<void> } } } }).chrome.storage.local.remove("advancedMode"));
+      await p.close();
+    }
+  });
+
+  it("PR の URL から、記事を選んで読み込む(画像はそのコミットの article.md と同じフォルダから取る。#172)", async () => {
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    const md = "---\ntitle: PR の記事のテスト\n---\n\n## 見出し\n\n![図](fig1.png)\n";
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    // API は権限を足さずに読む(CORS)。本物と同じく Access-Control-Allow-Origin: * を付けて返す
+    const cors = { "Access-Control-Allow-Origin": "*" };
+    const api = /^https:\/\/api\.github\.com\//;
+    const apiAsked: string[] = [];
+    const apiHandler = (route: Route) => {
+      const url = route.request().url();
+      apiAsked.push(url);
+      if (url === "https://api.github.com/repos/o/r/pulls/7") {
+        return route.fulfill({ status: 200, contentType: "application/json", headers: cors, body: JSON.stringify({ head: { sha, repo: { full_name: "fork/r" } } }) });
+      }
+      if (url.startsWith("https://api.github.com/repos/o/r/pulls/7/files?")) {
+        const files = [
+          { filename: "posts/one/article.md", status: "added" },
+          { filename: "posts/two/fig1.png", status: "added" },
+          { filename: "posts/two/article.md", status: "modified" },
+          { filename: "posts/old/article.md", status: "removed" },
+        ];
+        return route.fulfill({ status: 200, contentType: "application/json", headers: cors, body: JSON.stringify(files) });
+      }
+      return route.fulfill({ status: 404, headers: cors, body: "{}" });
+    };
+    const raw = new RegExp(`^https://raw\\.githubusercontent\\.com/fork/r/${sha}/posts/two/`);
+    const rawHandler = (route: Route) => {
+      const url = route.request().url();
+      if (url.endsWith("/article.md")) return route.fulfill({ status: 200, contentType: "text/plain; charset=utf-8", body: md });
+      if (url.endsWith("/fig1.png")) return route.fulfill({ status: 200, contentType: "image/png", body: png });
+      return route.fallback();
+    };
+    await context.route(api, apiHandler);
+    await context.route(raw, rawHandler);
+    try {
+      const { editor, errors } = await draftFromPopup(async (popup) => {
+        await safeClickLike(popup, "details:has(#advanced-toggle) > summary");
+        await safeClickLike(popup, "#advanced-toggle");
+        await popup.locator("#github-url").fill("https://github.com/o/r/pull/7/files");
+        await safeClickLike(popup, "#github-load");
+        await popup.locator("#github-pick").waitFor({ state: "visible", timeout: 10_000 });
+        assert.match((await popup.locator("#status-github").textContent()) ?? "", /記事が 2 本/);
+        // 消した記事は並べない
+        assert.deepEqual(await popup.locator("#github-article option").allTextContents(), ["posts/one", "posts/two"]);
+        await popup.locator("#github-article").selectOption({ label: "posts/two" });
+        await safeClickLike(popup, "#github-pick-load");
+        await popup.waitForFunction(() => /「posts\/two」を読み込みました/.test(document.getElementById("status-github")?.textContent ?? ""), null, { timeout: 10_000 });
+        assert.equal(await popup.locator("#title").inputValue(), "PR の記事のテスト");
+      }, "---\ntitle: 最初に入れた記事\n---\n\n本文\n");
+      await editor.locator("#body figure.image img[src='https://assets.example.com/fig1.png']").waitFor({ timeout: 10_000 });
+      assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1/);
+      assert.deepEqual(errors, []);
+      assert.equal(apiAsked.length, 2);
+    } finally {
+      await context.unroute(api, apiHandler);
+      await context.unroute(raw, rawHandler);
       const p = await context.newPage();
       await p.goto(`chrome-extension://${extensionId}/popup.html`);
       await p.evaluate(() => (globalThis as unknown as { chrome: { storage: { local: { remove: (k: string) => Promise<void> } } } }).chrome.storage.local.remove("advancedMode"));

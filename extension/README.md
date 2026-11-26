@@ -108,7 +108,8 @@ front matter の `thumbnail: ./xxx.png` のような相対パスは、GitHub か
 
 「拡張機能の設定」を開いて「上級者向けの設定を表示する」にチェックを入れると、「GitHub から読み込む」と、selectors の URL・GitHub トークンの設定が出て、読み込んだ内容の欄が編集(貼り付け)できるようになります(チェックを外すと隠れる。状態は覚える)。
 「GitHub から読み込む」に記事ディレクトリの URL(`.../tree/main/posts/xxx`)を貼ると md ファイルを取得し、② に出します。
-front matter の `thumbnail: ./thumbnail.png` も同じディレクトリから自動で取ります。private リポジトリは GitHub トークンを入れてください(`Contents: Read` だけで十分)。
+PR の URL(`https://github.com/<owner>/<repo>/pull/123`)も貼れます(v0.1.8 から)。その PR で足したり直したりした `article.md` を、PR の最新のコミットの中身で読みます。記事が 2 本以上ある PR では、読む記事を選ぶ欄が出ます。相対パスの画像・見出し画像は、その `article.md` と同じフォルダから取ります。PR に画像を足したり差し替えたりしたら、もう一度「読み込む」を押すと最新のコミットで取り直します。拡張の権限は増えません(GitHub の API はどこからでも読めるように開かれています)。
+front matter の `thumbnail: ./thumbnail.png` も同じディレクトリから自動で取ります。private リポジトリは GitHub トークンを入れてください(`Contents: Read` だけで十分。PR の URL で読むときは `Pull requests: Read` も)。
 
 ## note の画面が変わって動かなくなったら
 
