@@ -14,6 +14,7 @@ button.small { padding: 3px 8px; font-size: 12px; }
 body.window { width: auto; max-width: 560px; margin: 0 auto; }
 body.window #open-window { display: none; }
 label { display: block; font-weight: 600; margin-top: 8px; }
+label[hidden] { display: none; }
 label input { font-weight: 400; }
 label.check { display: flex; align-items: center; gap: 6px; }
 label.check input { width: auto; margin: 0; }

@@ -118,6 +118,11 @@ export function applyDestinationControls() {
     el.disabled = toExtraSite;
     const label = el.closest("label");
     if (!label) continue;
+    // 「直す」の中の欄(マガジン・価格)は、使えないときは出さない(一覧の行も出さない。#191)
+    if (label.closest("#fields-edit")) {
+      label.hidden = toExtraSite;
+      continue;
+    }
     label.classList.toggle("unavailable", toExtraSite);
     let note = label.querySelector<HTMLSpanElement>(".unavailable-note");
     if (toExtraSite && !note) {
