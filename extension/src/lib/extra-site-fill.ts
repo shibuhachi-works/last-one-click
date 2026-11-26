@@ -7,7 +7,7 @@
 // 記事の設定の「要約」・外部公開の範囲・読了目安時間は front matter に書いてあれば入れる(押すのは radio・checkbox だけ)。
 // カテゴリは、front matter の category(「大 > 小」か小だけ)と名前がちょうど 1 つ合うときだけ選ぶ。
 // 画面の作りは #119 の診断から決めた(shared/extra-site.ts の EXTRA_SITE_DEFAULT_SELECTORS)
-import { EXTRA_SITE_HOST, acceptsFile, extraSiteSelectors, type ExtraSiteArticle, type ExtraSiteSelectors } from "../../../shared/extra-site";
+import { acceptsFile, extraSiteSelectors, type ExtraSiteArticle, type ExtraSiteSelectors } from "../../../shared/extra-site";
 import { EXTRA_SITE_FORBIDDEN_CLICK_SUBSTRINGS } from "../../../shared/forbidden-click";
 import { htmlToText } from "../../../shared/markdown-safe";
 import { safeClick } from "./safe-click";
@@ -92,7 +92,7 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   const settle = { quietMs: opts.settleQuietMs ?? SETTLE_QUIET_MS, maxMs: opts.settleMaxMs ?? SETTLE_MAX_MS };
   if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait, settle));
 
-  for (const n of notes) lines.push(`⚠ ${EXTRA_SITE_HOST} のエディタでは入らない書き方: ${n}`);
+  for (const n of notes) lines.push(`⚠ 入らない書き方: ${n}`);
   return { ok, lines };
 }
 
@@ -135,7 +135,7 @@ async function insertBodyImages(
   let done = 0;
   const input = images.length ? await waitFor<HTMLInputElement>(S.bodyImageInput, fieldWait, { hidden: true }) : null;
   for (const [i, img] of images.entries()) {
-    onProgress?.(`本文の画像を入れています…(${i + 1}/${images.length} 枚目: ${img.name})`);
+    onProgress?.(`本文の画像を入れています(${i + 1}/${images.length} 枚目)…`);
     if (!input) {
       failed.push(img.name);
       continue;
@@ -175,10 +175,10 @@ async function insertBodyImages(
     }
   }
   const problems = [...(a.imageNotes ?? [])];
-  if (skipped.length) problems.push(`${EXTRA_SITE_HOST} のエディタは png・jpg だけを受け付けるので、入れずに目印を残しました(${skipped.join(", ")})`);
-  if (captions.length) problems.push(`キャプションは入れていません(${captions.join(", ")}。画面で入れてください)`);
-  if (stopped) problems.push("アップロードを待ちきれなかった画像があったので、それより後の画像は入れていません");
-  if (failed.length) problems.push(`入れられなかった画像があります(${failed.join(", ")}。本文に残っている目印の位置に、画面で入れてください)`);
+  if (skipped.length) problems.push(`png・jpg ではないので入れていません(${skipped.join(", ")})`);
+  if (captions.length) problems.push(`キャプションは入れていません(${captions.join(", ")})`);
+  if (stopped) problems.push("待ちきれなかった画像より後は入れていません");
+  if (failed.length) problems.push(`入れられなかった画像があります(${failed.join(", ")})`);
   if (!problems.length) return `${done} 枚`;
   if (failed.length) throw new Error(`${done ? `${done} 枚は入れました。` : ""}${problems.join("。")}`);
   return `⚠ ${done} 枚は入れました。${problems.join("。")}`;
@@ -191,7 +191,7 @@ async function insertBodyImages(
 async function openSettings(S: ExtraSiteSelectors, fieldWait: number): Promise<string> {
   if (query(S.tagInput)) return "";
   const open = query(S.settingsMenuOpenButton);
-  if (!open) throw new Error("記事の設定を開くボタンが見つかりません。画面で記事の設定を開いてから、もう一度入れてください");
+  if (!open) throw new Error("記事の設定を開くボタンが見つかりません");
   click(open, "記事の設定を開く");
   if (!(await waitFor(S.tagInput, fieldWait))) throw new Error("記事の設定を開けませんでした");
   return "";
@@ -200,8 +200,8 @@ async function openSettings(S: ExtraSiteSelectors, fieldWait: number): Promise<s
 /** 見出し画像の欄にファイルを入れて change を起こす */
 async function setEyecatch(S: ExtraSiteSelectors, thumb: NonNullable<ExtraSiteArticle["thumbnail"]>, fieldWait: number): Promise<string> {
   const input = await waitFor<HTMLInputElement>(S.eyecatchInput, fieldWait, { hidden: true });
-  if (!input) throw new Error("見出し画像の欄が見つかりません。画面で入れてください");
-  if (!acceptsFile(input.accept || "image/*", thumb)) throw new Error(`${EXTRA_SITE_HOST} のエディタでは受け付けない種類の画像です(${thumb.name})。画面で入れてください`);
+  if (!input) throw new Error("見出し画像の欄が見つかりません");
+  if (!acceptsFile(input.accept || "image/*", thumb)) throw new Error(`受け付けない種類の画像です(${thumb.name})`);
   setFiles(input, base64ToFile(thumb));
   return "";
 }
@@ -210,9 +210,9 @@ async function setEyecatch(S: ExtraSiteSelectors, thumb: NonNullable<ExtraSiteAr
 async function setPublishScope(S: ExtraSiteSelectors, scope: "public" | "limited", fieldWait: number): Promise<string> {
   const label = scope === "public" ? "全文公開" : "冒頭のみ公開";
   const radio = await waitFor<HTMLInputElement>(scope === "public" ? S.publishScopePublic : S.publishScopeLimited, fieldWait, { hidden: true });
-  if (!radio || radio.type !== "radio") throw new Error(`「${label}」の選択肢が見つかりません。画面で選んでください`);
+  if (!radio || radio.type !== "radio") throw new Error(`「${label}」が見つかりません`);
   if (!radio.checked) click(radio, `外部公開の範囲: ${label}`);
-  if (!(await waitUntil(() => (radio.checked ? true : null), 1_000))) throw new Error(`「${label}」を選べたか確かめられませんでした。画面で確かめてください`);
+  if (!(await waitUntil(() => (radio.checked ? true : null), 1_000))) throw new Error(`「${label}」を選べたか確認できませんでした`);
   return label;
 }
 
@@ -234,9 +234,9 @@ function norm(text: string | null | undefined): string {
  */
 async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: number): Promise<string> {
   const { main, sub } = splitCategory(category);
-  if (!sub) throw new Error(`カテゴリ「${category}」を読めませんでした。「大きなカテゴリ > 小さなカテゴリ」の形で書いてください`);
+  if (!sub) throw new Error(`「${category}」を読めません。「大カテゴリ > 小カテゴリ」の形で書いてください`);
   const open = await waitFor(S.categoryOpen, fieldWait);
-  if (!open) throw new Error("「カテゴリを選択」のボタンが見つかりません。画面で選んでください");
+  if (!open) throw new Error("「カテゴリを選択」が見つかりません");
   const value = query<HTMLInputElement>(S.categoryValue, { hidden: true });
   // すでに選ばれていれば押さない。開くボタンの文字(「大 > 小」)を分けて、それぞれ名前全体で比べる
   const current = splitCategory(open.textContent ?? "");
@@ -245,7 +245,7 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
 
   click(open, "カテゴリを選択");
   const dialog = await waitFor(S.categoryDialog, fieldWait);
-  if (!dialog) throw new Error("カテゴリを選ぶ画面が開きませんでした。画面で選んでください");
+  if (!dialog) throw new Error("カテゴリを選ぶ画面が開きませんでした");
   const close = () => {
     const btn = queryIn<HTMLElement>(dialog, S.categoryClose);
     if (btn && isVisible(btn)) click(btn, "カテゴリを選ぶ画面を閉じる");
@@ -255,7 +255,7 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
   const groups = queryAllIn(document, S.categoryMain).filter((g) => !main || norm(queryIn(g, S.categoryMainName)?.textContent) === norm(main));
   if (main && !groups.length) {
     close();
-    throw new Error(`大きなカテゴリ「${main}」が見つかりません。画面で選んでください`);
+    throw new Error(`「${main}」が見つかりません`);
   }
   const hits: { group: HTMLElement; button: HTMLElement }[] = [];
   for (const group of groups) {
@@ -266,8 +266,8 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
   }
   if (hits.length !== 1) {
     close();
-    if (!hits.length) throw new Error(`カテゴリ「${category}」が見つかりません。画面で選んでください`);
-    throw new Error(`「${sub}」というカテゴリが ${hits.length} つあります。大きなカテゴリも書いてください(例: 大きなカテゴリ > ${sub})`);
+    if (!hits.length) throw new Error(`「${category}」が見つかりません`);
+    throw new Error(`「${sub}」が ${hits.length} つあります。「大カテゴリ > ${sub}」の形で書いてください`);
   }
   const { group, button } = hits[0]!;
   const mainName = queryIn(group, S.categoryMainName)?.textContent?.trim() ?? main ?? "";
@@ -287,7 +287,7 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
   // 選んでも開いたままなら閉じる
   await sleep(300);
   if (isVisible(dialog)) close();
-  if (!chosen) throw new Error(`カテゴリ「${mainName} > ${sub}」を選べたか確かめられませんでした。画面で確かめてください`);
+  if (!chosen) throw new Error(`「${mainName} > ${sub}」を選べたか確認できませんでした`);
   return `${mainName} > ${sub}`;
 }
 
@@ -320,9 +320,9 @@ function queryAllIn(root: ParentNode, selectors: string[]): HTMLElement[] {
 /** 読了目安時間を出すかの checkbox を合わせる(押すのは checkbox だけ。合っていれば押さない) */
 async function setReadingTime(S: ExtraSiteSelectors, show: boolean, fieldWait: number): Promise<string> {
   const box = await waitFor<HTMLInputElement>(S.readingTime, fieldWait, { hidden: true });
-  if (!box || box.type !== "checkbox") throw new Error("読了目安時間の切り替えが見つかりません。画面で合わせてください");
+  if (!box || box.type !== "checkbox") throw new Error("切り替えが見つかりません");
   if (box.checked !== show) click(box, "読了目安時間");
-  if (!(await waitUntil(() => (box.checked === show ? true : null), 1_000))) throw new Error("読了目安時間を切り替えられたか確かめられませんでした。画面で確かめてください");
+  if (!(await waitUntil(() => (box.checked === show ? true : null), 1_000))) throw new Error("切り替えられたか確認できませんでした");
   return show ? "表示する" : "表示しない";
 }
 
@@ -332,15 +332,15 @@ async function setReadingTime(S: ExtraSiteSelectors, show: boolean, fieldWait: n
  */
 async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: number): Promise<string> {
   const el = await waitFor<HTMLTextAreaElement | HTMLInputElement>(S.summary, fieldWait);
-  if (!el) throw new Error("要約の欄が見つかりません。画面で入れてください");
+  if (!el) throw new Error("要約の欄が見つかりません");
   const len = Array.from(summary).length;
   // maxlength は UTF-16 の単位で数える(絵文字などは 2 つ)。比べるのは同じ単位の summary.length
   if (el.maxLength > 0 && summary.length > el.maxLength) {
-    throw new Error(`要約が ${len} 字で、欄の上限(${el.maxLength} 字)を超えています(絵文字などは 2 字と数えます)。front matter の summary を短くするか、画面で入れてください`);
+    throw new Error(`上限(${el.maxLength} 字)を超えています`);
   }
   el.focus();
   setNativeValue(el, summary);
-  if (el.value !== summary) throw new Error("要約が入ったか確かめられませんでした。画面で確かめてください");
+  if (el.value !== summary) throw new Error("入ったか確認できませんでした");
   return `${len} 字`;
 }
 
@@ -367,22 +367,21 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number,
   if (!lost.length) return `${want.length} 個`;
 
   // 入れ直す前に、消え方を記録しておく(次に直すときの手がかり)
-  const rebuilt = !firstInput.isConnected;
+  console.warn(`[lastclick-pigeon] タグ: ${firstInput.isConnected ? "タグのボタンだけが消えていました" : "タグの欄ごと作り直されていました"}`);
   await waitQuiet(query(S.settingsMenu) ?? document.body, settle);
   const second = await addTagsOnce(S, lost, fieldWait);
   if (second.entered.length) await sleep(TAG_RECHECK_MS);
   lost = missing();
   const done = want.length - lost.length;
-  const how = rebuilt ? "タグの欄ごと作り直されていました" : "タグのボタンだけが消えていました";
   if (!lost.length) {
-    return `⚠ ${done} 個。一度目は残らなかったので入れ直しました(${[...new Set([...gone1, ...first.failed])].join(", ")}。${gone1.length ? how : "入ったか確かめられませんでした"})。画面で確かめてください`;
+    return `⚠ ${done} 個(入れ直しました: ${[...new Set([...gone1, ...first.failed])].join(", ")})`;
   }
   const gone = lost.filter((t) => first.entered.includes(t) || second.entered.includes(t));
   const failed = lost.filter((t) => !gone.includes(t));
   const problems: string[] = [];
-  if (failed.length) problems.push(`入ったか確かめられなかったタグがあります(${failed.join(", ")})`);
-  if (gone.length) problems.push(`いったん入ったあと、画面から消えたタグがあります(${gone.join(", ")}。${how})`);
-  throw new Error(`${done ? `${done} 個は入れました。` : "1 個も残っていません。"}入れ直しても残りませんでした。${problems.join("。")}。画面で確かめてください`);
+  if (failed.length) problems.push(`確認できなかったタグ(${failed.join(", ")})`);
+  if (gone.length) problems.push(`消えたタグ(${gone.join(", ")})`);
+  throw new Error(`${done} 個。${problems.join("。")}`);
 }
 
 /**
@@ -517,9 +516,9 @@ export function resultMessage(r: FillResult): { text: string; kind: "ok" | "warn
   const warn = !r.ok || r.lines.some((l) => l.startsWith("⚠"));
   const head = r.ok
     ? "✅ 下書きを入れました。"
-    : "⚠️ 一部は入れられませんでした。足りないものは画面で入れてください。";
+    : "⚠️ 一部は入れられませんでした。";
   return {
-    text: `${[head, "「下書き保存」か「確認画面へ」を押してください。", notTouched(r)].filter(Boolean).join("\n")}\n\n${r.lines.join("\n")}`,
+    text: `${head}\n「下書き保存」か「確認画面へ」を押してください。\n\n${[notTouched(r), ...r.lines].filter(Boolean).join("\n")}`,
     kind: warn ? "warn" : "ok",
   };
 }

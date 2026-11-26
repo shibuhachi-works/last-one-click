@@ -18,7 +18,7 @@ export const BANNER_TITLE = `Last One Click for ${EXTRA_SITE_HOST}`;
 const KINDS: Record<BannerKind, { color: string; soft: string; label: string; mark: string }> = {
   info: { color: "#3b7cf6", soft: "#eaf1ff", label: "入力中", mark: "" },
   ok: { color: "#1fa56b", soft: "#e6f6ee", label: "入れました", mark: "✓" },
-  warn: { color: "#e0890b", soft: "#fff3dd", label: "確かめてください", mark: "!" },
+  warn: { color: "#e0890b", soft: "#fff3dd", label: "確認してください", mark: "!" },
   error: { color: "#e0464b", soft: "#fdeaea", label: "エラー", mark: "×" },
 };
 

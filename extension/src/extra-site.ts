@@ -42,11 +42,11 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: D
   }
   if (msg?.type === "extraSiteFill") {
     if (!isExtraSiteUrl(location.href)) {
-      sendResponse({ ok: false, error: "今開いているページは記事の編集画面ではないので、入れられません。" });
+      sendResponse({ ok: false, error: "記事の編集画面ではありません。" });
       return;
     }
     if (filling) {
-      sendResponse({ ok: false, error: "今開いているページには、いま下書きを入れている途中です。終わるまで待ってください。" });
+      sendResponse({ ok: false, error: "入力中です。終わるまでお待ちください。" });
       return;
     }
     filling = true;

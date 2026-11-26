@@ -355,7 +355,7 @@ describe("extraSiteUnsupportedNotes(追加の対応先のエディタでは入�
       ],
     });
     assert.equal(notes.length, 2);
-    assert.match(notes[1]!, /キャプション\(a\.png。/);
+    assert.match(notes[1]!, /キャプション\(a\.png\)/);
   });
 
   it("<code> を含まない「codec」などの文字では出さない", () => {
@@ -415,7 +415,7 @@ describe("新規記事のエディタを開いて待つ(waitForNewEditor)", () =
 
   it("タブが閉じられたら止まる。待ちきれなければ止まる", async () => {
     await assert.rejects(waitForNewEditor(1, deps([null])), /タブが閉じられました/);
-    await assert.rejects(waitForNewEditor(1, deps([{ url: EDIT, loading: false }], () => false), 60_000), /1 分待っても開きませんでした。ログインしてから/);
+    await assert.rejects(waitForNewEditor(1, deps([{ url: EDIT, loading: false }], () => false), 60_000), /1 分待っても開きませんでした。\nログインして/);
   });
 });
 

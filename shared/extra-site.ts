@@ -230,7 +230,7 @@ export async function waitForNewEditor(tabId: number, deps: NewEditorDeps, timeo
   let notified: string | undefined;
   for (;;) {
     const t = await deps.tab(tabId);
-    if (!t) throw new Error("新規記事のタブが閉じられました。もう一度ポップアップから入れてください。");
+    if (!t) throw new Error("新規記事のタブが閉じられました。");
     if (isExtraSiteEditUrl(t.url)) {
       let ok = false;
       try {
@@ -245,7 +245,7 @@ export async function waitForNewEditor(tabId: number, deps: NewEditorDeps, timeo
     }
     if (deps.now() >= end) {
       throw new Error(
-        `${EXTRA_SITE_HOST} の新規記事のエディタが ${Math.round(timeoutMs / 60_000) || 1} 分待っても開きませんでした。ログインしてから、もう一度ポップアップから入れてください。`,
+        `エディタが ${Math.round(timeoutMs / 60_000) || 1} 分待っても開きませんでした。\nログインして、もう一度お試しください。`,
       );
     }
     await deps.sleep(500);
@@ -307,17 +307,17 @@ export function extraSiteUnsupportedNotes(input: {
 }): string[] {
   const notes: string[] = [];
   const has = (re: RegExp) => re.test(input.html);
-  if (has(/<(?:ul|ol)[\s>]/i)) notes.push(`箇条書き・番号付きリスト(${EXTRA_SITE_HOST} のエディタにはボタンが無いので、そのまま入らないことがあります)`);
-  if (has(/<pre[\s>]/i) || has(/<code[\s>]/i)) notes.push(`コード(${EXTRA_SITE_HOST} のエディタにはボタンが無いので、ふつうの文字で入ることがあります)`);
+  if (has(/<(?:ul|ol)[\s>]/i)) notes.push("箇条書き・番号付きリスト(そのまま入らないことがあります)");
+  if (has(/<pre[\s>]/i) || has(/<code[\s>]/i)) notes.push("コード(ふつうの文字で入ることがあります)");
   if (has(/<table[\s>]/i)) notes.push("表(そのまま入らないことがあります)");
-  if (input.insertToc) notes.push(`目次(${EXTRA_SITE_HOST} では入れません)`);
-  if (input.embedUrls) notes.push(`URL だけの行の埋め込み(${EXTRA_SITE_HOST} では入れません。URL の文字のまま入ります)`);
-  if (input.magazine?.trim()) notes.push(`マガジン(${EXTRA_SITE_HOST} では入れません)`);
-  if (input.price !== undefined) notes.push(`有料の価格(${EXTRA_SITE_HOST} では入れません)`);
+  if (input.insertToc) notes.push("目次");
+  if (input.embedUrls) notes.push("URL の埋め込み(URL の文字のまま入ります)");
+  if (input.magazine?.trim()) notes.push("マガジン");
+  if (input.price !== undefined) notes.push("有料の価格");
   const skipped = (input.images ?? []).filter((i) => !acceptsFile(null, i)).map((i) => i.name);
-  if (skipped.length) notes.push(`png・jpg 以外の本文の画像(${skipped.join(", ")}。入れずに目印を残します)`);
+  if (skipped.length) notes.push(`png・jpg 以外の画像(${skipped.join(", ")})`);
   const captioned = (input.images ?? []).filter((i) => i.caption?.trim() && acceptsFile(null, i)).map((i) => i.name);
-  if (captioned.length) notes.push(`本文の画像のキャプション(${captioned.join(", ")}。画像だけを入れます)`);
+  if (captioned.length) notes.push(`画像のキャプション(${captioned.join(", ")})`);
   return notes;
 }
 
