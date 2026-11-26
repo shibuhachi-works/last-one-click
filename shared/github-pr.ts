@@ -126,7 +126,7 @@ export function pullApiError(status: number, ref: PullRef, rateLimited: boolean)
   if (status === 401) return "GitHub トークンが使えません。設定のトークンを確かめてください。";
   // トークンは通ったが、PR を読む権限が無い(記事を読む「Contents: Read」だけのトークンなど)。回数の上限は上で別に知らせる
   if (status === 403) {
-    return `GitHub トークンで、この PR を読めません: ${ref.repo}#${ref.number}。PR を読むには、トークンに「Pull requests: Read」の権限が要ります。Fine-grained トークンなら、GitHub の Settings → Developer settings → Personal access tokens でトークンを開き、Repository permissions の Pull requests を Read-only にしてください(トークンを入れ直す必要はありません)。`;
+    return `この PR を読めません: ${ref.repo}#${ref.number}。\nGitHub トークンに「Pull requests: Read」の権限を付けてください。`;
   }
   return `PR を読めませんでした(${status}): ${ref.repo}#${ref.number}`;
 }
