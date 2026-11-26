@@ -6,7 +6,7 @@ import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from ".
 import { hasTocHeadings } from "../../shared/toc";
 import { diagnoseCurrentUser, fetchCurrentUser, type CurrentUser } from "../../shared/current-user";
 import { checkNoteAccount, noteAccountMismatchMessage, noteAccountUnknownMessage } from "../../shared/note-account";
-import { REWRITE_UNDO_NOTE, checkNoteUrl, noteEditKey, noteUrlProblem, rewriteSkippedLines } from "../../shared/note-rewrite";
+import { checkNoteUrl, noteEditKey, noteUrlProblem, rewriteSkippedLines } from "../../shared/note-rewrite";
 import { STORAGE, type AccountResponse, type ArticlePayload, type DiagnoseResponse, type Message, type NoteArticleResponse, type NoteRewriteResponse, type Selectors, type SelectorsResponse, type WhoAmIResponse } from "./lib/types";
 import { clearBody, scrollToTop, fillTitle, type TocRef, insertToc, pasteBody, embedUrlLines, insertBodyImages } from "./lib/content/editor-steps";
 import { setThumbnail } from "./lib/content/eyecatch";
@@ -51,7 +51,7 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse: (r: D
   if (msg?.type === "noteRewrite") {
     // ポップアップが、このタブ向けの pending(書き換え)を置いてから送ってくる(#174)。ページは読み込み直さない
     if (running) {
-      sendResponse({ ok: false, error: "このページでは、もう入れている途中です。終わるまで待ってください。" });
+      sendResponse({ ok: false, error: "入力中です。終わるまでお待ちください。" });
       return;
     }
     sendResponse({ ok: true });
@@ -100,7 +100,7 @@ async function main() {
   const { selectors: S, source } = await requestSelectors();
 
   if (new RegExp(S.loginUrlPattern).test(location.href)) {
-    banner("note にログインしていません。ログインしてから、もう一度ポップアップから実行してください。", "error");
+    banner("note にログインしていません。\nログインしてから、もう一度お試しください。", "error");
     return;
   }
 
@@ -116,11 +116,11 @@ async function main() {
   const results: string[] = [];
   let checkedAccount: CurrentUser | null | undefined;
   if (article.noteAccount) {
-    banner("ログイン中のアカウントを確かめています...");
+    banner("ログイン中のアカウントを確認しています...");
     checkedAccount = await readAccount(S);
     const check = checkNoteAccount(article.noteAccount, checkedAccount);
     if (check.kind === "mismatch") {
-      banner(`⚠️ ${noteAccountMismatchMessage(check)}\n\nタイトル・本文などは入れていません。`, "error");
+      banner(`⚠️ ${noteAccountMismatchMessage(check)}`, "error");
       return;
     }
     if (check.kind === "unknown") results.push(`${ACCOUNT_STEP} ⚠️ ${noteAccountUnknownMessage(check)}`);
@@ -157,7 +157,7 @@ async function main() {
     // 見出し画像のアップロードを確認できないまま公開設定へ移ると、アップロードが途中で切れる可能性があるので、ここで止める
     banner(
       accountWarning(results) +
-        `⚠️ 見出し画像を確認できませんでした。画面で確かめてから「公開設定を入れる」を押してください。\n\n公開設定には進んでいません。\n${results.join("\n")}`,
+        `⚠️ 見出し画像を確認できませんでした。\n画面で確認して「公開設定を入れる」を押してください。\n\n${results.join("\n")}`,
       "warn",
       [proceed],
       account,
@@ -172,9 +172,9 @@ async function main() {
     banner(
       accountWarning(results) +
         (failed
-          ? `⚠️ 一部は入力できませんでした。画面で確かめ、足りないものは手で入れてから「公開設定を入れる」を押してください。\n\n`
-          : `✅ タイトル・本文・見出し画像を入れました。本文を確かめて、よければ「公開設定を入れる」を押してください。\n\n`) +
-        `下書き保存・プレビューは、note の編集画面で済ませてください。\n「公開設定を入れる」を押すと、拡張が「公開に進む」を押し、ハッシュタグとマガジンを入れて止まります。\n${results.join("\n")}`,
+          ? `⚠️ 一部は入れられませんでした。\n足りないものを入れて「公開設定を入れる」を押してください。\n\n`
+          : `✅ 下書きを入れました。\n確認して「公開設定を入れる」を押してください。\n\n`) +
+        results.join("\n"),
       failed ? "warn" : "ok",
       [proceed],
       account,
@@ -193,12 +193,12 @@ async function main() {
 async function rewriteArticle(S: Selectors, article: ArticlePayload, titleEl: HTMLElement, results: string[], account: CurrentUser | null, source: string) {
   const open = articleKey(location.pathname);
   if (open !== article.rewriteKey) {
-    banner(`⚠️ 書き換えを始めたときと別の記事が開いているので、何も入れていません。\n書き換えたい記事の編集画面で、もう一度ポップアップから押してください。`, "error");
+    banner(`⚠️ 別の記事が開いています。\n書き換える記事の編集画面で、もう一度お試しください。`, "error");
     return;
   }
   const problem = noteUrlProblem(checkNoteUrl(article.noteUrl, open));
   if (problem) {
-    banner(`⚠️ ${problem}\n\nタイトル・本文などは入れていません。`, "error");
+    banner(`⚠️ ${problem}`, "error");
     return;
   }
 
@@ -215,7 +215,7 @@ async function rewriteArticle(S: Selectors, article: ArticlePayload, titleEl: HT
     if (article.images?.length || article.imageNotes?.length) await step("本文の画像", results, () => insertBodyImages(S, article));
     if (article.embedUrls) await step("埋め込み", results, () => embedUrlLines(S));
   } else {
-    results.push("本文 —(今の本文を消せなかったので、入れていません。本文は手で入れ替えてください)");
+    results.push("本文 —(今の本文を消せなかったので、入れていません)");
   }
   // 見出し画像は、ボタンを selectors の指定か文字で見つけたときだけ入れる(位置で探すと、すでにある見出し画像の
   // 「削除」などのアイコンを押すおそれがあるため)
@@ -228,15 +228,13 @@ async function rewriteArticle(S: Selectors, article: ArticlePayload, titleEl: HT
   const skipped = rewriteSkippedLines(article);
   banner(
     accountWarning(results) +
-      (moved ? "⚠️ 入れている途中で、別の記事に移りました。書き換えた記事を開いて確かめてください。\n\n" : "") +
-      (failed
-        ? `⚠️ 一部は書き換えられませんでした。画面で確かめ、足りないものは手で直してください。\n\n`
-        : `✅ タイトル・本文・見出し画像を、md の内容に書き換えました。\n\n`) +
-      `中身を確かめて、よければ自分で保存してください(公開済みの記事は「公開に進む」→「更新する」、下書きは「下書き保存」)。\n${REWRITE_UNDO_NOTE}\n` +
-      (skipped.length
-        ? `\n書き換えでは、公開設定(ハッシュタグ・マガジン・価格・有料ライン)は入れていません。変えたいときは公開設定の画面で自分で入れてください。\n${skipped.join("\n")}\n`
-        : "") +
-      `\n${results.join("\n")}`,
+      (moved
+        ? `⚠️ 途中で別の記事に移りました。\n書き換えた記事を開いて確認してください。\n\n`
+        : failed
+          ? `⚠️ 一部は書き換えられませんでした。\n足りないものを直して、保存してください。\n\n`
+          : `✅ 書き換えました。\n確認して問題がなければ、保存してください。\n\n`) +
+      (skipped.length ? `公開設定は入れていません:\n${skipped.join("\n")}\n\n` : "") +
+      results.join("\n"),
     failed || moved ? "warn" : "ok",
     [],
     account ?? (await readAccount(S)),
@@ -275,7 +273,7 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   lockArticleKey(keyRef, now);
   if (!isSameArticle(keyRef.key, now)) {
     banner(
-      `⚠️ 入力を始めたときと別の記事が開いているので、公開設定は入れませんでした。\n元の記事に戻ってから、もう一度押してください。\n\n${before.join("\n")}`,
+      `⚠️ 別の記事が開いています。\n元の記事に戻って、もう一度押してください。\n\n${before.join("\n")}`,
       "warn",
       [{ label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) }],
     );
@@ -288,7 +286,7 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   if (price && anchor !== undefined && document.querySelector(S.publishSettings.paywallContainer)) {
     // 有料エリア設定の画面(ラインを引く画面)で「もう一度入れる」を押したとき: この画面にはハッシュタグの欄も「公開に進む」も無いので、
     // 公開設定の工程は通らず、有料エリアの工程だけを入れ直す
-    results.push("公開設定 − 有料エリア設定の画面が開いているので、ハッシュタグ・マガジン・有料・価格は入れ直していません。前の画面で入れたものを確かめてください");
+    results.push("公開設定 —(有料エリア設定の画面なので、入れ直していません)");
     await step("有料エリア", results, () => setPaywallLine(S, anchor));
   } else {
     // ハッシュタグとマガジンは別の工程にする。マガジンが見つからなくても、ハッシュタグが入ったことは分かるように
@@ -309,9 +307,9 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
   banner(
     accountWarning(results) +
       (failed.length
-        ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n\n入ったものは画面で確かめ、足りないものは手で入れてから、「投稿する」を自分で押してください。\n`
-        : `✅ 入力が終わりました。内容を確認して、「投稿する」を自分で押してください。\n\n`) +
-      `「キャンセル」で戻ると、ハッシュタグとマガジン${article.price ? "・有料の設定" : ""}は note 側で消えます。\n直したあとは「もう一度入れる」を押してください。\n${results.join("\n")}`,
+        ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n足りないものを入れて「投稿する」を押してください。\n\n`
+        : `✅ 公開設定を入れました。\n確認して「投稿する」を押してください。\n\n`) +
+      results.join("\n"),
     failed.length ? "warn" : "ok",
     [{ label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) }],
     account,
@@ -324,7 +322,7 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
  */
 async function requestSelectors(): Promise<Extract<SelectorsResponse, { ok: true }>> {
   const res = (await chrome.runtime.sendMessage({ type: "selectors" } satisfies Message).catch(() => null)) as SelectorsResponse | null;
-  if (!res) throw new Error("拡張の service worker から応答がありません。chrome://extensions で拡張を再読み込みしてください。");
+  if (!res) throw new Error("拡張から応答がありません。\nchrome://extensions で拡張を再読み込みしてください。");
   if (!res.ok) throw new Error(`selectors を読めませんでした: ${res.error}`);
   return res;
 }

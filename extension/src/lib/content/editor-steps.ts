@@ -4,7 +4,7 @@ import { GIF_UPLOAD_WAIT_MS, IMAGE_UPLOAD_WAIT_MS, LATE_UPLOAD_WAIT_MS, gifUploa
 import { safeClick, safeKey } from "../safe-click";
 import { htmlToText } from "../../../../shared/markdown-safe";
 import { type ArticlePayload, type Selectors } from "../types";
-import { placeCaret, visibleMatch, findTextRange, selectRange, caretToEnd, waitFor, waitUntil, waitWithStatus, pausedNote, formatWait, findByText, setNativeValue, base64ToFile, sleep } from "./dom";
+import { placeCaret, visibleMatch, findTextRange, selectRange, caretToEnd, waitFor, waitUntil, waitWithStatus, formatWait, findByText, setNativeValue, base64ToFile, sleep } from "./dom";
 import { StopError, bannerStatus } from "./banner";
 
 /**
@@ -16,7 +16,7 @@ export async function clearBody(S: Selectors) {
   try {
     return await clearBodyOnce(S);
   } catch (e) {
-    throw e instanceof StopError ? e : new StopError(`今の本文を消せませんでした(${(e as Error).message})。本文は入れていません`);
+    throw e instanceof StopError ? e : new StopError(`今の本文を消せませんでした(${(e as Error).message})`);
   }
 }
 
@@ -58,7 +58,7 @@ export function fillTitle(el: HTMLElement, a: ArticlePayload) {
 /** 目次の工程で入った目次の要素(本文を、その次の行に貼るために使う) */
 export type TocRef = { node: Element | null };
 
-export const TOC_MANUAL = "note の画面で、本文の先頭の行にカーソルを置き、左の「+」→「目次」を押してください";
+export const TOC_MANUAL = "本文の先頭で「+」→「目次」を押してください";
 
 /**
  * 空の本文の 1 行目にカーソルを置き、「+」(メニューを開く)→「目次」を押す。
@@ -81,7 +81,7 @@ export async function insertToc(S: Selectors, ref: TocRef) {
   safeClick(item, "目次: 目次を入れる");
 
   const added = await waitUntil(() => Array.from(el.children).find((c) => !before.has(c)) ?? null, 3_000);
-  if (!added) throw new Error(`目次が入ったか確かめられませんでした。${TOC_MANUAL}`);
+  if (!added) throw new Error(`目次が入ったか確認できませんでした。${TOC_MANUAL}`);
   ref.node = added;
   return "本文の先頭";
 }
@@ -110,7 +110,7 @@ export async function pasteBody(S: Selectors, a: ArticlePayload, toc: TocRef = {
 export const URL_LINE = /^https?:\/\/\S+$/;
 /** 1 記事で埋め込みにする URL の行の上限(多すぎる記事で止まらないように) */
 export const MAX_EMBEDS = 20;
-export const EMBED_MANUAL = "note の画面で、その URL の行の末尾にカーソルを置いて Enter を押すと埋め込みになります";
+export const EMBED_MANUAL = "URL の行の末尾で Enter を押すと埋め込みになります";
 
 /** 本文の直下にある、URL だけが書かれた段落 */
 export function urlLines(body: HTMLElement): HTMLElement[] {
@@ -155,12 +155,12 @@ export async function embedUrlLines(S: Selectors) {
   }
   const problems: string[] = [];
   if (failed.length > 0) problems.push(`埋め込みにできなかった URL があります(${failed.join(", ")})`);
-  if (skipped > 0) problems.push(`URL だけの行が ${all.length} 件あり、上限の ${MAX_EMBEDS} 件を超えた ${skipped} 件は埋め込みにしていません`);
+  if (skipped > 0) problems.push(`上限の ${MAX_EMBEDS} 件を超えた ${skipped} 件は埋め込みにしていません`);
   if (problems.length > 0) throw new Error(`${problems.join("。")}。${EMBED_MANUAL}`);
   return `${urls.length} 件`;
 }
 
-export const IMAGE_MANUAL = "本文に残っている目印(［画像1・…: …］)の位置に、note の画面で画像を入れてください";
+export const IMAGE_MANUAL = "本文の目印(［画像1・…］)の位置に、画像を入れてください";
 
 /**
  * 本文の目印(［画像1・ab12: image1.png］。ab12 は変換のたびに変わる印)を 1 つずつ選び、その画像のファイルを貼り付ける(#51)。
@@ -248,7 +248,7 @@ export async function insertBodyImages(S: Selectors, a: ArticlePayload) {
       () => uploaded(before),
       limit,
       (sec, paused) =>
-        `本文の画像を入れています(${i + 1}/${images.length} 枚目: ${img.name})\nnote のアップロードを待っています… ${sec} 秒(最大 ${formatWait(limit)})${pausedNote(paused)}`,
+        `本文の画像を挿入中(${i + 1}/${images.length} 枚目)… ${sec} 秒(最大 ${formatWait(limit)})`,
     );
     if (!done) {
       // 貼り付けで入った仮の画像(まだ blob: のもの)を覚えておく。遅れて入ったかは、まずこれで確かめる
@@ -265,7 +265,7 @@ export async function insertBodyImages(S: Selectors, a: ArticlePayload) {
     const clock = activeClock();
     for (;;) {
       bannerStatus(
-        `遅れて入る画像が無いかを確かめています(${pending.length} 枚)… ${Math.floor(clock.elapsed() / 1000)} 秒(最大 ${formatWait(LATE_UPLOAD_WAIT_MS)})${pausedNote(clock.paused())}`,
+        `画像の挿入を待っています(${pending.length} 枚)… ${Math.floor(clock.elapsed() / 1000)} 秒(最大 ${formatWait(LATE_UPLOAD_WAIT_MS)})`,
       );
       for (const p of [...pending]) {
         const done = lateUploaded(p);
@@ -283,7 +283,7 @@ export async function insertBodyImages(S: Selectors, a: ArticlePayload) {
   }
 
   const problems = [...(a.imageNotes ?? [])];
-  if (captionFailed.length) problems.unshift(`キャプションを入れられなかった画像があります(${captionFailed.join(", ")}。note の画面で、画像の下の「キャプションを入力」に入れてください)`);
+  if (captionFailed.length) problems.unshift(`キャプションを入れられなかった画像があります(${captionFailed.join(", ")})`);
   const gifHint = gifUploadHint(uploadFailed);
   if (failed.length) problems.unshift(`入れられなかった画像があります(${failed.join(", ")})${gifHint ? `。${gifHint}` : ""}`);
   // 1 枚も入らなかったときは「0 枚は入れました」と出さない

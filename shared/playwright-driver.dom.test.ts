@@ -132,7 +132,7 @@ describe("Playwright 版が拡張を動かして下書きを作る(#178)", { ski
     });
     assert.equal(result.state, "ok", result.text);
     assert.equal(bannerFailed(result), false);
-    assert.match(result.text, /タイトル・本文・見出し画像を入れました/);
+    assert.match(result.text, /下書きを入れました/);
     assert.equal(await editor.locator("#title").inputValue(), "Playwright 版のテスト");
     assert.match(await editor.locator("#body").innerText(), /本文です。/);
 
