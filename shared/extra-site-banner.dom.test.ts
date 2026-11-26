@@ -76,7 +76,7 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
     assert.ok(((await b.locator(".head").boundingBox())?.height ?? 99) < 32, "見出しの行が折り返しています");
     assert.equal(await b.locator(".spin").count(), 0, "終わったあとも回る印が出ています");
     assert.equal(await b.locator("#wait").count(), 0);
-    assert.match((await b.locator("#sum").textContent()) ?? "", /下書きを入れました。[\s\S]*「下書き保存」を押してください/);
+    assert.match((await b.locator("#sum").textContent()) ?? "", /^✅ 下書きを入れました。\n「下書き保存」か「確認画面へ」を押してください。(\n|$)/);
 
     assert.equal(await b.locator("#det").isVisible(), false);
     await b.getByRole("button", { name: "詳細" }).click();
