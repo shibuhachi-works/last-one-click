@@ -12,7 +12,7 @@ export function hasGif(images: ReadonlyArray<{ name: string; mimeType?: string }
 /** 入らなかった画像に gif があれば、直し方のひとことを返す(無ければ空文字) */
 export function gifUploadHint(images: ReadonlyArray<{ name: string; mimeType?: string }>): string {
   return hasGif(images)
-    ? "gif は note が受け付けないことがあります。横幅を 620px 以下にしてください(note は 620px より広い画像を縮めますが、コマ数の多い gif では失敗することがあります)。動きを長く見せたいときは、YouTube などの URL を 1 行で書いて埋め込みにしてください"
+    ? "gif は横幅を 620px 以下にしてください"
     : "";
 }
 
