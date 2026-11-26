@@ -138,7 +138,7 @@ describe("pullApiError", () => {
   const ref = { repo: "o/r", number: 7 };
   it("回数の上限・見つからない・トークンが使えない", () => {
     assert.match(pullApiError(403, ref, true), /回数の上限/);
-    assert.match(pullApiError(404, ref, false), /見つかりません.*トークン/);
+    assert.match(pullApiError(404, ref, false), /見つかりません[\s\S]*トークン/);
     assert.match(pullApiError(401, ref, false), /トークンが使えません/);
     assert.match(pullApiError(500, ref, false), /500/);
   });

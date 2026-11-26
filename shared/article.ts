@@ -166,7 +166,7 @@ export function parsePrice(v: unknown): number | undefined {
   const n = typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v.trim()) ? Number(v.trim()) : NaN;
   if (!Number.isSafeInteger(n) || n <= 0) {
     throw new Error(
-      `price は 1 以上の整数(円)で書いてください(例: price: 300)。いまの値: ${JSON.stringify(v)}\n無料の記事にするときは、price の行を消すか、先頭に「# 」を付けてください。`,
+      `price は 1 以上の整数(円)で書いてください(例: price: 300)。いまの値: ${JSON.stringify(v)}`,
     );
   }
   return n;
@@ -312,7 +312,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
   const h1 = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const overrideTitle = override.title?.trim();
   const title = override.final ? overrideTitle : overrideTitle || fm.title || h1;
-  if (!title) throw new Error("タイトルがありません。front matter の title か、本文の最初の「# 見出し」に書いてください。");
+  if (!title) throw new Error("タイトルがありません。front matter の title に書いてください。");
 
   // 本文の # 見出しをタイトルに使ったとき(final: 欄のタイトルがその見出しのままのとき)は、本文から落とす
   const usedH1 = Boolean(h1) && !fm.title && (override.final ? title === h1 : !overrideTitle);
@@ -341,7 +341,7 @@ export async function renderArticle(markdown: string, convert: Converters, overr
   if (override.ignorePaywall) paywallAnchor = undefined;
   if (paywallAnchor !== undefined && price === undefined) {
     throw new Error(
-      `本文に「${PAYWALL_MARKER}」がありますが、price がありません。front matter に price: 300 のように価格を書くか(ポップアップでは「価格(有料)」の欄に入れる)、印の行を消してください。`,
+      `本文に「${PAYWALL_MARKER}」がありますが、price がありません。価格を入れるか、印の行を消してください。`,
     );
   }
 

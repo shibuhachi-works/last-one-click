@@ -75,7 +75,7 @@ if (isWindow) {
     renderAccountTarget();
     if (h.rewriteTabId !== undefined) void refreshRewriteTarget(h.rewriteTabId);
     if (h.skippedImageName) {
-      setStatus(`入力途中の内容を引き継ぎましたが、見出し画像「${h.skippedImageName}」は大きいので渡せませんでした。もう一度ドロップするか「画像を選ぶ」で選んでください。`, { error: true, near: "drop" });
+      setStatus(`見出し画像「${h.skippedImageName}」は大きいので引き継げませんでした。もう一度選んでください。`, { error: true, near: "drop" });
     } else if (h.markdown || h.thumbnail) {
       setStatus("入力途中の内容を引き継ぎました。", { near: "drop" });
     }
@@ -131,10 +131,9 @@ if (EXTRA_SITE_ENABLED) {
         refreshExtraSiteFillTarget();
         extraSiteOfferEl.hidden = true;
         setStatus(
-          (state.extraSiteOffer === "editor"
-            ? "今開いているサイト(library.libecity.com)でも使えるようにしました。下書きを入れる前に、今開いているページを再読み込みしてください。"
-            : "今開いているサイト(library.libecity.com)でも使えるようにしました。新規記事エディタを開いてから、もう一度ツールバーのアイコンを押してください。") +
-            "切るときは「記事の設定」の「追加の対応先(library.libecity.com)」を外してください。",
+          state.extraSiteOffer === "editor"
+            ? "使えるようにしました。ページを再読み込みしてください。"
+            : "使えるようにしました。新規記事のエディタを開いて、もう一度アイコンを押してください。",
           { near: "extraSiteOffer" },
         );
       })
@@ -146,7 +145,7 @@ if (EXTRA_SITE_ENABLED) {
       .then((granted) => {
         showExtraSiteSetting(granted);
         refreshExtraSiteFillTarget();
-        if (!granted) setStatus("追加の対応先(library.libecity.com)への許可を外しました。", { near: "extraSiteToggle" });
+        if (!granted) setStatus("許可を外しました。", { near: "extraSiteToggle" });
       })
       .catch((e) => setStatus((e as Error).message, { error: true, near: "extraSiteToggle" }));
   });
@@ -166,21 +165,22 @@ advancedToggle.addEventListener("change", async () => {
   const next = advancedToggle.checked;
   await chrome.storage.local.set({ [STORAGE.advancedMode]: next });
   applyAdvanced(next);
-  setStatus(next ? "GitHub 連携と上級者向けの設定を表示しました。" : "GitHub 連携と上級者向けの設定を隠しました。", { near: "advanced" });
+  setStatus(next ? "表示しました。" : "隠しました。", { near: "advanced" });
 });
 $("save-settings").addEventListener("click", async () => {
+  await chrome.storage.local.set({ [STORAGE.githubToken]: $<HTMLInputElement>("github-token").value.trim() });
+  setStatus("保存しました。", { near: "settings" });
+});
+$("save-selectors").addEventListener("click", async () => {
   // 記事の URL をこの欄に入れる間違いがあったので、保存する前に確かめる(保存はしない)
   const selectorsUrlProblem = checkSelectorsUrl($<HTMLInputElement>("selectors-url").value);
   if (selectorsUrlProblem) {
-    setStatus(selectorsUrlProblem, { error: true, near: "settings" });
+    setStatus(selectorsUrlProblem, { error: true, near: "selectors" });
     return;
   }
-  await chrome.storage.local.set({
-    [STORAGE.selectorsUrl]: $<HTMLInputElement>("selectors-url").value.trim(),
-    [STORAGE.githubToken]: $<HTMLInputElement>("github-token").value.trim(),
-  });
+  await chrome.storage.local.set({ [STORAGE.selectorsUrl]: $<HTMLInputElement>("selectors-url").value.trim() });
   await chrome.storage.local.remove(STORAGE.selectorsCache);
-  setStatus("設定を保存しました。", { near: "settings" });
+  setStatus("保存しました。", { near: "selectors" });
 });
 
 // 診断:アクティブなタブ(note)の content script にレポートを作らせてコピーする。
@@ -190,15 +190,15 @@ $("diagnose").addEventListener("click", async () => {
   try {
     const extraTab = await findExtraSiteTab();
     if (extraTab && !(await chromeExtraSiteApi.hasPermission())) {
-      throw new Error("library.libecity.com では、まだ使えるようにしていません。ツールバーのアイコンを押し、案内の「使えるようにする」を押してから、ページを再読み込みしてください。");
+      throw new Error("このサイトは、まだ使えるようにしていません。案内の「使えるようにする」を押してください。");
     }
     const tab = extraTab ?? (await findNoteTab());
-    if (!tab?.id) throw new Error("note のタブが見つかりません。note のエディタを開いてから押してください。");
+    if (!tab?.id) throw new Error("note のエディタを開いてから押してください。");
     const res = (await chrome.tabs.sendMessage(tab.id, { type: "diagnose" } satisfies Message).catch(() => null)) as
       | DiagnoseResponse
       | null;
     if (!res) {
-      throw new Error(extraTab ? "今開いているページを再読み込みしてから、もう一度押してください。" : "note のタブで実行してください(開いたままなら、タブを再読み込みしてから)。");
+      throw new Error(extraTab ? "今開いているページを再読み込みしてから、もう一度押してください。" : "note のタブを再読み込みしてから、もう一度押してください。");
     }
     if (!res.ok) throw new Error(res.error);
     out.value = res.report;
@@ -206,7 +206,7 @@ $("diagnose").addEventListener("click", async () => {
     // 取得と同時にコピーも試す(別ウィンドウ等でクリップボードが使えないことがあるので、失敗しても結果は欄に残す)
     const copied = await navigator.clipboard.writeText(res.report).then(() => true, () => false);
     if (copied) showCopied();
-    setStatus(copied ? "診断結果を取得してコピーしました。そのまま貼り付けて共有してください。" : "診断結果を取得しました。「コピー」を押すか、欄の中を選んでコピーしてください。", { near: "diagnose" });
+    setStatus(copied ? "コピーしました。" : "取得しました。「コピー」を押してください。", { near: "diagnose" });
   } catch (e) {
     setStatus((e as Error).message, { error: true, near: "diagnose" });
   }
@@ -220,7 +220,7 @@ $("diagnose-copy").addEventListener("click", async () => {
     out.focus();
     out.select();
   }
-  setStatus(copied ? "診断結果をコピーしました。" : "クリップボードに書けなかったので、欄の中を選択しました。Cmd+C でコピーしてください。", { error: !copied, near: "diagnose" });
+  setStatus(copied ? "コピーしました。" : "コピーできませんでした。選んだ所を Cmd+C でコピーしてください。", { error: !copied, near: "diagnose" });
 });
 
 void showAccount();
@@ -244,7 +244,7 @@ $("github-load").addEventListener("click", async () => {
       return;
     }
     for (const a of articles) githubArticleEl.append(new Option(a.label, a.url));
-    setStatus(`この PR には記事が ${articles.length} 本あります。読み込む記事を選んでください。`, { near: "github" });
+    setStatus(`記事が ${articles.length} 本あります。読み込む記事を選んでください。`, { near: "github" });
     githubPickEl.hidden = false;
   } catch (e) {
     setStatus((e as Error).message, { error: true, near: "github" });

@@ -70,7 +70,7 @@ export function renderRewrite() {
   submitNewEl.hidden = !on;
   if (on) {
     $("rewrite-target").textContent = `今開いている記事:『${state.rewriteTarget!.title || "(タイトルなし)"}』`;
-    submitHintEl.textContent = "今開いているタブに入れて止まります。中身を確かめて、よければ自分で保存してください。";
+    submitHintEl.textContent = "今開いているタブに入れます。";
   } else {
     submitHintEl.innerHTML = noteSubmitHint;
   }

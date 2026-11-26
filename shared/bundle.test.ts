@@ -9,8 +9,8 @@ describe("記事のフォルダ・ZIP の振り分け", () => {
   it("pickArticleMarkdown: md が 1 つならそれ。複数なら、いちばん浅い article.md / index.md", () => {
     assert.equal(pickArticleMarkdown(items("p/a.png", "p/post.md")).path, "p/post.md");
     assert.equal(pickArticleMarkdown(items("p/README.md", "p/article.md", "p/sub/article.md")).path, "p/article.md");
-    assert.throws(() => pickArticleMarkdown(items("p/a.md", "p/b.md")), /2 個あり、どれが記事か決められません/);
-    assert.throws(() => pickArticleMarkdown(items("p/a/article.md", "p/b/article.md")), /決められません/);
+    assert.throws(() => pickArticleMarkdown(items("p/a.md", "p/b.md")), /md ファイルが 2 個あります.*article\.md にしてください/);
+    assert.throws(() => pickArticleMarkdown(items("p/a/article.md", "p/b/article.md")), /md ファイルが 2 個あります/);
     assert.throws(() => pickArticleMarkdown(items("p/a.png")), /md ファイルが入っていません/);
   });
 

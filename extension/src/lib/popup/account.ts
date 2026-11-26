@@ -28,7 +28,7 @@ export async function showExtraSiteAccount(): Promise<void> {
   if (!account || (!account.name && !account.iconUrl)) return;
   const el = $<HTMLParagraphElement>("extra-site-account");
   el.replaceChildren(...accountRow(EXTRA_SITE_HOST, account.iconUrl, account.name));
-  el.title = `お使いの Chrome で ${EXTRA_SITE_HOST} にログインしているアカウントです。違っていたら、${EXTRA_SITE_HOST} でログインし直してから入れてください。`;
+  el.title = `${EXTRA_SITE_HOST} でログイン中のアカウントです。`;
   state.extraSiteAccountShown = true;
   applyDestination();
 }
@@ -81,7 +81,7 @@ export async function showAccount(): Promise<void> {
   renderAccountTarget();
   const el = $<HTMLParagraphElement>("account");
   el.replaceChildren(...accountRow("note.com", account.iconUrl, account.name, account.id && account.id !== account.name ? `(@${account.id})` : undefined));
-  el.title = "お使いの Chrome で note にログインしているアカウントです。違っていたら、note でアカウントを切り替えてから作成してください。";
+  el.title = "note でログイン中のアカウントです。";
   el.hidden = false;
 }
 
@@ -109,6 +109,6 @@ export function renderAccountTarget(): void {
   el.textContent = !want
     ? ""
     : mismatch
-      ? `⚠️ ログイン中のアカウント(${id})が、記事の指定(${want})と違います。note でアカウントを切り替えてから作成してください。`
+      ? `⚠️ ログイン中のアカウント(${id})が、記事の指定(${want})と違います。`
       : `記事の指定: ${want}`;
 }

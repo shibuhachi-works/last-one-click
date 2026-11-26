@@ -9,7 +9,7 @@
 export const DEFAULT_SELECTORS_URL = "https://raw.githubusercontent.com/shibuhachi-works/last-one-click/main/selectors/note.json";
 
 export const SELECTORS_URL_ARTICLE_MESSAGE =
-  "「selectors/note.json の URL」の欄は、note の画面の定義ファイル(selectors の .json)の URL です。記事の URL は、上の「GitHub から読み込む」に貼ってください。";
+  "記事の URL は「GitHub から読み込む」に貼ってください。";
 
 /** 問題がなければ null、あれば利用者に見せる文言を返す */
 export function checkSelectorsUrl(input: string): string | null {
@@ -22,12 +22,12 @@ export function checkSelectorsUrl(input: string): string | null {
   } catch {
     return "URL の形になっていません。空にすると既定値を使います。";
   }
-  if (u.protocol !== "https:") return "https:// で始まる URL を入れてください。空にすると既定値を使います。";
+  if (u.protocol !== "https:") return "https:// で始まる URL を入れてください。";
 
   const path = u.pathname.toLowerCase();
   if (!path.endsWith(".json")) return SELECTORS_URL_ARTICLE_MESSAGE;
   if (u.hostname === "github.com") {
-    return "github.com のページの URL では読めません。raw.githubusercontent.com の URL(GitHub の画面の「Raw」を開いたときの URL)を入れてください。";
+    return "raw.githubusercontent.com の URL(「Raw」を開いた URL)を入れてください。";
   }
   return null;
 }

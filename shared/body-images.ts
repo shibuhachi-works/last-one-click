@@ -121,7 +121,7 @@ export async function collectBodyImageFiles<F extends { size: number; type: stri
   const images: Array<P & { marker: string; caption?: string }> = [];
   const notes: string[] = [];
   if (refs.length === 0) return { images, imageNotes: notes };
-  if (refs.length > MAX_BODY_IMAGES) notes.push(`本文の画像が ${refs.length} 枚あり、上限の ${MAX_BODY_IMAGES} 枚を超えた ${refs.length - MAX_BODY_IMAGES} 枚は入れていません`);
+  if (refs.length > MAX_BODY_IMAGES) notes.push(`上限の ${MAX_BODY_IMAGES} 枚を超えた ${refs.length - MAX_BODY_IMAGES} 枚は入れていません`);
   const cache = new Map<string, F | null>();
   let total = 0;
   const missing: string[] = [];
@@ -144,6 +144,6 @@ export async function collectBodyImageFiles<F extends { size: number; type: stri
     images.push({ marker: ref.marker, ...(await toPayload(file)), ...(ref.caption ? { caption: ref.caption } : {}) });
   }
   if (missing.length) notes.push(`見つからなかった画像があります(${missing.join(", ")})`);
-  if (tooBig.length) notes.push(`画像の合計が大きすぎるため入れていない画像があります(${tooBig.join(", ")}。本文・見出し画像と合わせて約 ${Math.floor(MAX_PENDING_BYTES / 1024 / 1024 / (4 / 3))}MB まで)`);
+  if (tooBig.length) notes.push(`大きすぎて入れていない画像があります(${tooBig.join(", ")}。合計 約 ${Math.floor(MAX_PENDING_BYTES / 1024 / 1024 / (4 / 3))}MB まで)`);
   return { images, imageNotes: notes };
 }

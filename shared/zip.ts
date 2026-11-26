@@ -30,7 +30,7 @@ export async function readZip(buf: Uint8Array, keep: (path: string) => boolean =
   const count = view.getUint16(eocd + 10, true);
   const cdSize = view.getUint32(eocd + 12, true);
   const cdOffset = view.getUint32(eocd + 16, true);
-  if (count === 0xffff || cdOffset === 0xffffffff) throw new Error("ドロップした ZIP は ZIP64 の形式なので読めません。フォルダのままドロップしてください。");
+  if (count === 0xffff || cdOffset === 0xffffffff) throw new Error("この ZIP は読めません。フォルダのままドロップしてください。");
   if (count > MAX_ZIP_ENTRIES) throw new Error(`ZIP の中のファイルが多すぎます(${count} 個。${MAX_ZIP_ENTRIES} 個まで)。`);
   if (cdOffset + cdSize > buf.byteLength) throw new Error("ZIP ファイルが壊れています。");
 
@@ -64,7 +64,7 @@ export async function readZip(buf: Uint8Array, keep: (path: string) => boolean =
     let data: Uint8Array;
     if (method === 0) data = raw.slice();
     else if (method === 8) data = await inflateRaw(raw, size);
-    else throw new Error(`ZIP の中の ${baseName(path)} は読めない圧縮方式です。フォルダのままドロップしてください。`);
+    else throw new Error(`ZIP の中の ${baseName(path)} を読めません。フォルダのままドロップしてください。`);
     // 長さが同じまま中身が壊れていても気づけるように、記録された CRC-32 と比べる
     if (data.byteLength !== size || crc32(data) !== crc) throw new Error(`ZIP ファイルが壊れています(${baseName(path)})。`);
     out.push({ path, data });
