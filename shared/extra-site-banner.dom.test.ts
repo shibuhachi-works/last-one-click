@@ -81,7 +81,8 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
     assert.equal(await b.locator("#det").isVisible(), false);
     await b.getByRole("button", { name: "詳細" }).click();
     assert.equal(await b.locator("#det").isVisible(), true);
-    const colors = await b.locator("#det div").evaluateAll((ds) => ds.map((d) => (d as HTMLElement).style.color));
+    // ✓・⚠・✗ の行だけを比べる(入れていない欄の行などは除く)
+    const colors = await b.locator("#det div").evaluateAll((ds) => ds.filter((d) => /^[✓⚠✗]/.test(d.textContent ?? "")).map((d) => (d as HTMLElement).style.color));
     assert.equal(new Set(colors).size, 3, "✓・⚠・✗ の行が色分けされていません");
 
     await b.getByRole("button", { name: "知らせを閉じる" }).click();

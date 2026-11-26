@@ -1,10 +1,10 @@
 // 追加の対応先に渡す記事と、入らない書き方の知らせを組み立てる(popup.ts から分けた。動きは変えていない)。
 import type { buildArticle } from "../article";
-import { EXTRA_SITE_HOST, extraSiteUnsupportedNotes } from "../../../../shared/extra-site";
+import { extraSiteUnsupportedNotes } from "../../../../shared/extra-site";
 
 /** 入らない書き方の知らせの文(無ければ空) */
 export function notesText(notes: string[]): string {
-  return notes.length ? `\n\n${EXTRA_SITE_HOST} のエディタでは入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : "";
+  return notes.length ? `\n\n入らない書き方:\n${notes.map((n) => `・${n}`).join("\n")}` : "";
 }
 
 /** 追加の対応先に渡す記事と、入らない書き方の知らせ */
