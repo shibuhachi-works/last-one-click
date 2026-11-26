@@ -140,6 +140,9 @@ describe("pullApiError", () => {
     assert.match(pullApiError(403, ref, true), /回数の上限/);
     assert.match(pullApiError(404, ref, false), /見つかりません.*トークン/);
     assert.match(pullApiError(401, ref, false), /トークンが使えません/);
+    // 回数の上限でない 403 は、PR を読む権限が足りないとき
+    assert.match(pullApiError(403, ref, false), /o\/r#7.*Pull requests: Read/);
+    assert.doesNotMatch(pullApiError(403, ref, false), /回数の上限/);
     assert.match(pullApiError(500, ref, false), /500/);
   });
 });

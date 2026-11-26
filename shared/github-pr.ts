@@ -124,5 +124,9 @@ export function pullApiError(status: number, ref: PullRef, rateLimited: boolean)
   if (rateLimited) return "GitHub の API の回数の上限に達しました。しばらく待つか、GitHub トークンを入れてください。";
   if (status === 404) return `PR が見つかりません: ${ref.repo}#${ref.number}(非公開のリポジトリなら、GitHub トークンを入れてください)`;
   if (status === 401) return "GitHub トークンが使えません。設定のトークンを確かめてください。";
+  // トークンは通ったが、PR を読む権限が無い(記事を読む「Contents: Read」だけのトークンなど)。回数の上限は上で別に知らせる
+  if (status === 403) {
+    return `GitHub トークンで、この PR を読めません: ${ref.repo}#${ref.number}。PR を読むには、トークンに「Pull requests: Read」の権限が要ります。Fine-grained トークンなら、GitHub の Settings → Developer settings → Personal access tokens でトークンを開き、Repository permissions の Pull requests を Read-only にしてください(トークンを入れ直す必要はありません)。`;
+  }
   return `PR を読めませんでした(${status}): ${ref.repo}#${ref.number}`;
 }
