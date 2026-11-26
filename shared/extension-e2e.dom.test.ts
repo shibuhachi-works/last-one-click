@@ -593,7 +593,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         assert.equal(await banner.locator(".spin").count(), 2, "回る印が出ていません");
         assert.match((await banner.locator("b").first().textContent()) ?? "", /Last One Click for note$/, "バナーの見出しに入れる先が出ていません");
         // 進めているあいだは、操作を控えてもらうお願いを出す
-        assert.match((await banner.locator("#wait").textContent()) ?? "", /^処理中です。編集画面は操作せずにお待ちください。ダイアログが出たら「OK」を押してください。$/);
+        assert.match((await banner.locator("#wait").textContent()) ?? "", /^処理中です。編集画面は操作せずにお待ちください。\nダイアログが出たら「OK」を押してください。$/);
         // たたんでも、秒数が進むあいだ、たたんだままになっている(バナーを作り直さない)
         await banner.getByRole("button", { name: "バナーをたたむ" }).click();
         const first = await seconds();

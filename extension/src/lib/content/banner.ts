@@ -58,7 +58,7 @@ export function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "i
   // (この関数は main() から最初の await より前に呼ばれるので、文はファイルの先頭の const にせず、ここに置く)
   // バナーの見出し。どのサイト向けの知らせかが分かるように、入れる先を添える(waitNotice と同じ理由で、ここに置く)
   const BANNER_TITLE = "Last One Click for note";
-  const waitNotice = "処理中です。編集画面は操作せずにお待ちください。ダイアログが出たら「OK」を押してください。";
+  const waitNotice = "処理中です。編集画面は操作せずにお待ちください。\nダイアログが出たら「OK」を押してください。";
   const spin = (size: number) =>
     working
       ? `<span class="spin" aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;margin-right:6px;vertical-align:-1px;
@@ -70,7 +70,7 @@ export function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "i
       border-radius:10px;background:${colors[kind]};color:#fff;font:14px/1.6 system-ui,sans-serif;
       box-shadow:0 4px 16px rgba(0,0,0,.25)">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><b>${spin(12)}${BANNER_TITLE}</b><button type="button" id="min" aria-label="バナーをたたむ" style="${link}">たたむ</button></div>
-      ${working ? `<div id="wait" style="margin-bottom:6px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.18);font-size:13px">${escapeHtml(waitNotice)}</div>` : ""}
+      ${working ? `<div id="wait" style="white-space:pre-line;margin-bottom:6px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.18);font-size:13px">${escapeHtml(waitNotice)}</div>` : ""}
       <div id="sum" style="white-space:pre-wrap">${escapeHtml(summary ?? "")}</div>
       ${account ? `<div id="account" style="margin-top:6px;display:flex;align-items:center;gap:6px;font-size:13px"></div>` : ""}
       ${details ? `<div id="det" hidden style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.3);font-size:13px;opacity:.95;white-space:pre-wrap">${escapeHtml(details)}</div>` : ""}
