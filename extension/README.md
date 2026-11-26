@@ -124,7 +124,7 @@ note の DOM が変わる
 既定ではこのリポジトリの `main` の `selectors/note.json` を読みます。フォークした場合は `src/lib/selectors.ts` の `DEFAULT_SELECTORS_URL` を変えるか、ポップアップの「拡張機能の設定」で URL を指定してください。
 リポジトリが private の間は、「拡張機能の設定」(上級者向けを表示した状態)に GitHub トークン(`Contents: Read`)を入れておくと取得できます。入れていなければ同梱コピーにフォールバックします。
 
-セレクタの差し替えで済まない変更(工程が増えた、入力方式が変わった等)は `src/content.ts` の修正と再ビルド・再配布が必要です。
+セレクタの差し替えで済まない変更(工程が増えた、入力方式が変わった等)は `src/content.ts`(工程の中身は `src/lib/content/`)の修正と再ビルド・再配布が必要です。
 壊れた箇所の調査は、同じ `selectors/note.json` を読む Playwright 版(`../tools/draft.ts`)のほうが楽です。
 
 ## ファイル構成
@@ -137,8 +137,8 @@ package.mjs            # dist/ を ZIP にする(ストアに上げる用)
 icons/                 # icon.svg(全サイズ共通の元)と PNG(render.mjs で生成)
 store/                 # ストアの掲載文(listing.md)・スクリーンショット・生成スクリプト
 src/
-  popup.html/css/ts    # 入力 UI。記事を組み立てて chrome.storage に置き、note を開く
-  content.ts           # note.com のタブで動く。pending の記事をエディタに入力して止まる
+  popup.html/css/ts    # 入力 UI。記事を組み立てて chrome.storage に置き、note を開く(開いている記事の編集画面なら、そのタブを書き換える)
+  content.ts           # note.com のタブで動く。pending の記事をエディタに入力して止まる(工程の順番と、ポップアップからの知らせの受け口)
   background.ts        # service worker。content script に自分のタブ ID を教える(ポップアップが開いたタブでだけ動かすため)。追加の対応先の登録を許可に合わせる(開発用のビルドだけ。shared/extra-site.ts の EXTRA_SITE_ENABLED)
   extra-site.ts        # 追加の対応先のページで動く content script(開発用のビルドだけ。許可されたときだけ登録する。診断のレポートを返し、ポップアップから受けた記事をこのタブに入れる)
   lib/
@@ -148,6 +148,16 @@ src/
     diagnose-extra-site.ts # 追加の対応先のエディタの診断(読むだけ。中身・名前・ID は出さない)
     extra-site-fill.ts # 追加の対応先の編集画面に、記事を下書きとして入れる(「確認画面へ」「下書き保存」は押さない)
     types.ts           # 型と storage キー
+    content/           # content.ts の中身を役割ごとに分けたもの
+      dom.ts           #   DOM を探す・待つ・入れるための小さな道具
+      banner.ts        #   右下のバナーと、工程の結果の記録(step・StopError)
+      editor-steps.ts  #   編集画面の中の工程(タイトル・目次・本文・埋め込み・本文の画像・本文を消す)
+      eyecatch.ts      #   見出し画像の工程
+      publish-settings.ts #  公開設定の画面の工程(ハッシュタグ・マガジン・有料・価格・有料ライン。「投稿する」は押さない)
+    popup/             # popup.ts から切り出した、状態を持たない部分
+      dom.ts           #   要素を ID で取る・知らせを出す・アカウントの 1 行
+      zip.ts           #   ドロップされた ZIP を読む
+      extra-site-message.ts # 追加の対応先に渡す記事と、入らない書き方の知らせ
 ../shared/                  # Playwright 版と共通の純粋ロジック(front matter、URL、安全装置 など)
 ../selectors/note.json      # note のセレクタ(Playwright 版と共有)
 ```
