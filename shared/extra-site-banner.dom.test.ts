@@ -45,7 +45,7 @@ describe("追加の対応先のページの知らせ (DOM)", () => {
     await page.evaluate(() => (globalThis as any).__show("下書きを入れています…"));
     const b = page.locator(host);
     assert.equal(await b.locator(".spin").count(), 2);
-    assert.match((await b.locator("#wait").textContent()) ?? "", /library\.libecity\.com の編集画面は操作せずにお待ちください/);
+    assert.match((await b.locator("#wait").textContent()) ?? "", /^処理中です。編集画面は操作せずにお待ちください。$/);
     assert.equal(await b.locator("#chip").textContent(), "入力中");
     assert.equal(await b.locator(".title").textContent(), "Last One Click for library.libecity.com");
     // 見出し・印・「たたむ」が 1 行に収まる(折り返すと行の高さが 2 行分になる)

@@ -121,7 +121,7 @@ export function showBanner(text: string, kind: BannerKind = "info") {
   inner.append(head);
 
   if (working) {
-    const wait = el("div", { id: "wait" }, `処理中です。終わるまで、${EXTRA_SITE_HOST} の編集画面は操作せずにお待ちください`);
+    const wait = el("div", { id: "wait" }, "処理中です。編集画面は操作せずにお待ちください。");
     wait.style.background = k.soft;
     inner.append(wait);
   }
