@@ -109,6 +109,6 @@ export function renderAccountTarget(): void {
   el.textContent = !want
     ? ""
     : mismatch
-      ? `⚠️ ログイン中のアカウント(${id})が、記事の指定(${want})と違います。`
-      : `記事の指定: ${want}`;
+      ? `⚠️ ログイン中のアカウント(${id})が、記事の設定(${want})と違います。`
+      : `記事の設定: ${want}`;
 }

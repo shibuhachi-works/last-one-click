@@ -1019,12 +1019,12 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(md) });
       const target = popup.locator("#account-target");
       await target.waitFor({ state: "visible" });
-      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。");
+      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の設定(other_writer)と違います。");
       assert.equal(await target.evaluate((el) => el.classList.contains("mismatch")), true);
       assert.equal(await popup.locator("#submit").isDisabled(), false);
       // 同じアカウントの記事を読み直すと、「記事の指定」だけに戻る
       await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(withAccount("sample_writer")) });
-      await popup.waitForFunction(() => document.getElementById("account-target")?.textContent === "記事の指定: sample_writer", null, { timeout: 5_000 });
+      await popup.waitForFunction(() => document.getElementById("account-target")?.textContent === "記事の設定: sample_writer", null, { timeout: 5_000 });
       assert.equal(await target.evaluate((el) => el.classList.contains("mismatch")), false);
       // note_account の無い記事では出さない
       await popup.setInputFiles("#markdown-file", { name: "article.md", mimeType: "text/markdown", buffer: Buffer.from(ARTICLE) });
@@ -1049,7 +1049,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       const target = popup.locator("#account-target");
       await target.waitFor({ state: "visible", timeout: 10_000 });
       await popup.waitForFunction(() => document.getElementById("account-target")?.classList.contains("mismatch"), null, { timeout: 10_000 });
-      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。");
+      assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の設定(other_writer)と違います。");
       await popup.close();
     });
   });
