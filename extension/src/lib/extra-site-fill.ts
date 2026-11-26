@@ -519,7 +519,7 @@ export function resultMessage(r: FillResult): { text: string; kind: "ok" | "warn
     ? "✅ 下書きを入れました。"
     : "⚠️ 一部は入れられませんでした。足りないものは画面で入れてください。";
   return {
-    text: `${[head, "中身を確かめてから、画面の「下書き保存」を押してください。拡張は「下書き保存」も「確認画面へ」も押しません。", notTouched(r)].filter(Boolean).join("\n")}\n\n${r.lines.join("\n")}`,
+    text: `${[head, "「下書き保存」か「確認画面へ」を押してください。", notTouched(r)].filter(Boolean).join("\n")}\n\n${r.lines.join("\n")}`,
     kind: warn ? "warn" : "ok",
   };
 }
