@@ -110,6 +110,7 @@ magazine: マガジン名
       <label>selectors/note.json の URL<input id="selectors-url" type="url" placeholder="(既定値を使う)"></label>
       <p class="hint">note の画面の定義ファイルの場所です。記事の URL ではありません(記事は「GitHub から読み込む」に貼ります)。普段は空のままにしてください。</p>
       <label>GitHub トークン(private リポジトリのみ)<input id="github-token" type="password" autocomplete="off"></label>
+      <p class="hint">記事を読むには「Contents: Read」、PR の URL から読むには「Pull requests: Read」も要ります。</p>
       <button id="save-settings" type="button">保存</button>
       <p id="status-settings" class="status" hidden></p>
       <p class="hint">トークンは Last One Click の中(chrome.storage.local)にだけ保存され、GitHub 以外には送られません。</p>
