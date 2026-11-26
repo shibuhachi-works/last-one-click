@@ -58,7 +58,7 @@ export function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "i
   // (この関数は main() から最初の await より前に呼ばれるので、文はファイルの先頭の const にせず、ここに置く)
   // バナーの見出し。どのサイト向けの知らせかが分かるように、入れる先を添える(waitNotice と同じ理由で、ここに置く)
   const BANNER_TITLE = "Last One Click for note";
-  const waitNotice = "処理中です。終わるまで、note の編集画面は操作せずにお待ちください(note のダイアログが出たときは「OK」を押してください)";
+  const waitNotice = "処理中です。編集画面は操作せずにお待ちください。ダイアログが出たら「OK」を押してください。";
   const spin = (size: number) =>
     working
       ? `<span class="spin" aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;margin-right:6px;vertical-align:-1px;
