@@ -55,7 +55,9 @@ export async function launchWithExtension(
   // opts はテスト(shared/playwright-driver.dom.test.ts)のためのもの。ふだんは .profile/ を使い、画面を出す
   const ctx = await chromium.launchPersistentContext(opts.profileDir ?? PROFILE_DIR, {
     headless: opts.headless ?? false,
-    ...(opts.executablePath ? { executablePath: opts.executablePath } : {}),
+    // 拡張を読み込めるのは Chromium の本体だけ(画面を出さないときの既定の軽い版は、拡張を読み込めない)。
+    // shared/extension-e2e.dom.test.ts と同じく、実行ファイルを指定しないときは channel: "chromium" にする
+    ...(opts.executablePath ? { executablePath: opts.executablePath } : { channel: "chromium" }),
     viewport: { width: 1280, height: 900 },
     locale: "ja-JP",
     // 自動操作の検知を外す指定(--disable-blink-features=AutomationControlled)は入れない(tools/lib/browser.ts と同じ理由)
