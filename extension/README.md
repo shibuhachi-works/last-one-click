@@ -154,8 +154,16 @@ src/
       editor-steps.ts  #   編集画面の中の工程(タイトル・目次・本文・埋め込み・本文の画像・本文を消す)
       eyecatch.ts      #   見出し画像の工程
       publish-settings.ts #  公開設定の画面の工程(ハッシュタグ・マガジン・有料・価格・有料ライン。「投稿する」は押さない)
-    popup/             # popup.ts から切り出した、状態を持たない部分
+    popup/             # popup.ts の中身を役割ごとに分けたもの(popup.ts には、ボタンなどへの登録と開いたときの処理だけを残す)
+      state.ts         #   開いているあいだだけ持つ状態(読み込んだ取得元・本文の画像・入れる先など)
+      elements.ts      #   画面の要素と、決まった値
       dom.ts           #   要素を ID で取る・知らせを出す・アカウントの 1 行
+      destination.ts   #   入れる先(新しいタブ・開いている記事の書き換え・追加の対応先)と、ボタンの文字・押せる設定
+      account.ts       #   ログイン中のアカウントと、記事の指定(note_account)の表示
+      fields.ts        #   「② 入れる内容を確かめる」の欄と、受け取ったファイルの表示
+      sources.ts       #   記事を受け取る(GitHub・md ファイル・ドロップ・フォルダや ZIP)
+      submit.ts        #   下書きを作るボタンの中身(組み立てて送る)
+      settings.ts      #   記事の設定・上級者向けの表示・診断のコピーの表示
       zip.ts           #   ドロップされた ZIP を読む
       extra-site-message.ts # 追加の対応先に渡す記事と、入らない書き方の知らせ
 ../shared/                  # Playwright 版と共通の純粋ロジック(front matter、URL、安全装置 など)

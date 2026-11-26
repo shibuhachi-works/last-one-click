@@ -1,11 +1,19 @@
-// 拡張のポップアップの案内(popup.ts の文)に出てくるボタンの名前が、popup.html に実在するボタンの文字と一致するかを確かめる。
+// 拡張のポップアップの案内(popup.ts と lib/popup/ の文)に出てくるボタンの名前が、popup.html に実在するボタンの文字と一致するかを確かめる。
 // ボタンの名前を変えたのに、案内の文だけ古い名前(例「組み立てる」)のまま残るのを防ぐ。
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const html = readFileSync(new URL("../extension/src/popup.html", import.meta.url), "utf8");
-const ts = readFileSync(new URL("../extension/src/popup.ts", import.meta.url), "utf8");
+// ポップアップの文は popup.ts と、そこから分けた lib/popup/ にある
+const popupLib = new URL("../extension/src/lib/popup/", import.meta.url);
+const ts = [
+  readFileSync(new URL("../extension/src/popup.ts", import.meta.url), "utf8"),
+  ...readdirSync(popupLib)
+    .filter((f) => f.endsWith(".ts"))
+    .sort()
+    .map((f) => readFileSync(new URL(f, popupLib), "utf8")),
+].join("\n");
 
 /** popup.html のボタンの文字(前後の空白は除く) */
 const buttonLabels = new Set(Array.from(html.matchAll(/<button\b[^>]*>([^<]+)<\/button>/g), (m) => m[1].trim()));
