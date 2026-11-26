@@ -68,9 +68,17 @@ try {
 }
 
 const { ctx, extensionId } = await launchWithExtension();
-/** 失敗で終わる(ブラウザは閉じる) */
+/** 拡張の設定を元に戻す(変えたあとで決まる。戻したら空にする) */
+let restoreStorage: (() => Promise<void>) | null = null;
+async function restore(): Promise<void> {
+  const r = restoreStorage;
+  restoreStorage = null;
+  await r?.().catch(() => {});
+}
+/** 失敗で終わる(拡張の設定を戻し、ブラウザは閉じる) */
 async function fail(message: string, code = 1): Promise<never> {
   console.error(message);
+  await restore();
   await ctx.close().catch(() => {});
   process.exit(code);
 }
@@ -79,17 +87,20 @@ async function fail(message: string, code = 1): Promise<never> {
 // 1. 拡張のポップアップに記事を読み込み、下書きを作るボタンを押す
 
 const popup = await openPopup(ctx, extensionId);
-// この実行のあいだだけ、拡張の設定を変える(終わったら戻す):
+// この実行のあいだだけ、拡張の設定を変える(note のタブの拡張が入れ終わってから戻す。それまでは note のタブの拡張も同じ設定を読む):
 // - 「GitHub から読み込む」を出す(上級者向けの表示)
 // - 引数なしのときは、本文の確認を飛ばして公開設定まで進む(人が最後に確かめる)。--save / --hold は本文のところで止める
 // - 最後のクレジット(「Last One Click で下書きしました」と #LastOneClick)は、LOC_CREDIT_LINK=1 のときだけ入れる
 //   (Playwright 版は今まで入れていなかったので、黙って記事の内容を変えないように)
-// - GitHub トークン(環境変数 GITHUB_TOKEN)は、非公開のリポジトリの記事を読むときに使い、読み終わったら消す
-const restoreStorage = await overrideExtensionStorage(popup, {
+// - GitHub トークン(環境変数 GITHUB_TOKEN)は、非公開のリポジトリの記事を読むときに使い、終わったら消す
+// - セレクタの取得先は既定の URL にする(.profile/ の拡張で別の URL を設定していても、手元の selectors/note.json を使うため。
+//   tools/lib/extension.ts の route は既定の URL を差し替える)
+restoreStorage = await overrideExtensionStorage(popup, {
   [STORAGE.advancedMode]: true,
   [STORAGE.skipBodyReview]: !SAVE && !HOLD,
   [STORAGE.creditLink]: process.env.LOC_CREDIT_LINK === "1",
   [STORAGE.githubToken]: process.env.GITHUB_TOKEN || undefined,
+  [STORAGE.selectorsUrl]: undefined,
 });
 // セレクタのキャッシュは消すだけで、戻さない。拡張はこのあと手元の selectors/note.json を読んでキャッシュし直し、
 // note のタブの拡張もそれを使う(戻すと、note のタブが前の実行のキャッシュを読むことがある。tools/lib/extension.ts の route)
@@ -99,11 +110,8 @@ try {
   await popup.reload();
   editor = await submitFromPopup(popup, input, safeClick);
 } catch (e) {
-  await restoreStorage().catch(() => {});
   await fail((e as Error).message);
 }
-await restoreStorage();
-await popup.close();
 
 // ---------------------------------------------------------------------------
 // 2. note の画面で、拡張が入れ終わるのを待つ
@@ -132,6 +140,9 @@ try {
   await fail((e as Error).message);
 }
 printBanner(result!);
+// note のタブの拡張がセレクタを読み、入れ終えたので、拡張の設定を戻す(--hold の公開設定は、読んだセレクタのまま進む)
+await restore();
+await popup.close().catch(() => {});
 
 if (SAVE || HOLD) {
   // 入れる途中で失敗した工程があれば、保存せずに失敗で終わる(見張り役が知らせて、次の回でやり直す)

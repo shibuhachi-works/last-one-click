@@ -1,17 +1,31 @@
 // 公開設定の画面で入れる工程: ハッシュタグ・マガジン・有料・価格・有料ライン(content.ts から分けた。動きは変えていない)。「投稿する」は押さない。
 import { findMagazineRowButton } from "../../../../shared/magazine-row";
 import { findPaidControls } from "../../../../shared/paid-price";
+import { findEmptyAlert } from "../../../../shared/empty-alert";
 import { findPaywallTarget, paywallFailureMessage, type PaywallTarget } from "../../../../shared/paywall";
 import { safeClick } from "../safe-click";
 import { type ArticlePayload, type Selectors } from "../types";
 import { waitFor, waitUntil, findByText, isToggledOn, isSelected, setNativeValue, sleep } from "./dom";
 
 export async function fillPublishSettings(S: Selectors, a: ArticlePayload) {
-  // 公開設定がまだ開いていなければ「公開に進む」を押す(「もう一度入れる」を公開設定の画面で押した場合は開いている)
-  if (!document.querySelector(S.publishSettings.hashtagInput)) {
+  // 公開設定がまだ開いていなければ「公開に進む」を押す(「もう一度入れる」を公開設定の画面で押した場合は開いている)。
+  // 実機では、下書き保存のすぐあとに押すと、タイトルと本文が入っているのに「タイトル、本文を入力してください」が出ることがある
+  // (閉じて押し直すと開く)。そのときは閉じて、待ってから押し直す(3 回まで。#178 で Playwright 版から移した)
+  for (let attempt = 1; !document.querySelector(S.publishSettings.hashtagInput); attempt++) {
     const open = findByText("button", S.openPublishSettingsText);
     if (!open) throw new Error("「公開に進む」ボタンが見つかりません。");
     safeClick(open, "fillPublishSettings.open");
+    const result = await waitUntil(
+      () => (document.querySelector(S.publishSettings.hashtagInput) ? "open" : findEmptyAlert().alert ? "empty" : null),
+      10_000,
+    );
+    if (result !== "empty") break;
+    if (attempt >= 3) throw new Error("「公開に進む」を 3 回押しましたが、note が「タイトル、本文を入力してください」と出して進めませんでした。");
+    const { alert, close } = findEmptyAlert();
+    if (close) safeClick(close, "fillPublishSettings.closeEmptyAlert");
+    else (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    await waitUntil(() => (alert?.isConnected && alert.offsetParent !== null ? null : true), 5_000);
+    await sleep(3_000 * attempt);
   }
 
   const tagInput = await waitFor<HTMLInputElement>(S.publishSettings.hashtagInput, 10_000);
