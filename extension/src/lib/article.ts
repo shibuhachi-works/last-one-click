@@ -5,6 +5,7 @@ import { Marked, marked } from "marked";
 import { parse as parseYaml } from "yaml";
 import { checkTarget, renderArticle, resolveArticleUrl, type Destination } from "../../../shared/article";
 import { decideGitHubFetch, resolveThumbnailUrl } from "../../../shared/github-url";
+import { findPullArticles, isPullApiUrl, pullApiError, type PullRef } from "../../../shared/github-pr";
 import { CJK_EMPHASIS_EXTENSIONS } from "../../../shared/cjk-emphasis";
 import { appendCreditHtml, withCreditHashtag } from "../../../shared/credit";
 import { MAX_PENDING_BYTES, collectBodyImageFiles, findDroppedImage, imageFileName, makeImageRenderer, makeMarkerTag, localImageNames as sharedLocalImageNames, localImageSrcs as sharedLocalImageSrcs, type BodyImageRef } from "../../../shared/body-images";
@@ -154,4 +155,20 @@ export async function fetchGitHub(url: string, scopeBase?: string): Promise<Resp
 export async function fetchMarkdownFromGitHub(input: string): Promise<{ markdown: string; baseUrl: string }> {
   const { mdUrl, baseUrl } = resolveArticleUrl(input);
   return { markdown: await (await fetchGitHub(mdUrl)).text(), baseUrl };
+}
+
+/**
+ * PR の記事を探す(#172)。送り先は api.github.com の PR の問い合わせだけ(isPullApiUrl)。
+ * トークンを入れていれば付ける(非公開のリポジトリの PR を読むため)
+ */
+export async function findPullArticlesOnGitHub(ref: PullRef): ReturnType<typeof findPullArticles> {
+  const { [STORAGE.githubToken]: token } = await chrome.storage.local.get(STORAGE.githubToken);
+  return findPullArticles(ref, async (url) => {
+    if (!isPullApiUrl(url)) throw new Error(`GitHub の PR の問い合わせ以外には送りません: ${url}`);
+    const headers: Record<string, string> = { Accept: "application/vnd.github+json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(url, { headers, credentials: "omit" });
+    if (!res.ok) throw new Error(pullApiError(res.status, ref, res.headers.get("x-ratelimit-remaining") === "0"));
+    return res.json();
+  });
 }

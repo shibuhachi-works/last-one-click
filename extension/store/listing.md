@@ -75,7 +75,7 @@ Last One Click を使って書かれた記事の中から、note のマガジン
 ・サーバーを持ちません
 　記事はあなたの Chrome の中に一時的に置かれ、note 以外には送られません
 ・GitHub のトークンは、上級者向けの設定で任意で入れられます
-　入れた場合は、GitHub(raw.githubusercontent.com)から記事やセレクタ定義を読むときに付けて送ります
+　入れた場合は、GitHub(raw.githubusercontent.com)から記事やセレクタ定義を読むときと、PR の URL から記事を探すとき(api.github.com)に付けて送ります
 　GitHub 以外には送りません
 
 ■ 記事ファイル(md)の書き方

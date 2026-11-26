@@ -6,9 +6,10 @@ import { sameNoteAccount } from "../../shared/note-account";
 import { parseFrontMatter, targetProblem, type Destination } from "../../shared/article";
 import { checkSelectorsUrl } from "../../shared/selectors-url";
 import { articleOptionsLabel } from "../../shared/article-options";
+import { parsePullUrl } from "../../shared/github-pr";
 import { collectFolderFiles, findRelative, findThumbnail, mimeTypeOf, pickArticleMarkdown, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile, readZip } from "../../shared/zip";
-import { buildArticle, fetchMarkdownFromGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
+import { buildArticle, fetchMarkdownFromGitHub, findPullArticlesOnGitHub, fileToPayload, localImageNames, localImageSrcs, payloadToFile } from "./lib/article";
 import {
   EXTRA_SITE_ENABLED,
   EXTRA_SITE_HOST,
@@ -579,17 +580,55 @@ function renderAccountTarget(): void {
       : `記事の指定: ${want}`;
 }
 
-// GitHub から md を読み込んで textarea に入れる
+// GitHub から md を読み込んで textarea に入れる。
+// PR の URL(…/pull/123)なら、その PR で変わった article.md を探し、最新のコミットの中身を読む(#172)。
+// 記事が 2 本以上なら、選ぶ欄を出して選んでもらう
+const githubPickEl = $("github-pick");
+const githubArticleEl = $<HTMLSelectElement>("github-article");
+
+async function loadGitHubArticle(url: string, label?: string) {
+  const r = await fetchMarkdownFromGitHub(url);
+  markdownEl.value = r.markdown;
+  forgetSource(); // 手元の md と一緒にドロップした本文の画像は、GitHub の記事には使わない
+  baseUrl = r.baseUrl;
+  fillFieldsFromMarkdown(r.markdown, { newSource: true });
+  const what = label ? `「${label}」を` : "";
+  setStatus(`${what}読み込みました。内容を確認して「${submitLabel()}」を押してください。`, { near: "github" });
+  checkTargetNow(); // target が入れる先と合わなければ、読み込みの知らせより先にこちらを出す
+}
+
 $("github-load").addEventListener("click", async () => {
+  githubPickEl.hidden = true;
+  githubArticleEl.replaceChildren();
+  try {
+    const input = githubUrlEl.value.trim();
+    const pull = parsePullUrl(input);
+    if (!pull) {
+      setStatus("GitHub から取得中...", { near: "github" });
+      await loadGitHubArticle(input);
+      return;
+    }
+    setStatus("PR の記事を探しています...", { near: "github" });
+    const { articles } = await findPullArticlesOnGitHub(pull);
+    if (articles.length === 1) {
+      setStatus("GitHub から取得中...", { near: "github" });
+      await loadGitHubArticle(articles[0].url, articles[0].label);
+      return;
+    }
+    for (const a of articles) githubArticleEl.append(new Option(a.label, a.url));
+    setStatus(`この PR には記事が ${articles.length} 本あります。読み込む記事を選んでください。`, { near: "github" });
+    githubPickEl.hidden = false;
+  } catch (e) {
+    setStatus((e as Error).message, { error: true, near: "github" });
+  }
+});
+
+$("github-pick-load").addEventListener("click", async () => {
+  const opt = githubArticleEl.selectedOptions[0];
+  if (!opt) return;
   try {
     setStatus("GitHub から取得中...", { near: "github" });
-    const r = await fetchMarkdownFromGitHub(githubUrlEl.value.trim());
-    markdownEl.value = r.markdown;
-    forgetSource(); // 手元の md と一緒にドロップした本文の画像は、GitHub の記事には使わない
-    baseUrl = r.baseUrl;
-    fillFieldsFromMarkdown(r.markdown, { newSource: true });
-    setStatus(`読み込みました。内容を確認して「${submitLabel()}」を押してください。`, { near: "github" });
-    checkTargetNow(); // target が入れる先と合わなければ、読み込みの知らせより先にこちらを出す
+    await loadGitHubArticle(opt.value, opt.text);
   } catch (e) {
     setStatus((e as Error).message, { error: true, near: "github" });
   }

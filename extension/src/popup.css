@@ -21,13 +21,14 @@ label.check input { width: auto; margin: 0; }
 label.unavailable { opacity: 0.55; }
 .unavailable-note { font-size: 11px; font-weight: 400; color: #666; margin-left: 4px; }
 label.hint-check { font-weight: 400; font-size: 12px; color: #444; }
-input, textarea, button { font: inherit; box-sizing: border-box; }
+input, textarea, button, select { font: inherit; box-sizing: border-box; }
 input[type="text"], input[type="url"], input[type="password"], textarea {
   width: 100%; padding: 6px 8px; border: 1px solid #c8c8c8; border-radius: 6px; margin-top: 3px;
 }
 textarea { min-height: 170px; resize: vertical; font-family: ui-monospace, monospace; font-size: 12px; }
 .row { display: flex; gap: 6px; margin-top: 6px; }
-.row input { flex: 1; }
+.row input, .row select { flex: 1; min-width: 0; }
+.row[hidden] { display: none; }
 input[type="file"][hidden] { display: none; }
 .hint-inline { font-weight: 400; color: #666; }
 /* ホバーで説明(title)が出るもの。点線の下線で「説明がある」ことだけ示す */
