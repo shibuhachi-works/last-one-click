@@ -809,7 +809,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       // 「記事の設定」の中ではなく、たたまれていない所にあり、文言にリンクとハッシュタグの両方が書いてある
       assert.equal(await popup.locator("#article-options #credit-link").count(), 0);
       assert.ok(await credit.isVisible());
-      assert.match((await popup.locator("label:has(#credit-link)").textContent()) ?? "", /最後に「Last One Click で下書きしました」と #LastOneClick を入れる/);
+      assert.match((await popup.locator("label:has(#credit-link)").textContent()) ?? "", /記事の最後に「Last One Click で下書きしました」と #LastOneClick を入れる/);
       // 「記事の設定」の見出しの横には、リンクは出ない
       assert.equal(await popup.locator("#article-options-on").textContent(), "(目次)");
     });

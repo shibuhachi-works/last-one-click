@@ -25,7 +25,8 @@ export async function showExtraSiteAccount(): Promise<void> {
   if (tabId === undefined) return;
   const res = (await chrome.tabs.sendMessage(tabId, { type: "extraSiteAccount" } satisfies Message).catch(() => null)) as ExtraSiteAccountResponse | null;
   const account = res?.account;
-  if (!account || (!account.name && !account.iconUrl)) return;
+  // 読んでいるあいだに許可を外していたら出さない
+  if (!account || (!account.name && !account.iconUrl) || !state.extraSiteGranted) return;
   const el = $<HTMLParagraphElement>("extra-site-account");
   el.replaceChildren(...accountRow(EXTRA_SITE_HOST, account.iconUrl, account.name));
   el.title = `${EXTRA_SITE_HOST} でログイン中のアカウントです。`;
@@ -36,6 +37,12 @@ export async function showExtraSiteAccount(): Promise<void> {
 export function showExtraSiteSetting(granted: boolean) {
   state.extraSiteGranted = granted;
   if (granted) void showExtraSiteAccount();
+  else {
+    // 許可を外したら、そのサイトのアカウントも出さない(読んだものは捨てる。付け直したら読み直す)
+    state.extraSiteAccountShown = false;
+    state.extraSiteAccountAsked = false;
+    $("extra-site-account").replaceChildren();
+  }
   applyDestination();
   extraSiteRowEl.hidden = !granted;
   extraSiteToggleEl.checked = granted;

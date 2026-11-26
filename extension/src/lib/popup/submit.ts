@@ -78,7 +78,7 @@ export async function submitArticle(forceNew: boolean) {
     await chrome.tabs.update(tab.id, { active: true });
 
     setStatus(
-      `note を開きました。続きは右下に出ます。` +
+      `note を開きました。続きは右下のバナーで案内します。` +
         (source === "remote" ? "" : `\n(selectors: ${source})`) +
         (warning ? `\n注意: 同梱の selectors を使っています(${warning})` : ""),
       { error: Boolean(warning), near: "submit" },

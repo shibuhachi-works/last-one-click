@@ -140,6 +140,9 @@ describe("pullApiError", () => {
     assert.match(pullApiError(403, ref, true), /回数の上限/);
     assert.match(pullApiError(404, ref, false), /見つかりません[\s\S]*トークン/);
     assert.match(pullApiError(401, ref, false), /トークンが使えません/);
+    // 回数の上限でない 403 は、PR を読む権限が足りないとき
+    assert.match(pullApiError(403, ref, false), /^この PR を読めません: o\/r#7。\nGitHub トークンに「Pull requests: Read」の権限を付けてください。$/);
+    assert.doesNotMatch(pullApiError(403, ref, false), /回数の上限/);
     assert.match(pullApiError(500, ref, false), /500/);
   });
 });
