@@ -6,7 +6,7 @@ import { articleKey, isSameArticle, lockArticleKey, type ArticleKeyRef } from ".
 import { hasTocHeadings } from "../../shared/toc";
 import { diagnoseCurrentUser, fetchCurrentUser, type CurrentUser } from "../../shared/current-user";
 import { checkNoteAccount, noteAccountMismatchMessage, noteAccountUnknownMessage } from "../../shared/note-account";
-import { REWRITE_UNDO_NOTE, checkNoteUrl, noteEditKey, noteUrlProblem, rewriteSkippedLines } from "../../shared/note-rewrite";
+import { checkNoteUrl, noteEditKey, noteUrlProblem, rewriteSkippedLines } from "../../shared/note-rewrite";
 import { STORAGE, type AccountResponse, type ArticlePayload, type DiagnoseResponse, type Message, type NoteArticleResponse, type NoteRewriteResponse, type Selectors, type SelectorsResponse, type WhoAmIResponse } from "./lib/types";
 import { clearBody, scrollToTop, fillTitle, type TocRef, insertToc, pasteBody, embedUrlLines, insertBodyImages } from "./lib/content/editor-steps";
 import { setThumbnail } from "./lib/content/eyecatch";
@@ -116,7 +116,7 @@ async function main() {
   const results: string[] = [];
   let checkedAccount: CurrentUser | null | undefined;
   if (article.noteAccount) {
-    banner("ログイン中のアカウントを確かめています...");
+    banner("ログイン中のアカウントを確認しています...");
     checkedAccount = await readAccount(S);
     const check = checkNoteAccount(article.noteAccount, checkedAccount);
     if (check.kind === "mismatch") {
@@ -157,7 +157,7 @@ async function main() {
     // 見出し画像のアップロードを確認できないまま公開設定へ移ると、アップロードが途中で切れる可能性があるので、ここで止める
     banner(
       accountWarning(results) +
-        `⚠️ 見出し画像を確かめられませんでした。\n画面で確かめて「公開設定を入れる」を押してください。\n\n${results.join("\n")}`,
+        `⚠️ 見出し画像を確認できませんでした。\n画面で確認して「公開設定を入れる」を押してください。\n\n${results.join("\n")}`,
       "warn",
       [proceed],
       account,
@@ -173,7 +173,7 @@ async function main() {
       accountWarning(results) +
         (failed
           ? `⚠️ 一部は入れられませんでした。\n足りないものを入れて「公開設定を入れる」を押してください。\n\n`
-          : `✅ 下書きを入れました。\n確かめて「公開設定を入れる」を押してください。\n\n`) +
+          : `✅ 下書きを入れました。\n確認して「公開設定を入れる」を押してください。\n\n`) +
         results.join("\n"),
       failed ? "warn" : "ok",
       [proceed],
@@ -229,10 +229,10 @@ async function rewriteArticle(S: Selectors, article: ArticlePayload, titleEl: HT
   banner(
     accountWarning(results) +
       (moved
-        ? `⚠️ 途中で別の記事に移りました。\n書き換えた記事を開いて確かめてください。\n\n`
+        ? `⚠️ 途中で別の記事に移りました。\n書き換えた記事を開いて確認してください。\n\n`
         : failed
           ? `⚠️ 一部は書き換えられませんでした。\n足りないものを直して、保存してください。\n\n`
-          : `✅ 書き換えました。\n確かめて保存してください。${REWRITE_UNDO_NOTE}\n\n`) +
+          : `✅ 書き換えました。\n確認して問題がなければ、保存してください。\n\n`) +
       (skipped.length ? `公開設定は入れていません:\n${skipped.join("\n")}\n\n` : "") +
       results.join("\n"),
     failed || moved ? "warn" : "ok",
@@ -308,7 +308,7 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
     accountWarning(results) +
       (failed.length
         ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n足りないものを入れて「投稿する」を押してください。\n\n`
-        : `✅ 公開設定を入れました。\n確かめて「投稿する」を押してください。\n\n`) +
+        : `✅ 公開設定を入れました。\n確認して「投稿する」を押してください。\n\n`) +
       results.join("\n"),
     failed.length ? "warn" : "ok",
     [{ label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) }],

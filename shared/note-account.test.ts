@@ -59,13 +59,13 @@ describe("checkNoteAccount", () => {
     assert.deepEqual(c, { kind: "mismatch", expected: "other_writer", current: "sample_writer" });
     assert.equal(
       noteAccountMismatchMessage(c as Extract<typeof c, { kind: "mismatch" }>),
-      "ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。\nアカウントを切り替えて、もう一度お試しください。",
+      "ログイン中のアカウント(sample_writer)が、記事の設定(other_writer)と違います。\nアカウントを切り替えて、もう一度お試しください。",
     );
   });
   it("読めない(null)・ID が無いときは、止めずに注意する", () => {
     const c = checkNoteAccount("sample_writer", null);
     assert.deepEqual(c, { kind: "unknown", expected: "sample_writer" });
     assert.deepEqual(checkNoteAccount("sample_writer", { name: "名前だけ" }), { kind: "unknown", expected: "sample_writer" });
-    assert.match(noteAccountUnknownMessage(c as Extract<typeof c, { kind: "unknown" }>), /^アカウントを確かめられませんでした/);
+    assert.match(noteAccountUnknownMessage(c as Extract<typeof c, { kind: "unknown" }>), /^アカウントを確認できませんでした/);
   });
 });

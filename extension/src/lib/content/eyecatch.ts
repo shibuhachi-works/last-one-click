@@ -79,7 +79,7 @@ export async function setThumbnailGuarded(S: Selectors, file: File, guard: FileP
   }, 60_000);
   if (!shown) {
     throw new StopError(
-      `見出し画像が表示されるのを確かめられませんでした`,
+      `見出し画像の表示を確認できませんでした`,
     );
   }
   await sleep(1_500); // 保存処理が落ち着くまで

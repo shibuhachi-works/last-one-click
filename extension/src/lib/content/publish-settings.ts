@@ -89,7 +89,7 @@ export async function setPaywallLine(S: Selectors, anchor: string) {
   if (target.status === "ok" && target.button) {
     safeClick(target.button, "setPaywallLine.line");
     target = await waitUntil(() => (find().status === "already" ? find() : null), 5_000);
-    if (!target) throw new Error("ラインが動いたか確かめられませんでした。\nラインの位置を確かめてください。");
+    if (!target) throw new Error("ラインが動いたか確認できませんでした。\nラインの位置を確認してください。");
   }
   return "ラインを引きました";
 }
@@ -115,7 +115,7 @@ export async function selectMagazine(S: Selectors, magazine: string) {
   const row = findMagazineRowButton(magazine, S.publishSettings.magazineAddButtonText);
   if (!row.rowFound) {
     throw new Error(
-      `マガジン「${magazine}」が見つかりません。\nマガジン名を確かめてください。`,
+      `マガジン「${magazine}」が見つかりません。\nマガジン名を確認してください。`,
     );
   }
   if (row.button) {

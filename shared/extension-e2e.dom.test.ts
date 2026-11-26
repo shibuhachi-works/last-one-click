@@ -320,7 +320,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       const text = await rewriteBanner(editor);
       assert.match(text, /md のハッシュタグ: #テスト #書き換え/);
       assert.match(text, /md のマガジン: 試しのマガジン/);
-      assert.match(text, /保存せずに閉じれば、元のままです/);
+      assert.match(text, /確認して問題がなければ、保存してください/);
       // 公開設定には進まない(ボタンも出さない)
       assert.doesNotMatch(text, /公開設定を入れる/);
       const buttons = await editor.evaluate(() => Array.from(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.querySelectorAll("button") ?? []).map((x) => x.textContent ?? ""));
@@ -602,7 +602,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         assert.equal(await banner.locator("#pill").isVisible(), true, "たたんだバナーが開いてしまいました");
         await banner.locator("#pill").click();
         await editor.waitForFunction(
-          () => /画像が入るのを待っています\(1 枚\)/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
+          () => /画像の挿入を待っています\(1 枚\)/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
           null,
           { timeout: 40_000 },
         );
@@ -620,7 +620,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
 
   it("ダイアログなどでページが止まっていた時間は、画像のアップロードの待ち時間に数えない", async () => {
     const md = "---\ntitle: 止まるテスト\n---\n\n## 見出し\n\n![止まる](stall-demo.png \"止まったあとに入る画像\")\n";
-    let sawPaused = false;
+    let sawImage = false;
     let sawLate = false;
     const { editor, errors } = await draftFromPopup(
       async (popup) => {
@@ -634,15 +634,15 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         const until = Date.now() + 60_000;
         while (Date.now() < until) {
           const t = await sum().catch(() => "");
-          if (/止まっていた (1\d|20) 秒は数えていません/.test(t)) sawPaused = true;
-          if (/画像が入るのを待っています/.test(t)) sawLate = true;
+          if (/本文の画像を挿入中/.test(t)) sawImage = true;
+          if (/画像の挿入を待っています/.test(t)) sawLate = true;
           // 本文の画像の手順を終えたら、見るのをやめる
-          if (sawPaused && !t.includes("本文の画像")) break;
+          if (sawImage && !t.includes("本文の画像")) break;
           await editor.waitForTimeout(500);
         }
       },
     );
-    assert.ok(sawPaused, "止まっていた時間を数えていないことが、バナーに出ていません");
+    assert.ok(sawImage, "本文の画像を入れているあいだの知らせが出ていません");
     assert.ok(!sawLate, "止まっていた時間を数えてしまい、待ちきれずに最後の確かめに回りました");
     await editor.locator("#body figure.image img[src='https://assets.example.com/stall-demo.png']").waitFor({ timeout: 5_000 });
     assert.doesNotMatch(await editor.locator("#body").innerText(), /［画像1・/);
@@ -1001,10 +1001,10 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   it("記事の note_account がログイン中のアカウントと違えば、タイトルも本文も入れずに、バナーで違うと知らせる。ポップアップにも注意を出す(#102)", async () => {
     await withCurrentUser({ status: 200, contentType: "application/json", body: JSON.stringify(SAMPLE_USER) }, async () => {
       const md = withAccount("other_writer");
-      const { editor, errors } = await draftFromPopup(async () => {}, md, "記事の指定(other_writer)と違います");
+      const { editor, errors } = await draftFromPopup(async () => {}, md, "記事の設定(other_writer)と違います");
       assert.equal(
         (await bannerText(editor)).split("\n")[0],
-        "⚠️ ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。",
+        "⚠️ ログイン中のアカウント(sample_writer)が、記事の設定(other_writer)と違います。",
       );
       // 工程は始めていない(少し待っても、タイトルも本文も入らない)
       await editor.waitForTimeout(1_000);
@@ -1059,7 +1059,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       const { editor, errors } = await draftFromPopup(async () => {}, withAccount("sample_writer"));
       assert.equal(await editor.locator("#title").inputValue(), "起動テストの記事");
       assert.match(await editor.locator("#body").innerHTML(), /<h2[^>]*>見出しです<\/h2>/);
-      assert.match((await bannerText(editor)).split("\n")[0], /^⚠️ アカウントを確かめられませんでした\(記事の指定: sample_writer\)/);
+      assert.match((await bannerText(editor)).split("\n")[0], /^⚠️ アカウントを確認できませんでした\(記事の設定: sample_writer\)/);
       assert.deepEqual(errors, []);
       await editor.close();
     });

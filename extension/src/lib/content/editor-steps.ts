@@ -4,7 +4,7 @@ import { GIF_UPLOAD_WAIT_MS, IMAGE_UPLOAD_WAIT_MS, LATE_UPLOAD_WAIT_MS, gifUploa
 import { safeClick, safeKey } from "../safe-click";
 import { htmlToText } from "../../../../shared/markdown-safe";
 import { type ArticlePayload, type Selectors } from "../types";
-import { placeCaret, visibleMatch, findTextRange, selectRange, caretToEnd, waitFor, waitUntil, waitWithStatus, pausedNote, formatWait, findByText, setNativeValue, base64ToFile, sleep } from "./dom";
+import { placeCaret, visibleMatch, findTextRange, selectRange, caretToEnd, waitFor, waitUntil, waitWithStatus, formatWait, findByText, setNativeValue, base64ToFile, sleep } from "./dom";
 import { StopError, bannerStatus } from "./banner";
 
 /**
@@ -81,7 +81,7 @@ export async function insertToc(S: Selectors, ref: TocRef) {
   safeClick(item, "目次: 目次を入れる");
 
   const added = await waitUntil(() => Array.from(el.children).find((c) => !before.has(c)) ?? null, 3_000);
-  if (!added) throw new Error(`目次が入ったか確かめられませんでした。${TOC_MANUAL}`);
+  if (!added) throw new Error(`目次が入ったか確認できませんでした。${TOC_MANUAL}`);
   ref.node = added;
   return "本文の先頭";
 }
@@ -248,7 +248,7 @@ export async function insertBodyImages(S: Selectors, a: ArticlePayload) {
       () => uploaded(before),
       limit,
       (sec, paused) =>
-        `本文の画像を入れています(${i + 1}/${images.length} 枚目)… ${sec} 秒${pausedNote(paused)}`,
+        `本文の画像を挿入中(${i + 1}/${images.length} 枚目)… ${sec} 秒(最大 ${formatWait(limit)})`,
     );
     if (!done) {
       // 貼り付けで入った仮の画像(まだ blob: のもの)を覚えておく。遅れて入ったかは、まずこれで確かめる
@@ -265,7 +265,7 @@ export async function insertBodyImages(S: Selectors, a: ArticlePayload) {
     const clock = activeClock();
     for (;;) {
       bannerStatus(
-        `画像が入るのを待っています(${pending.length} 枚)… ${Math.floor(clock.elapsed() / 1000)} 秒${pausedNote(clock.paused())}`,
+        `画像の挿入を待っています(${pending.length} 枚)… ${Math.floor(clock.elapsed() / 1000)} 秒(最大 ${formatWait(LATE_UPLOAD_WAIT_MS)})`,
       );
       for (const p of [...pending]) {
         const done = lateUploaded(p);
