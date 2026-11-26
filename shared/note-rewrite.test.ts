@@ -49,7 +49,7 @@ describe("checkNoteUrl・noteUrlProblem", () => {
     assert.equal(noteUrlProblem(checkNoteUrl("https://note.com/a/n/n1", "n1")), null);
   });
   it("違う記事・読めない値なら書き換えない理由を返す", () => {
-    assert.match(noteUrlProblem(checkNoteUrl("https://note.com/a/n/n2", "n1")) ?? "", /n2.*n1.*書き換えません/);
+    assert.match(noteUrlProblem(checkNoteUrl("https://note.com/a/n/n2", "n1")) ?? "", /n2.*n1.*違います/);
     assert.match(noteUrlProblem(checkNoteUrl("どこか", "n1")) ?? "", /読めません/);
   });
 });
@@ -65,7 +65,7 @@ describe("rewriteSkippedLines(書き換えでは入れないもの)", () => {
     assert.deepEqual(rewriteSkippedLines({ hashtags: [] }), []);
   });
   it("元に戻し方は「保存せずに閉じる」", () => {
-    assert.match(REWRITE_UNDO_NOTE, /押さずに閉じて/);
+    assert.match(REWRITE_UNDO_NOTE, /保存せずに閉じれば、元のまま/);
   });
 });
 

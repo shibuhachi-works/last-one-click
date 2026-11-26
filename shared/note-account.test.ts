@@ -59,7 +59,7 @@ describe("checkNoteAccount", () => {
     assert.deepEqual(c, { kind: "mismatch", expected: "other_writer", current: "sample_writer" });
     assert.equal(
       noteAccountMismatchMessage(c as Extract<typeof c, { kind: "mismatch" }>),
-      "ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。note でアカウントを切り替えてから、もう一度作成してください。",
+      "ログイン中のアカウント(sample_writer)が、記事の指定(other_writer)と違います。\nアカウントを切り替えて、もう一度お試しください。",
     );
   });
   it("読めない(null)・ID が無いときは、止めずに注意する", () => {

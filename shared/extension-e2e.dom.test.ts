@@ -208,7 +208,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
   async function draftFromPopup(
     prepare: (popup: Page) => Promise<void> = async () => {},
     markdown = ARTICLE,
-    waitBanner = "タイトル・本文・見出し画像を入れました",
+    waitBanner = "下書きを入れました",
     bannerTimeout = 30_000,
     /** 拡張が進めているあいだに、エディタの画面で確かめること */
     whileRunning: (editor: Page) => Promise<void> = async () => {},
@@ -578,14 +578,14 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         await dropFiles(popup, md, ["late-demo.png"]);
       },
       md,
-      "タイトル・本文・見出し画像を入れました",
+      "下書きを入れました",
       70_000,
       async (editor) => {
         // 待っているあいだは、何をしているかと経過した秒数を出し、回る印で動いていることを見せる
         const shadow = () => editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? "");
-        const seconds = async () => Number(/待っています… (\d+) 秒/.exec(await shadow())?.[1] ?? -1);
+        const seconds = async () => Number(/枚目\)… (\d+) 秒/.exec(await shadow())?.[1] ?? -1);
         await editor.waitForFunction(
-          () => /1\/1 枚目: late-demo\.png[\s\S]*note のアップロードを待っています… \d+ 秒\(最大 30 秒\)/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
+          () => /1\/1 枚目\)… \d+ 秒/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
           null,
           { timeout: 20_000 },
         );
@@ -602,7 +602,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         assert.equal(await banner.locator("#pill").isVisible(), true, "たたんだバナーが開いてしまいました");
         await banner.locator("#pill").click();
         await editor.waitForFunction(
-          () => /遅れて入る画像が無いかを確かめています\(1 枚\)/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
+          () => /画像が入るのを待っています\(1 枚\)/.test(document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? ""),
           null,
           { timeout: 40_000 },
         );
@@ -627,15 +627,15 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         await dropFiles(popup, md, ["stall-demo.png"]);
       },
       md,
-      "タイトル・本文・見出し画像を入れました",
+      "下書きを入れました",
       70_000,
       async (editor) => {
         const sum = () => editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.getElementById("sum")?.textContent ?? "");
         const until = Date.now() + 60_000;
         while (Date.now() < until) {
           const t = await sum().catch(() => "");
-          if (/ダイアログなどで止まっていた (1\d|20) 秒は、待ち時間に数えていません/.test(t)) sawPaused = true;
-          if (/遅れて入る画像が無いかを確かめています/.test(t)) sawLate = true;
+          if (/止まっていた (1\d|20) 秒は数えていません/.test(t)) sawPaused = true;
+          if (/画像が入るのを待っています/.test(t)) sawLate = true;
           // 本文の画像の手順を終えたら、見るのをやめる
           if (sawPaused && !t.includes("本文の画像")) break;
           await editor.waitForTimeout(500);
@@ -657,7 +657,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
         await dropFiles(popup, md, ["fail-a.png", "late-b.png"]);
       },
       md,
-      "一部は入力できませんでした",
+      "一部は入れられませんでした",
       100_000,
     );
     await editor.locator("#body figure.image img[src='https://assets.example.com/late-b.png']").waitFor({ timeout: 5_000 });
@@ -672,7 +672,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
 
   it("本文の画像が見つからないときは、目印を残してバナーで知らせる", async () => {
     const md = "---\ntitle: 画像が無いテスト\n---\n\n## 見出し\n\n![図](missing.png)\n";
-    const { editor, errors } = await draftFromPopup(async () => {}, md, "一部は入力できませんでした");
+    const { editor, errors } = await draftFromPopup(async () => {}, md, "一部は入れられませんでした");
     assert.match(await editor.locator("#body").innerText(), /［画像1・[0-9a-z]{4}: missing\.png］/);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");
     assert.match(banner, /見つからなかった画像があります\(missing\.png\)/);
@@ -784,7 +784,7 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
     const { editor, errors } = await draftFromPopup(
       async () => {},
       `---\ntitle: 上限のテスト\n---\n\n## 見出し\n\n${many}\n`,
-      "一部は入力できませんでした",
+      "一部は入れられませんでした",
     );
     assert.equal(await editor.locator("#body figure.embed").count(), 20);
     const banner = await editor.evaluate(() => document.getElementById("lastclick-pigeon-banner")?.shadowRoot?.textContent ?? "");

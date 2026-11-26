@@ -20,7 +20,7 @@ export async function fillPublishSettings(S: Selectors, a: ArticlePayload) {
       10_000,
     );
     if (result !== "empty") break;
-    if (attempt >= 3) throw new Error("「公開に進む」を 3 回押しましたが、note が「タイトル、本文を入力してください」と出して進めませんでした。");
+    if (attempt >= 3) throw new Error("「公開に進む」で進めませんでした(「タイトル、本文を入力してください」)。");
     const { alert, close } = findEmptyAlert();
     if (close) safeClick(close, "fillPublishSettings.closeEmptyAlert");
     else (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
@@ -40,7 +40,7 @@ export async function fillPublishSettings(S: Selectors, a: ArticlePayload) {
   // 公開ボタンは「あるかどうか」を見るだけ。絶対にクリックしない。
   // 「有料」を選んであると(「もう一度入れる」で入れ直したとき)、公開ボタンの代わりに「有料エリア設定」が出る。これも見るだけで押さない
   if (!findByText("button", S.publishSettings.publishButtonText) && !findByText("button", S.publishSettings.paidAreaButtonText)) {
-    throw new Error("公開ボタンが見つかりません(画面構成が変わった可能性)。");
+    throw new Error("公開ボタンが見つかりません。");
   }
 }
 
@@ -53,17 +53,17 @@ export async function setPaidPrice(S: Selectors, price: number, withPaywall = fa
   const found = findPaidControls(P.paidRadio, P.paidLabelText, P.priceInput);
   // 「もう一度入れる」で再実行したときに、選択済みのものを押し直さない
   if (!found.checked) {
-    if (!found.label) throw new Error("記事タイプの「有料」が見つかりません。\n画面で「有料」を選んで、価格を手で入れてください。");
+    if (!found.label) throw new Error("「有料」が見つかりません。\n「有料」を選んで、価格を入れてください。");
     safeClick(found.label, "fillPublishSettings.paid");
   }
   const input = await waitFor<HTMLInputElement>(P.priceInput, 5_000).catch(() => null);
-  if (!input) throw new Error("価格の欄が見つかりません。\n画面で価格を手で入れてください。");
+  if (!input) throw new Error("価格の欄が見つかりません。\n価格を入れてください。");
   const value = String(price);
   input.focus();
   setNativeValue(input, value);
   input.blur();
-  if (input.value !== value) throw new Error(`価格の欄に ${value} を入れられませんでした。\n画面で価格を手で入れてください。`);
-  return withPaywall ? `${value} 円` : `${value} 円。有料エリアは「有料エリア設定」で自分で決めてください`;
+  if (input.value !== value) throw new Error(`価格(${value})を入れられませんでした。\n価格を入れてください。`);
+  return withPaywall ? `${value} 円` : `${value} 円`;
 }
 
 /**
@@ -77,7 +77,7 @@ export async function setPaywallLine(S: Selectors, anchor: string) {
   // 「もう一度入れる」で再実行したときは、もう有料エリア設定の画面が開いている
   if (!document.querySelector(P.paywallContainer)) {
     const open = findByText("button", P.paidAreaButtonText);
-    if (!open) throw new Error("「有料エリア設定」のボタンが見つかりません。\n画面で「有料エリア設定」を押し、手でラインを引いてください。");
+    if (!open) throw new Error("「有料エリア設定」が見つかりません。\n手でラインを引いてください。");
     safeClick(open, "setPaywallLine.open");
   }
   // 画面が組み立てられるまで(ブロックとボタンが並ぶまで)待つ
@@ -89,9 +89,9 @@ export async function setPaywallLine(S: Selectors, anchor: string) {
   if (target.status === "ok" && target.button) {
     safeClick(target.button, "setPaywallLine.line");
     target = await waitUntil(() => (find().status === "already" ? find() : null), 5_000);
-    if (!target) throw new Error("「ラインをこの場所に変更」を押しましたが、ラインが動いたことを確かめられませんでした。\n画面でラインの位置を確かめ、違っていれば手でラインを引いてください。");
+    if (!target) throw new Error("ラインが動いたか確かめられませんでした。\nラインの位置を確かめてください。");
   }
-  return "印の直前の段落のすぐ下にラインを引きました。位置を画面で確かめてください";
+  return "ラインを引きました";
 }
 
 /** 公開設定の画面でマガジンを選ぶ。名前が一致する行が無ければ、直し方を添えて失敗にする */
@@ -115,14 +115,14 @@ export async function selectMagazine(S: Selectors, magazine: string) {
   const row = findMagazineRowButton(magazine, S.publishSettings.magazineAddButtonText);
   if (!row.rowFound) {
     throw new Error(
-      `マガジン「${magazine}」が note にありません。\nmd の magazine と note のマガジン名が同じか確かめてください。\n(画面で手で選ぶか、md を直して作り直してください)`,
+      `マガジン「${magazine}」が見つかりません。\nマガジン名を確かめてください。`,
     );
   }
   if (row.button) {
     if (!isToggledOn(row.button)) safeClick(row.button, "fillPublishSettings.magazineAdd");
     return;
   }
-  return `「追加」が無いので押していません(追加済みの可能性)`;
+  return "追加済み";
 }
 
 // ---------------------------------------------------------------------------

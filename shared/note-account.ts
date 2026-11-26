@@ -38,10 +38,10 @@ export function checkNoteAccount(expected: string | undefined, current: CurrentU
 
 /** 違うときにバナーに出す文 */
 export function noteAccountMismatchMessage(c: Extract<NoteAccountCheck, { kind: "mismatch" }>): string {
-  return `ログイン中のアカウント(${c.current})が、記事の指定(${c.expected})と違います。note でアカウントを切り替えてから、もう一度作成してください。`;
+  return `ログイン中のアカウント(${c.current})が、記事の指定(${c.expected})と違います。\nアカウントを切り替えて、もう一度お試しください。`;
 }
 
 /** 読めないときにバナーに出す文 */
 export function noteAccountUnknownMessage(c: Extract<NoteAccountCheck, { kind: "unknown" }>): string {
-  return `アカウントを確かめられませんでした(記事の指定: ${c.expected})。「投稿する」を押す前に、note の画面でログイン中のアカウントを確かめてください。`;
+  return `アカウントを確かめられませんでした(記事の指定: ${c.expected})。投稿の前に確かめてください。`;
 }

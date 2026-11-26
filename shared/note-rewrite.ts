@@ -60,10 +60,10 @@ export function checkNoteUrl(noteUrl: string | undefined, openKey: string): Note
 /** 書き換えない理由(比べた結果が合わないとき)。合えば null */
 export function noteUrlProblem(check: NoteUrlCheck): string | null {
   if (check.kind === "mismatch") {
-    return `md の note_url の記事(${check.want})と、開いている記事(${check.open})が違うので、書き換えません。note_url の記事の編集画面を開いてから、もう一度押してください。`;
+    return `md の note_url(${check.want})と、開いている記事(${check.open})が違います。\nnote_url の記事を開いて、もう一度お試しください。`;
   }
   if (check.kind === "invalid") {
-    return `md の note_url(${check.raw})が読めません。https://note.com/<アカウントの ID>/n/<記事の ID> の形で書いてください。`;
+    return `md の note_url(${check.raw})が読めません。\nhttps://note.com/<アカウントの ID>/n/<記事の ID> の形で書いてください。`;
   }
   return null;
 }
@@ -79,4 +79,4 @@ export function rewriteSkippedLines(a: { hashtags: readonly string[]; magazine?:
 }
 
 /** 元に戻し方。ポップアップ・バナーで同じ文にする */
-export const REWRITE_UNDO_NOTE = "元に戻したいときは、「更新する」「下書き保存」を押さずに閉じてください(記事は変わりません)。";
+export const REWRITE_UNDO_NOTE = "保存せずに閉じれば、元のままです。";

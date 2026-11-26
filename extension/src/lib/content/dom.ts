@@ -169,7 +169,7 @@ export async function waitWithStatus<T>(fn: () => T | null, timeout: number, sta
 
 /** 止まっていた時間があれば、数えていないことを添える */
 export function pausedNote(ms: number): string {
-  return ms >= 1_000 ? `\nダイアログなどで止まっていた ${Math.round(ms / 1000)} 秒は、待ち時間に数えていません` : "";
+  return ms >= 1_000 ? `(止まっていた ${Math.round(ms / 1000)} 秒は数えていません)` : "";
 }
 
 /** 120000 → 「2 分」、30000 → 「30 秒」 */
