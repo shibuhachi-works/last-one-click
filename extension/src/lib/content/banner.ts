@@ -50,6 +50,9 @@ export function banner(text: string, kind: "info" | "ok" | "warn" | "error" = "i
     .join("");
   // 進めているあいだ(ボタンの無いお知らせ)は、くるくる回る印を出す(止まっていないことが分かるように)
   const working = kind === "info" && actions.length === 0;
+  // 入れている途中か・終わったか(終わったときは ok・warn・error)。見た目は変えない。
+  // Playwright 版(tools/draft.ts)は、これを見て拡張の入力が終わるのを待つ
+  host.dataset.state = working ? "working" : kind;
   // 進めているあいだは、操作を控えてもらう。拡張が文字を選んで画像を貼ったり、目印を消したりしている途中に
   // 文字を打ったりクリックしたりすると、目印が残ったり、違う場所に入ったりする。note のダイアログ(OK を押すもの)だけは押してもらう
   // (この関数は main() から最初の await より前に呼ばれるので、文はファイルの先頭の const にせず、ここに置く)

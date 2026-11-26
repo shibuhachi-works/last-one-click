@@ -81,11 +81,11 @@ Markdown(GFM)を note のエディタが受け付ける形に変換して貼り�
 ## 開発する人へ
 
 - **Chrome 拡張の開発・ビルド・ストアに出す手順**: [extension/README.md](extension/README.md)
-- **Playwright 版(自分用・開発用。壊れた箇所を Inspector で調べる)**: [docs/playwright.md](docs/playwright.md)
+- **Playwright 版(自分用・開発用。拡張を読み込んだブラウザを、コマンドから動かす)**: [docs/playwright.md](docs/playwright.md)
 - **記事のリポジトリにマージしたら、手元の PC(Debian)で自動で下書きを作る**: [docs/auto-draft-linux.md](docs/auto-draft-linux.md)(公開はしません)
 - **現状と今後の計画**: [docs/ROADMAP.md](docs/ROADMAP.md)。X / TikTok / Instagram も同じ方針(下書きまで作り、投稿は本人のクリック)で順次追加します
 
-拡張と Playwright 版は、`selectors/note.json`(note の画面のセレクタ)を共有しています。
+Playwright 版は、ビルドした拡張を読み込んだブラウザを動かすだけなので、note の画面に入れる工程と `selectors/note.json`(note の画面のセレクタ)は拡張と同じものです。拡張に機能を足せば、Playwright 版でも使えます。
 
 ## ライセンス
 

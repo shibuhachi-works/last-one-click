@@ -77,18 +77,11 @@ describe("safeClick を迂回する操作の検査", () => {
     assert.deepEqual(violations, [], `safeClick を通らない操作があります:\n${violations.join("\n")}`);
   });
 
-  it("tools の Enter は fillPublishSettings のタグ入力 1 か所だけ許可する", () => {
-    const hits = sourceFiles(join(root, "tools")).flatMap((path) => {
-      const source = readFileSync(path, "utf8");
-      return enterOperations(source).map((hit) => {
-        assert.equal(relative(root, path).replaceAll("\\", "/"), "tools/draft.ts");
-        const [start, end] = functionRange(source, "fillPublishSettings");
-        assert.ok(hit.index! >= start && hit.index! < end);
-        assert.ok(source.slice(0, hit.index).endsWith("tagInput."));
-        return hit;
-      });
-    });
-    assert.equal(hits.length, 1);
+  it("tools は Enter を押さない(note の画面に入れるのは拡張。#178)", () => {
+    const hits = sourceFiles(join(root, "tools")).flatMap((path) =>
+      enterOperations(readFileSync(path, "utf8")).map((hit) => `${relative(root, path).replaceAll("\\", "/")}: ${hit[0]}`),
+    );
+    assert.deepEqual(hits, []);
   });
 
   it("safeClick の外側は除外せず、関数内の追加クリックも拒否する", () => {
