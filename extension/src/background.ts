@@ -82,7 +82,7 @@ async function openAndFillExtraSite(article: Extract<Message, { type: "extraSite
         if (!isExtraSiteUrl(url)) return;
         void sendToTab(tabId, {
           type: "extraSiteNotice",
-          text: "エディタが開くのを待っています。\nログインすると、そのまま入れます。",
+          text: "エディタが開くのを待っています。\nログインすると、そのまま下書きを入れます。",
           // info だと「操作せずにお待ちください」が出る。ここはログインの操作をしてもらうので warn にする
           kind: "warn",
         }, 6);

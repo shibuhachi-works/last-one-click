@@ -212,7 +212,7 @@ async function setPublishScope(S: ExtraSiteSelectors, scope: "public" | "limited
   const radio = await waitFor<HTMLInputElement>(scope === "public" ? S.publishScopePublic : S.publishScopeLimited, fieldWait, { hidden: true });
   if (!radio || radio.type !== "radio") throw new Error(`「${label}」が見つかりません`);
   if (!radio.checked) click(radio, `外部公開の範囲: ${label}`);
-  if (!(await waitUntil(() => (radio.checked ? true : null), 1_000))) throw new Error(`「${label}」を選べたか確かめられませんでした`);
+  if (!(await waitUntil(() => (radio.checked ? true : null), 1_000))) throw new Error(`「${label}」を選べたか確認できませんでした`);
   return label;
 }
 
@@ -234,7 +234,7 @@ function norm(text: string | null | undefined): string {
  */
 async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: number): Promise<string> {
   const { main, sub } = splitCategory(category);
-  if (!sub) throw new Error(`「${category}」を読めません。「大 > 小」の形で書いてください`);
+  if (!sub) throw new Error(`「${category}」を読めません。「大カテゴリ > 小カテゴリ」の形で書いてください`);
   const open = await waitFor(S.categoryOpen, fieldWait);
   if (!open) throw new Error("「カテゴリを選択」が見つかりません");
   const value = query<HTMLInputElement>(S.categoryValue, { hidden: true });
@@ -267,7 +267,7 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
   if (hits.length !== 1) {
     close();
     if (!hits.length) throw new Error(`「${category}」が見つかりません`);
-    throw new Error(`「${sub}」が ${hits.length} つあります。「大 > ${sub}」の形で書いてください`);
+    throw new Error(`「${sub}」が ${hits.length} つあります。「大カテゴリ > ${sub}」の形で書いてください`);
   }
   const { group, button } = hits[0]!;
   const mainName = queryIn(group, S.categoryMainName)?.textContent?.trim() ?? main ?? "";
@@ -287,7 +287,7 @@ async function setCategory(S: ExtraSiteSelectors, category: string, fieldWait: n
   // 選んでも開いたままなら閉じる
   await sleep(300);
   if (isVisible(dialog)) close();
-  if (!chosen) throw new Error(`「${mainName} > ${sub}」を選べたか確かめられませんでした`);
+  if (!chosen) throw new Error(`「${mainName} > ${sub}」を選べたか確認できませんでした`);
   return `${mainName} > ${sub}`;
 }
 
@@ -322,7 +322,7 @@ async function setReadingTime(S: ExtraSiteSelectors, show: boolean, fieldWait: n
   const box = await waitFor<HTMLInputElement>(S.readingTime, fieldWait, { hidden: true });
   if (!box || box.type !== "checkbox") throw new Error("切り替えが見つかりません");
   if (box.checked !== show) click(box, "読了目安時間");
-  if (!(await waitUntil(() => (box.checked === show ? true : null), 1_000))) throw new Error("切り替えられたか確かめられませんでした");
+  if (!(await waitUntil(() => (box.checked === show ? true : null), 1_000))) throw new Error("切り替えられたか確認できませんでした");
   return show ? "表示する" : "表示しない";
 }
 
@@ -336,11 +336,11 @@ async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: num
   const len = Array.from(summary).length;
   // maxlength は UTF-16 の単位で数える(絵文字などは 2 つ)。比べるのは同じ単位の summary.length
   if (el.maxLength > 0 && summary.length > el.maxLength) {
-    throw new Error(`${len} 字で、上限(${el.maxLength} 字)を超えています`);
+    throw new Error(`上限(${el.maxLength} 字)を超えています`);
   }
   el.focus();
   setNativeValue(el, summary);
-  if (el.value !== summary) throw new Error("入ったか確かめられませんでした");
+  if (el.value !== summary) throw new Error("入ったか確認できませんでした");
   return `${len} 字`;
 }
 
@@ -379,7 +379,7 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number,
   const gone = lost.filter((t) => first.entered.includes(t) || second.entered.includes(t));
   const failed = lost.filter((t) => !gone.includes(t));
   const problems: string[] = [];
-  if (failed.length) problems.push(`確かめられなかったタグ(${failed.join(", ")})`);
+  if (failed.length) problems.push(`確認できなかったタグ(${failed.join(", ")})`);
   if (gone.length) problems.push(`消えたタグ(${gone.join(", ")})`);
   throw new Error(`${done} 個。${problems.join("。")}`);
 }

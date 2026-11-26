@@ -323,7 +323,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     const r = await run({ ...ARTICLE, category: "その他" });
     assert.equal(r.category, "");
     assert.equal(r.categoryOpen, false);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「その他」が 2 つあります。「大 > その他」の形で書いてください")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ カテゴリ: 「その他」が 2 つあります。「大カテゴリ > その他」の形で書いてください")), r.result!.lines.join("\n"));
     const r2 = await run({ ...ARTICLE, category: "見本のカテゴリ" });
     assert.equal(r2.category, "");
     assert.equal(r2.categoryOpen, false);
@@ -372,13 +372,13 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
   it("要約が欄の上限より長ければ、入れずに ✗ を出す", async () => {
     const r = await run({ ...ARTICLE, summary: "あ".repeat(141) });
     assert.equal(r.summary, "");
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 141 字で、上限(140 字)を超えています")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
   it("絵文字を含む要約は、欄の上限と同じ数え方(UTF-16)で比べる", async () => {
     const r = await run({ ...ARTICLE, summary: "あ".repeat(130) + "😀".repeat(6) });
     assert.equal(r.summary, "");
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 136 字で、上限(140 字)を超えています")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
   it("いったん入ったタグが一度だけ消えたら、入れ直して ⚠ で知らせる", async () => {
@@ -427,7 +427,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     const r = await run(ARTICLE);
     // 公認タグ(一つめ)は候補のボタンで入る。打って入れる二つめは、Enter で欄が空になるだけで入らない
     assert.deepEqual(r.tags, ["一つめ"]);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個。確かめられなかったタグ(二つめ)")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.some((l) => l.startsWith("✗ タグ: 1 個。確認できなかったタグ(二つめ)")), r.result!.lines.join("\n"));
   });
 
   it("開くボタンのセレクタが「下書き保存」「確認画面へ」に当たっても押さない", async () => {
