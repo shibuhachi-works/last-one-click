@@ -128,7 +128,7 @@ export async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnTyp
   if (!res) throw new Error("今開いているページを再読み込みしてから、もう一度押してください。");
   if (!res.ok) throw new Error(res.error);
   setStatus(
-    "今開いているページに入れ始めました。続きはページの右下に出ます。\n「下書き保存」か「確認画面へ」を押してください。" + notesText(notes),
+    "今開いているページに入れ始めました。続きはページの右下に出ます。\n「下書き保存」か「確認画面へ」を、ページで押してください。" + notesText(notes),
     { error: notes.length > 0, near: "submit" },
   );
 }
