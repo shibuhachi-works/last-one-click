@@ -89,7 +89,8 @@ export async function showAccount(): Promise<void> {
   const el = $<HTMLParagraphElement>("account");
   el.replaceChildren(...accountRow("note.com", account.iconUrl, account.name, account.id && account.id !== account.name ? `(@${account.id})` : undefined));
   el.title = "note でログイン中のアカウントです。";
-  el.hidden = false;
+  // 入れる先のサイトのアカウントだけを出す(読み終わる前に入れる先が決まっていることがあるので、ここでも合わせる。#191)
+  el.hidden = destination() === "extra-site";
 }
 
 /** md の front matter の note_account。無いか読めなければ undefined */

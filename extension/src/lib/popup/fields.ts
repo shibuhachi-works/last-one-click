@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 import { parseFrontMatter } from "../../../../shared/article";
 import { $ } from "./dom";
 import { state } from "./state";
-import { titleEl, hashtagsEl, magazineEl, priceEl, thumbnailEl, UNAVAILABLE_NOTE, fieldsEl } from "./elements";
+import { titleEl, hashtagsEl, magazineEl, priceEl, thumbnailEl, fieldsEl } from "./elements";
 import { destination, checkTargetNow } from "./destination";
 import { renderAccountTarget } from "./account";
 
@@ -22,24 +22,25 @@ export function forgetSource() {
  * 値が無いものは「なし」。タイトルが無いときは開いて知らせる
  */
 export function renderFieldsSummary() {
-  // マガジン・価格は note にだけある設定。追加の対応先に入れるときは入らないので、一覧でもそう出す(欄と同じ)
+  // マガジン・価格は note にだけある設定。追加の対応先に入れるときは入らないので、行ごと出さない(「直す」の欄も同じ。#191)
   const noteOnly = destination() !== "note";
-  const rows: [string, string, boolean][] = [
-    ["タイトル", titleEl.value.trim(), false],
-    ["ハッシュタグ", hashtagsEl.value.trim(), false],
-    ["マガジン", magazineEl.value.trim(), noteOnly],
-    ["価格", priceEl.value.trim() ? `${priceEl.value.trim()} 円` : "", noteOnly],
+  const rows: [string, string][] = [
+    ["タイトル", titleEl.value.trim()],
+    ["ハッシュタグ", hashtagsEl.value.trim()],
+    ...(noteOnly
+      ? []
+      : ([
+          ["マガジン", magazineEl.value.trim()],
+          ["価格", priceEl.value.trim() ? `${priceEl.value.trim()} 円` : ""],
+        ] as [string, string][])),
   ];
   const nodes: Node[] = [];
-  for (const [label, value, unavailable] of rows) {
+  for (const [label, value] of rows) {
     const dt = document.createElement("dt");
     dt.textContent = label;
     const dd = document.createElement("dd");
-    dd.textContent = unavailable
-      ? `${value ? `${value} ` : ""}${UNAVAILABLE_NOTE}`
-      : value || (label === "タイトル" ? "(ありません。「直す」で入れてください)" : "なし");
+    dd.textContent = value || (label === "タイトル" ? "(ありません。「直す」で入れてください)" : "なし");
     if (!value && label === "タイトル") dd.classList.add("missing");
-    if (unavailable) dd.classList.add("unavailable");
     nodes.push(dt, dd);
   }
   $("fields-summary").replaceChildren(...nodes);
