@@ -12,6 +12,7 @@ import { STORAGE } from "../extension/src/lib/types.js";
 import {
   EXTENSION_DIST,
   bannerFailed,
+  clearSelectorsCache,
   launchWithExtension,
   openPopup,
   overrideExtensionStorage,
@@ -109,8 +110,8 @@ describe("Playwright 版が拡張を動かして下書きを作る(#178)", { ski
       [STORAGE.creditLink]: false,
       // 模擬のエディタには目次のメニューが無いので、目次は入れない
       [STORAGE.insertToc]: false,
-      [STORAGE.selectorsCache]: undefined,
     });
+    await clearSelectorsCache(popup);
     await popup.reload();
     return { popup, restore };
   }

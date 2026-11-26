@@ -28,6 +28,7 @@ import {
   bannerButton,
   bannerFailed,
   buildExtension,
+  clearSelectorsCache,
   launchWithExtension,
   openPopup,
   overrideExtensionStorage,
@@ -84,14 +85,15 @@ const popup = await openPopup(ctx, extensionId);
 // - 最後のクレジット(「Last One Click で下書きしました」と #LastOneClick)は、LOC_CREDIT_LINK=1 のときだけ入れる
 //   (Playwright 版は今まで入れていなかったので、黙って記事の内容を変えないように)
 // - GitHub トークン(環境変数 GITHUB_TOKEN)は、非公開のリポジトリの記事を読むときに使い、読み終わったら消す
-// - セレクタのキャッシュを消す(手元の selectors/note.json を読ませるため。tools/lib/extension.ts)
 const restoreStorage = await overrideExtensionStorage(popup, {
   [STORAGE.advancedMode]: true,
   [STORAGE.skipBodyReview]: !SAVE && !HOLD,
   [STORAGE.creditLink]: process.env.LOC_CREDIT_LINK === "1",
   [STORAGE.githubToken]: process.env.GITHUB_TOKEN || undefined,
-  [STORAGE.selectorsCache]: undefined,
 });
+// セレクタのキャッシュは消すだけで、戻さない。拡張はこのあと手元の selectors/note.json を読んでキャッシュし直し、
+// note のタブの拡張もそれを使う(戻すと、note のタブが前の実行のキャッシュを読むことがある。tools/lib/extension.ts の route)
+await clearSelectorsCache(popup);
 let editor: Page;
 try {
   await popup.reload();
@@ -149,7 +151,10 @@ if (SAVE || HOLD) {
   try {
     const before = (await readBanner(editor!))?.text;
     await safeClick(await bannerButton(editor!, "公開設定を入れる"), "draft.publishSettings");
-    printBanner(await waitBannerDone(editor!, FILL_TIMEOUT_MS, before));
+    const published = await waitBannerDone(editor!, FILL_TIMEOUT_MS, before);
+    printBanner(published);
+    // 拡張は失敗した工程を記録して先へ進むので、バナーの ✗ を見て失敗にする(今までどおり、見張り役が「保存したが途中で止まった」と知らせる)
+    if (bannerFailed(published)) throw new Error("拡張の公開設定で失敗した工程があります(上のバナーの ✗)。");
   } catch (e) {
     // 下書きは保存済み。見張り役が「保存したが途中で止まった」と知らせる
     await fail(`公開設定を入れられませんでした: ${(e as Error).message}`);

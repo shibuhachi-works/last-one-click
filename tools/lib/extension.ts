@@ -98,6 +98,13 @@ export async function overrideExtensionStorage(popup: Page, values: StorageValue
   };
 }
 
+/** 拡張のセレクタのキャッシュを消す(手元の selectors/note.json を読ませるため。戻さない) */
+export async function clearSelectorsCache(popup: Page): Promise<void> {
+  await writeStorage(popup, { [SELECTORS_CACHE_KEY]: undefined });
+}
+/** extension/src/lib/types.ts の STORAGE.selectorsCache */
+const SELECTORS_CACHE_KEY = "selectorsCache";
+
 type ChromeStorage = {
   storage: { local: { get: (k: string[]) => Promise<StorageValues>; set: (v: StorageValues) => Promise<void>; remove: (k: string[]) => Promise<void> } };
 };
