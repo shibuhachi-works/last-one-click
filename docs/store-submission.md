@@ -60,6 +60,7 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 3. 掲載情報・プライバシーの回答に変更があれば `listing.md` を先に直してから画面に反映する
 4. ストアで新しい版が公開されたら、`shared/released/selectors-schema.v<版>.ts` を、その版のタグの `shared/selectors-schema.ts` の写しに、`shared/released/note.v<版>.json` を、その版のタグの `selectors/note.json` の写しに置き換える(ファイル名の版と、`shared/selectors-released.test.ts` の import と `RELEASED` も変える)
 5. ストアで新しい版が公開されたら、`README.md`・`extension/README.md`・`templates/note/` の「(v<版> から)」を外す(公開の前には外さない)
+6. ストアで新しい版が公開されたら、使い方を書いた公開済みの記事(scribble-squid の `library/`・`posts/dev/`)のうち、その版で変わった画面・動きを書いている所を直す PR を scribble-squid に作る(公開の前には直さない。ストアの版を使う読者とずれるため)。探し方: `docs/releases/v<版>.md` の「変わったこと」に出てくるボタン・欄の名前で記事を検索し、画面の画像も見る。v0.1.8 で直す見込みの所は #183 にまとめてある
 
 ## 守ること(AGENTS.md / extension/README と同じ)
 
