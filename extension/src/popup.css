@@ -15,6 +15,11 @@ body.no-md #step-make, body.no-md #submit-hint { opacity: .45; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 /* 「使い方」は小さい文字のリンク(「ウィンドウで開く」より目立たないように。#196) */
 .head h1 { white-space: nowrap; }
+/* いちばん下の版(右寄せ・小さい灰色)と、続けて押したときの一言(#198) */
+.version-foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 12px; }
+button.version-tap, button.version-tap:hover { border: 0; padding: 0; background: none; font-size: 11px; color: #8a9199; cursor: default; }
+.version-egg { font-size: 12px; color: #1f9d7a; }
+.version-egg[hidden] { display: none; }
 .head-links { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 #usage-link { font-size: 12px; color: #57606a; }
 button.small { padding: 3px 8px; font-size: 12px; }
