@@ -79,6 +79,8 @@ if (isWindow) {
     } else if (h.markdown || h.thumbnail) {
       setStatus("入力途中の内容を引き継ぎました。", { near: "drop" });
     }
+    // 引き継いだ md に合わせて、作成のボタン・③ の薄さを直す(target が合わなければ、引き継ぎの知らせより先にこちらを出す。#194)
+    checkTargetNow();
   });
 }
 
