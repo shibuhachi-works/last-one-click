@@ -2,7 +2,7 @@
 import { parse as parseYaml } from "yaml";
 import { parseFrontMatter, targetProblem, type Destination } from "../../../../shared/article";
 import { checkNoteUrl, noteEditKey, noteUrlProblem } from "../../../../shared/note-rewrite";
-import { EXTRA_SITE_ENABLED, EXTRA_SITE_SUBMIT_LABEL, EXTRA_SITE_NEW_SUBMIT_LABEL, shouldFillExtraSite } from "../../../../shared/extra-site";
+import { EXTRA_SITE_ENABLED, EXTRA_SITE_SUBMIT_LABEL, EXTRA_SITE_NEW_SUBMIT_LABEL, isExtraSiteUrl, shouldFillExtraSite } from "../../../../shared/extra-site";
 import { chromeExtraSiteApi } from "../extra-site";
 import { type Message, type NoteArticleResponse } from "../types";
 import { $, STATUS_IDS, setStatus } from "./dom";
@@ -19,7 +19,10 @@ export function refreshExtraSiteFillTarget() {
   if (!EXTRA_SITE_ENABLED || isWindow) return;
   chrome.tabs
     .query({ active: true, currentWindow: true })
-    .then(async ([tab]) => ((await shouldFillExtraSite(chromeExtraSiteApi, tab)) ? tab?.id : undefined))
+    .then(async ([tab]) => {
+      state.onExtraSitePage = isExtraSiteUrl(tab?.url);
+      return (await shouldFillExtraSite(chromeExtraSiteApi, tab)) ? tab?.id : undefined;
+    })
     .catch(() => undefined)
     .then((id) => {
       state.extraSiteFillTabId = id;
@@ -99,6 +102,15 @@ export function destination(): Destination {
   return state.extraSiteFillTabId !== undefined || extraSiteNewMode() ? "extra-site" : "note";
 }
 
+/**
+ * ログイン中のアカウントを出すサイト。md を入れたあとは入れる先と同じ。md を入れる前は、
+ * 追加の対応先のページを開いていて(許可があれば)追加の対応先、それ以外は入れる先(#201)
+ */
+export function accountSite(): Destination {
+  if (!markdownEl.value.trim() && state.onExtraSitePage && state.extraSiteGranted) return "extra-site";
+  return destination();
+}
+
 /** ボタンの文字を、入れる先に合わせる */
 export function submitTextFor(): string {
   if (state.extraSiteFillTabId !== undefined) return EXTRA_SITE_SUBMIT_LABEL;
@@ -158,9 +170,10 @@ export function applyDestinationControls() {
   // ② の一覧も、入れる先に合わせて出し直す(入れる先は、開いたあとで決まることがある)
   renderFieldsSummary();
   // ログイン中のアカウントは、入れる先のサイトのものだけを「(ドメイン): [アイコン] 名前」で出す(#191)。
-  // 記事の設定(note_account)は note に入れるときだけ
-  $("account").hidden = !state.loggedInAccount || toExtraSite;
-  $("extra-site-account").hidden = !state.extraSiteAccountShown || !toExtraSite;
+  // md を入れる前は、今開いているページのサイトのもの(#201)。記事の設定(note_account)は note に入れるときだけ
+  const accountOnExtraSite = accountSite() === "extra-site";
+  $("account").hidden = !state.loggedInAccount || accountOnExtraSite;
+  $("extra-site-account").hidden = !state.extraSiteAccountShown || !accountOnExtraSite;
   renderAccountTarget();
 }
 
