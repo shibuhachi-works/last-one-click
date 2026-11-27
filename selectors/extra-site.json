@@ -23,5 +23,6 @@
   "categoryClose": ["#selectCategory .modal-header button.close", "#selectCategory .btn-close"],
   "readingTime": ["#setting_estimatedReadingTime"],
   "accountIcon": [".btn_mypage img.rounded-circle", ".mypageSide .profile_img img.rounded-circle"],
-  "accountName": [".mypageSide .profile_name"]
+  "accountName": [".mypageSide .profile_name"],
+  "saveDraftUrl": ["/articles/save_draft"]
 }

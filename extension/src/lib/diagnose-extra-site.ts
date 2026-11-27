@@ -202,6 +202,8 @@ export function describeSafe(el: HTMLElement, opts: { choiceText?: boolean } = {
     else if (account && FREE_TEXT_ATTRS.includes(a)) attrs.push(`${a}=(${v.length} 字)`);
     else attrs.push(`${a}="${mask(v.slice(0, TEXT_LEN))}"`);
   }
+  // 隠れた input は、値が入っているかと長さだけ出す(カテゴリの送る値が空になっていないかを見るため。中身は出さない)
+  if (el instanceof HTMLInputElement && el.type === "hidden") attrs.push(el.value ? `value=(${el.value.length} 字)` : "value 空");
   const data = Array.from(el.attributes).filter((a) => a.name.startsWith("data-") && a.name !== "data-placeholder").map((a) => a.name);
   if (data.length) attrs.push(`data: ${data.slice(0, 6).join(",")}`);
   if (attrs.length) parts.push(`[${attrs.join(" ")}]`);

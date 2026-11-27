@@ -8,7 +8,7 @@ import { type AccountResponse, type ExtraSiteAccountResponse, type Message } fro
 import { $, accountRow } from "./dom";
 import { state } from "./state";
 import { isWindow, extraSiteOfferEl, extraSiteRowEl, extraSiteToggleEl } from "./elements";
-import { destination, applyDestination } from "./destination";
+import { destination, applyDestination, accountSite } from "./destination";
 
 /**
  * 追加の対応先のログイン中のアカウントを、「(ドメイン): [アイコン] 名前」と出す。
@@ -90,7 +90,7 @@ export async function showAccount(): Promise<void> {
   el.replaceChildren(...accountRow("note.com", account.iconUrl, account.name, account.id && account.id !== account.name ? `(@${account.id})` : undefined));
   el.title = "note でログイン中のアカウントです。";
   // 入れる先のサイトのアカウントだけを出す(読み終わる前に入れる先が決まっていることがあるので、ここでも合わせる。#191)
-  el.hidden = destination() === "extra-site";
+  el.hidden = accountSite() === "extra-site";
 }
 
 /** md の front matter の note_account。無いか読めなければ undefined */
