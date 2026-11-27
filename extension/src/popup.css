@@ -7,8 +7,8 @@ h1 { font-size: 15px; margin: 0; }
 /* ② は見出しをいつも出し、読み込んだ内容が出るまでは案内の 1 行を薄く出す(#194) */
 .step-empty { margin: 0; color: #8a9199; }
 #step-check:has(#fields:not([hidden])) #step-check-empty { display: none; }
-/* ③ は md を入れるまで、見出しとボタンの下の案内を薄くする(ボタンは押せなくする。アカウント・チェック・設定は薄くしない) */
-body.no-md #step-make, body.no-md #submit-hint { opacity: .45; }
+/* ②③ は md を入れるまで、見出し(③ はボタンの下の案内も)を薄くする(ボタンは押せなくする。アカウント・チェック・設定は薄くしない) */
+body.no-md #step-check .step, body.no-md #step-make, body.no-md #submit-hint { opacity: .45; }
 #step-check .fields-head { margin-top: 0; }
 #markdown-fold { margin-top: 8px; }
 #markdown-fold label { margin-top: 6px; }
