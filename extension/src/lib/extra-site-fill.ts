@@ -346,7 +346,7 @@ async function setSummary(S: ExtraSiteSelectors, summary: string, fieldWait: num
 
 /**
  * タグを入れる。入れる前に、記事の設定の画面が落ち着く(しばらく作り直されない)のを待つ。
- * 入れ終えたあと少し待って数え直し、消えた・入らなかったタグは 1 回だけ入れ直す。
+ * 入れ終えたあと少し待って数え直し、消えた・入らなかったタグは 1 回だけ入れ直す(入れ直して全部入れば ✓ で、入れ直した数を添える)。
  * それでも残らなければ、消え方(タグの欄ごと作り直されたか、タグのボタンだけ消えたか)を添えて知らせる
  * (実機で、いったん入ったタグが消えた。候補のボタンで入れた公認タグも消えたので、送るイベントの違いではなく、
  * ページが記事の設定を作り直しているとみている)
@@ -374,7 +374,7 @@ async function addTags(S: ExtraSiteSelectors, tags: string[], fieldWait: number,
   lost = missing();
   const done = want.length - lost.length;
   if (!lost.length) {
-    return `⚠ ${done} 個(入れ直しました: ${[...new Set([...gone1, ...first.failed])].join(", ")})`;
+    return `${done} 個(入れ直し: ${new Set([...gone1, ...first.failed]).size} 個)`;
   }
   const gone = lost.filter((t) => first.entered.includes(t) || second.entered.includes(t));
   const failed = lost.filter((t) => !gone.includes(t));
