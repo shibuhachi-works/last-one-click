@@ -381,12 +381,12 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 上限(140 字)を超えています")), r.result!.lines.join("\n"));
   });
 
-  it("いったん入ったタグが一度だけ消えたら、入れ直して ⚠ で知らせる", async () => {
+  it("いったん入ったタグが一度だけ消えたら、入れ直して ✓ で数だけ出す", async () => {
     await page.evaluate(() => ((window as any).__tagVanish = true));
     const r = await run(ARTICLE);
     assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
     assert.ok(
-      r.result!.lines.some((l) => l === "⚠ タグ: 2 個(入れ直しました: 一つめ, 二つめ)"),
+      r.result!.lines.includes("✓ タグ: 2 個"),
       r.result!.lines.join("\n"),
     );
   });
@@ -406,7 +406,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     await page.evaluate(() => ((window as any).__tagRebuild = true));
     const r = await run(ARTICLE);
     assert.deepEqual(r.tags, ["一つめ", "二つめ"]);
-    assert.ok(r.result!.lines.some((l) => l.startsWith("⚠ タグ: 2 個(入れ直しました: ")), r.result!.lines.join("\n"));
+    assert.ok(r.result!.lines.includes("✓ タグ: 2 個"), r.result!.lines.join("\n"));
   });
 
   it("入れ直しても消えるなら ✗ で知らせる。タグは最後に入れる", async () => {
