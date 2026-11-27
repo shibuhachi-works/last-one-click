@@ -117,6 +117,8 @@ const PAGE = `<!doctype html><html><body>
     function vanish() {
       document.querySelectorAll("#tags .tagItems").forEach((c) => c.remove());
       document.querySelectorAll(".article_tag_suggest_item.is_selected").forEach((b) => b.classList.remove("is_selected"));
+      // __catReset なら、カテゴリのボタンの文字は残したまま、送る値だけを空にする(実機で「確認画面へ」で止まったときのまね)
+      if (window.__catReset) document.querySelector('input[name="category"]').value = "";
       if (window.__tagRebuild) {
         const fresh = tag.cloneNode(true);
         window.__tagRebuild = false;
@@ -379,6 +381,17 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     const r = await run({ ...ARTICLE, summary: "あ".repeat(130) + "😀".repeat(6) });
     assert.equal(r.summary, "");
     assert.ok(r.result!.lines.some((l) => l.startsWith("✗ 要約: 上限(140 字)を超えています")), r.result!.lines.join("\n"));
+  });
+
+  it("記事の設定が作り直されてカテゴリの値だけが空になったら、最後に選び直す", async () => {
+    await page.evaluate(() => {
+      (window as any).__tagVanish = true;
+      (window as any).__catReset = true;
+    });
+    const r = await run({ ...ARTICLE, category: "稼ぐ > ITリテラシー" });
+    assert.equal(r.category, "稼ぐ/ITリテラシー");
+    assert.equal(r.categoryOpen, false);
+    assert.ok(r.result!.lines.includes("✓ カテゴリ: 稼ぐ > ITリテラシー(選び直し)"), r.result!.lines.join("\n"));
   });
 
   it("いったん入ったタグが一度だけ消えたら、入れ直して ⚠ で知らせる", async () => {
