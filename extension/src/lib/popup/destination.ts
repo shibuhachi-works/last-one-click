@@ -171,8 +171,12 @@ export function applyDestinationControls() {
 export function checkTargetNow() {
   if (state.submitting) return;
   applyDestinationControls();
-  const problem = markdownEl.value.trim() ? (targetProblem(markdownEl.value, destination(), parseYaml) ?? noteUrlMismatch()) : null;
-  submitEl.disabled = problem !== null;
+  const hasMd = !!markdownEl.value.trim();
+  const problem = hasMd ? (targetProblem(markdownEl.value, destination(), parseYaml) ?? noteUrlMismatch()) : null;
+  // md を入れるまでは作成のボタンを押せなくし、③ を薄くする(#194)
+  document.body.classList.toggle("no-md", !hasMd);
+  submitEl.disabled = !hasMd || problem !== null;
+  submitNewEl.disabled = !hasMd;
   const submitStatusEl = document.getElementById(STATUS_IDS.submit);
   if (problem) {
     setStatus(problem, { error: true, near: "submit" });

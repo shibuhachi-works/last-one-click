@@ -5,7 +5,7 @@
   <title>Last One Click</title>
   <link rel="stylesheet" href="popup.css">
 </head>
-<body>
+<body class="no-md">
   <div class="head">
     <h1>Last One Click <small style="font-weight:400;color:#666">note の下書きツール</small></h1>
     <button id="open-window" type="button" class="small" title="別ウィンドウで開きます。ファイルをドロップするときに使ってください。">ウィンドウで開く</button>
@@ -33,6 +33,7 @@
 
   <div id="step-check">
   <h2 class="step">② 入れる内容を確かめる</h2>
+  <p id="step-check-empty" class="step-empty">md ファイルを入れると、ここに内容が出ます。</p>
   <div id="fields" hidden>
     <p class="fields-head">入れる内容<small class="hint-inline tip" title="md ファイルから読んだ値です。「直す」で直せます。">(md ファイルから)</small></p>
     <dl id="fields-summary" class="fields-summary"></dl>
@@ -62,7 +63,7 @@ magazine: マガジン名
   </div>
   </div>
 
-  <h2 class="step">③ 下書きを作る</h2>
+  <h2 id="step-make" class="step">③ 下書きを作る</h2>
   <div class="accounts">
     <p id="account" class="account" hidden></p>
     <p id="extra-site-account" class="account" hidden></p>
@@ -72,7 +73,7 @@ magazine: マガジン名
     <p id="rewrite-target" class="rewrite-target"></p>
     <p class="hint">タイトル・本文・見出し画像を置き換えます。</p>
   </div>
-  <button id="submit" type="button" class="primary">note の下書きを作成</button>
+  <button id="submit" type="button" class="primary" disabled>note の下書きを作成</button>
   <button id="submit-new" type="button" class="submit-new" hidden>新しい下書きとして作る</button>
   <p id="status" class="status" hidden></p>
   <p id="submit-hint" class="hint">note を新しいタブで開いて、下書きを入れます。</p>

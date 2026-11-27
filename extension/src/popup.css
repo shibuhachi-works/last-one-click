@@ -4,8 +4,11 @@ h1 { font-size: 15px; margin: 0; }
 /* 手順の見出し(① ファイルを入れる ② 入れる内容を確かめる ③ 下書きを作る)。上から順に読めば何をするか分かるように */
 .step { font-size: 13px; margin: 14px 0 6px; padding-top: 10px; border-top: 1px solid #e6e9ec; color: #1f2328; }
 .step.first { margin-top: 8px; padding-top: 0; border-top: 0; }
-/* ② は、読み込んだ内容が出るまで見出しごと出さない */
-#step-check:not(:has(#fields:not([hidden]), #markdown-box:not([hidden]))) { display: none; }
+/* ② は見出しをいつも出し、読み込んだ内容が出るまでは案内の 1 行を薄く出す(#194) */
+.step-empty { margin: 0; color: #8a9199; }
+#step-check:has(#fields:not([hidden])) #step-check-empty { display: none; }
+/* ③ は md を入れるまで、見出しとボタンの下の案内を薄くする(ボタンは押せなくする。アカウント・チェック・設定は薄くしない) */
+body.no-md #step-make, body.no-md #submit-hint { opacity: .45; }
 #step-check .fields-head { margin-top: 0; }
 #markdown-fold { margin-top: 8px; }
 #markdown-fold label { margin-top: 6px; }
