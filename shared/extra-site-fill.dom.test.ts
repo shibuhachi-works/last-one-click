@@ -86,13 +86,13 @@ const PAGE = `<!doctype html><html><body>
     });
     // ページの自動保存のまね(window.__autosave のときだけ): 画像を上げると少しあとで保存を送り、
     // 返事が来たら、送ったときの中身(タグ・カテゴリの値)に描き直す(実機の save_draft のあとで消えたときのまね。#207)
-    let saveTimer = null;
     function scheduleSave() {
       if (!window.__autosave) return;
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(async () => {
+      // 画像ごとに保存を送る(見出し画像と本文の画像で、保存が続けて送られるときのまね)
+      setTimeout(async () => {
         const sent = Array.from(document.querySelectorAll("#tags .tagItems"), (c) => c.textContent);
         const cat = document.querySelector('input[name="category"]').value;
+        window.__sent = (window.__sent || 0) + 1;
         await fetch("/api/internal/v1/articles/save_draft", { method: "POST" });
         document.querySelectorAll("#tags .tagItems").forEach((c) => { if (!sent.includes(c.textContent)) c.remove(); });
         document.querySelector('input[name="category"]').value = cat;
@@ -444,7 +444,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     await page.route("https://library.test/**", async (route) => {
       if (route.request().url().includes("/save_draft")) {
         await new Promise((r) => setTimeout(r, 1500));
-        // 見出し画像と本文の画像で保存が 2 回送られ、2 回目はテストを終えたあとに返ることがある
+        // ページを離れたあとに返ることがあっても、テストを落とさない
         return route.fulfill({ contentType: "application/json", body: "{}" }).catch(() => {});
       }
       return route.fulfill({ contentType: "text/html; charset=utf-8", body: PAGE });
@@ -459,7 +459,10 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
       await page.addScriptTag({ content: src });
       await page.evaluate(() => ((window as any).__autosave = true));
       const r = await run({ ...ARTICLE, category: "稼ぐ > ITリテラシー" }, { saveWaitMs: 5000 });
-      assert.ok((await page.evaluate(() => (window as any).__saved)) >= 1, "自動保存の返事を待ってから終える");
+      // 見出し画像と本文の画像で保存が続けて送られても、送った保存の返事をすべて待ってから終える
+      const { sent, saved } = await page.evaluate(() => ({ sent: (window as any).__sent, saved: (window as any).__saved }));
+      assert.ok(sent >= 1);
+      assert.equal(saved, sent, "最後の保存の返事まで待ってから終える");
       assert.deepEqual(r.tags, ["一つめ", "二つめ"], JSON.stringify({ lines: r.result?.lines, error: r.error }));
       assert.equal(r.category, "稼ぐ/ITリテラシー");
       assert.ok(r.result!.lines.includes("✓ タグ: 2 個"), r.result!.lines.join("\n"));

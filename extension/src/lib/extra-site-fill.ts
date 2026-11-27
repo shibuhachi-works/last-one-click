@@ -38,6 +38,8 @@ const SETTLE_QUIET_MS = 1_000;
 const SETTLE_MAX_MS = 10_000;
 /** 画像を上げたあと、ページの自動保存(save_draft)の返事を待つ最長(来なければそのまま進む) */
 const SAVE_WAIT_MS = 15_000;
+/** 画像を上げ終えた時刻より、これだけ前に送られた保存も「最後の画像に伴う保存」とみる */
+const SAVE_SINCE_MARGIN_MS = 500;
 
 /** このページで押すときは、いつもここを通す(「確認画面へ」「下書き保存」も押さない) */
 function click(el: HTMLElement, context: string) {
@@ -106,7 +108,9 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
   }
   if (uploaded && saves.watching) {
     opts.onProgress?.("ページの自動保存を待っています…");
-    await saves.waitNext(opts.saveWaitMs ?? SAVE_WAIT_MS);
+    // 最後の画像を上げ終えたあとに送られた保存を待つ(それより前の保存の返事だけでは終えない)。
+    // 画像が入ったのを見てから気づくまでのずれを見込んで、少し前からを数える
+    await saves.waitSettled(performance.now() - SAVE_SINCE_MARGIN_MS, settle.quietMs, opts.saveWaitMs ?? SAVE_WAIT_MS);
     await waitQuiet(query(S.settingsMenu) ?? document.body, settle);
   }
   saves.stop();
@@ -476,18 +480,19 @@ function tagsMissing(S: ExtraSiteSelectors, tags: string[]): boolean {
 }
 
 /**
- * ページの自動保存の通信の返事が来たかを見張る。ページの Performance に載る、終わった通信の URL だけを見る
+ * ページの自動保存の通信の返事が来たかを見張る。ページの Performance に載る、終わった通信の URL と時刻だけを見る
  * (中身は読まない。拡張の権限も要らない)。見張れないときは watching が false で、待たない
  */
 function watchSaves(patterns: string[]) {
-  let count = 0;
+  /** 返事が来た保存の、送り始めた時刻(performance.now() と同じ物差し) */
+  const starts: number[] = [];
   let notify: (() => void) | null = null;
   let po: PerformanceObserver | null = null;
   try {
     po = new PerformanceObserver((list) => {
       for (const e of list.getEntries()) {
         if (!patterns.some((p) => e.name.includes(p))) continue;
-        count++;
+        starts.push(e.startTime);
         notify?.();
       }
     });
@@ -495,20 +500,31 @@ function watchSaves(patterns: string[]) {
   } catch {
     po = null;
   }
+  /** 次の返事か、deadline まで待つ。返事が来たら true */
+  const next = (deadline: number) =>
+    new Promise<boolean>((resolve) => {
+      const t = setTimeout(() => done(false), Math.max(0, deadline - performance.now()));
+      notify = () => done(true);
+      function done(got: boolean) {
+        clearTimeout(t);
+        notify = null;
+        resolve(got);
+      }
+    });
   return {
     watching: po !== null,
-    /** 見張り始めてから返事が 1 つでも来ていれば、すぐ返る。まだなら、次の返事か ms が過ぎるまで待つ */
-    waitNext(ms: number): Promise<void> {
-      if (count > 0) return Promise.resolve();
-      return new Promise((resolve) => {
-        const t = setTimeout(done, ms);
-        notify = done;
-        function done() {
-          clearTimeout(t);
-          notify = null;
-          resolve();
-        }
-      });
+    /**
+     * since より後に送られた保存の返事が来るまで待つ(画像を上げ終えた時刻を since にすると、最後の画像に伴う保存を待てる)。
+     * 来たあとも、quietMs のあいだ次の返事が来なくなるまで待つ(保存が続けて送られたとき、最後の返事まで待つため)。最長 maxMs
+     */
+    async waitSettled(since: number, quietMs: number, maxMs: number): Promise<void> {
+      const deadline = performance.now() + maxMs;
+      while (!starts.some((t) => t >= since)) {
+        if (!(await next(deadline))) return;
+      }
+      while (await next(Math.min(deadline, performance.now() + quietMs))) {
+        // 続けて返事が来たら、また quietMs 待つ
+      }
     },
     stop() {
       po?.disconnect();
