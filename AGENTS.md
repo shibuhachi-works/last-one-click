@@ -5,6 +5,7 @@
 ## 絶対に守ること
 
 - **公開ボタン(「投稿する」「公開する」)をスクリプト・拡張から押さない。** 設計の芯。全媒体に適用する
+- Chrome ウェブストアの「審査のため送信」(公開)は人の作業。ZIP のアップロードだけは、人が起動するリリースの workflow が行う(#134)。publish など、アップロード以外の書き込みの API は呼ばない
 - クリックは必ず `safeClick()` を通す(`shared/forbidden-click.ts`)。押さない文字の一覧はコードに直接書き、`selectors/*.json` からは変えられない
 - 拡張の `host_permissions` を増やさない（`shared/manifest-permissions.test.ts` で権限を検査する）
 - `selectors/note.json` は 2026-10-29 に実機で全工程 ✓ を確認済み。note の画面が変わって ✗ になったときの実機での確認は人の作業(`human-task` の Issue を立てて人に渡す)
