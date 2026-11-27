@@ -1050,6 +1050,9 @@ describe("拡張の起動と、ポップアップから下書きを作るまで(
       await target.waitFor({ state: "visible", timeout: 10_000 });
       await popup.waitForFunction(() => document.getElementById("account-target")?.classList.contains("mismatch"), null, { timeout: 10_000 });
       assert.equal(await target.textContent(), "⚠️ ログイン中のアカウント(sample_writer)が、記事の設定(other_writer)と違います。");
+      // 引き継いだ md があれば、作成のボタンは押せる(md を入れる前は押せない。#194)
+      await popup.waitForFunction(() => !(document.getElementById("submit") as HTMLButtonElement).disabled, null, { timeout: 5_000 });
+      assert.equal(await popup.evaluate(() => document.body.classList.contains("no-md")), false);
       await popup.close();
     });
   });
