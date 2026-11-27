@@ -346,6 +346,9 @@ submitNewEl.addEventListener("click", () => void submitArticle(true));
   const eggEl = $("version-egg");
   versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
   let taps = { count: 0, at: 0 };
+  // マウスで押したときは、ボタンにフォーカスを移さない(押したあとに枠が残るため。#209)。
+  // Tab で移ったときは、今までどおり枠が出る
+  versionEl.addEventListener("mousedown", (e) => e.preventDefault());
   versionEl.addEventListener("click", () => {
     const now = Date.now();
     taps = { count: nextTapCount(taps, now), at: now };
