@@ -84,6 +84,23 @@ const PAGE = `<!doctype html><html><body>
       const doc = new DOMParser().parseFromString(html, "text/html");
       body.replaceChildren(...Array.from(doc.body.childNodes));
     });
+    // ページの自動保存のまね(window.__autosave のときだけ): 画像を上げると少しあとで保存を送り、
+    // 返事が来たら、送ったときの中身(タグ・カテゴリの値)に描き直す(実機の save_draft のあとで消えたときのまね。#207)
+    function scheduleSave() {
+      if (!window.__autosave) return;
+      // 画像ごとに保存を送る(見出し画像と本文の画像で、保存が続けて送られるときのまね)
+      setTimeout(async () => {
+        const sent = Array.from(document.querySelectorAll("#tags .tagItems"), (c) => c.textContent);
+        const cat = document.querySelector('input[name="category"]').value;
+        window.__sent = (window.__sent || 0) + 1;
+        await fetch("/api/internal/v1/articles/save_draft", { method: "POST" });
+        document.querySelectorAll("#tags .tagItems").forEach((c) => { if (!sent.includes(c.textContent)) c.remove(); });
+        document.querySelector('input[name="category"]').value = cat;
+        window.__saved = (window.__saved || 0) + 1;
+      }, 200);
+    }
+    document.getElementById("fileInputForEditor").addEventListener("change", scheduleSave);
+    document.getElementById("fileInput").addEventListener("change", scheduleSave);
     document.getElementById("fileInputForEditor").addEventListener("change", (e) => {
       const f = e.target.files[0];
       const sel = getSelection();
@@ -226,7 +243,7 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
         let result = null;
         let error = null;
         try {
-          result = await (globalThis as any).__fill(article, ["見本の知らせ"], { imageWaitMs: 1000, fieldWaitMs: 1000, settleQuietMs: 100, settleMaxMs: 1000, ...opts });
+          result = await (globalThis as any).__fill(article, ["見本の知らせ"], { imageWaitMs: 1000, fieldWaitMs: 1000, settleQuietMs: 100, settleMaxMs: 1000, saveWaitMs: 300, ...opts });
         } catch (e) {
           error = (e as Error).message;
         }
@@ -422,7 +439,45 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
     assert.ok(r.result!.lines.includes("✓ タグ: 2 個"), r.result!.lines.join("\n"));
   });
 
-  it("入れ直しても消えるなら ✗ で知らせる。タグは最後に入れる", async () => {
+  it("記事の設定とタグを画像より先に入れ、画像のあとの自動保存の返事を待つ。返事で描き直されても消えない", async () => {
+    // 自動保存の通信が Performance に載るよう、http のページで開く。保存の返事は遅れて来る
+    await page.route("https://library.test/**", async (route) => {
+      if (route.request().url().includes("/save_draft")) {
+        await new Promise((r) => setTimeout(r, 1500));
+        // ページを離れたあとに返ることがあっても、テストを落とさない
+        return route.fulfill({ contentType: "application/json", body: "{}" }).catch(() => {});
+      }
+      return route.fulfill({ contentType: "text/html; charset=utf-8", body: PAGE });
+    });
+    const warns: string[] = [];
+    const onConsole = (m: { type(): string; text(): string }) => {
+      if (m.type() === "warning") warns.push(m.text());
+    };
+    page.on("console", onConsole);
+    try {
+      await page.goto("https://library.test/articles/1/edit");
+      await page.addScriptTag({ content: src });
+      await page.evaluate(() => ((window as any).__autosave = true));
+      const r = await run({ ...ARTICLE, category: "稼ぐ > ITリテラシー" }, { saveWaitMs: 5000 });
+      // 見出し画像と本文の画像で保存が続けて送られても、送った保存の返事をすべて待ってから終える
+      const { sent, saved } = await page.evaluate(() => ({ sent: (window as any).__sent, saved: (window as any).__saved }));
+      assert.ok(sent >= 1);
+      assert.equal(saved, sent, "最後の保存の返事まで待ってから終える");
+      assert.deepEqual(r.tags, ["一つめ", "二つめ"], JSON.stringify({ lines: r.result?.lines, error: r.error }));
+      assert.equal(r.category, "稼ぐ/ITリテラシー");
+      assert.ok(r.result!.lines.includes("✓ タグ: 2 個"), r.result!.lines.join("\n"));
+      assert.ok(r.result!.lines.includes("✓ カテゴリ: 稼ぐ > ITリテラシー"), r.result!.lines.join("\n"));
+      assert.deepEqual(warns.filter((w) => w.includes("[lastclick-pigeon] タグ")), [], "入れ直していない");
+      // タグは画像より前
+      const lines = r.result!.lines;
+      assert.ok(lines.findIndex((l) => l.startsWith("✓ タグ")) < lines.findIndex((l) => l.includes("見出し画像")), lines.join("\n"));
+    } finally {
+      page.off("console", onConsole);
+      await page.unroute("https://library.test/**");
+    }
+  });
+
+  it("入れ直しても消えるなら ✗ で知らせる。タグは画像より先に入れる", async () => {
     await page.evaluate(() => ((window as any).__tagVanishAlways = true));
     const r = await run(ARTICLE);
     assert.deepEqual(r.tags, []);
@@ -431,8 +486,11 @@ describe("追加の対応先の編集画面に入れる (DOM)", () => {
       r.result!.lines[tagLine]?.startsWith("✗ タグ: 0 個。消えたタグ(一つめ, 二つめ)"),
       r.result!.lines.join("\n"),
     );
-    // 記事の設定のうち、タグがいちばん後(読了目安時間よりも後)
-    assert.ok(r.result!.lines.slice(tagLine + 1).every((l) => !/^[✓✗] /.test(l)), r.result!.lines.join("\n"));
+    // タグのあとは画像だけ(記事の設定はタグより前)
+    assert.ok(
+      r.result!.lines.slice(tagLine + 1).every((l) => !/^[✓✗] /.test(l) || /^. (見出し画像|本文の画像)/.test(l)),
+      r.result!.lines.join("\n"),
+    );
   });
 
   it("タグが入らなかったら、候補の並びに同じ文字があっても、入ったとは数えない", async () => {

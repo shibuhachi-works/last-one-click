@@ -21,6 +21,8 @@ export type FillOptions = {
   /** タグを入れる前に、記事の設定の画面が落ち着くのを待つ長さ(変わらなければ落ち着いたとみる長さ・最長) */
   settleQuietMs?: number;
   settleMaxMs?: number;
+  /** 画像を上げたあと、ページの自動保存の返事を待つ最長 */
+  saveWaitMs?: number;
   /** いま進めていることの文(「タグを入れています…」など)。ページの知らせの文を書き換えるのに使う */
   onProgress?: (what: string) => void;
 };
@@ -34,6 +36,10 @@ const FIELD_WAIT_MS = 10_000;
 const TAG_RECHECK_MS = 1_500;
 const SETTLE_QUIET_MS = 1_000;
 const SETTLE_MAX_MS = 10_000;
+/** 画像を上げたあと、ページの自動保存(save_draft)の返事を待つ最長(来なければそのまま進む) */
+const SAVE_WAIT_MS = 15_000;
+/** 画像を上げ終えた時刻より、これだけ前に送られた保存も「最後の画像に伴う保存」とみる */
+const SAVE_SINCE_MARGIN_MS = 500;
 
 /** このページで押すときは、いつもここを通す(「確認画面へ」「下書き保存」も押さない) */
 function click(el: HTMLElement, context: string) {
@@ -73,25 +79,54 @@ export async function fillExtraSite(article: ExtraSiteArticle, notes: string[] =
     return "";
   });
 
-  if (bodyOk && (article.images?.length || article.imageNotes?.length)) {
-    await step("本文の画像", () => insertBodyImages(S, article, opts.imageWaitMs ?? IMAGE_WAIT_MS, fieldWait, opts.onProgress));
-  }
-
   const summary = article.summary?.trim() ?? "";
-  const settings = article.thumbnail || article.hashtags.length || summary || article.publishScope || article.readingTime !== undefined || article.category?.trim();
+  const category = article.category?.trim() ?? "";
+  const settings = article.thumbnail || article.hashtags.length || summary || article.publishScope || article.readingTime !== undefined || category;
   if (settings) {
     await step("記事の設定を開く", () => openSettings(S, fieldWait));
   }
-  if (article.thumbnail) await step("見出し画像", () => setEyecatch(S, article.thumbnail!, fieldWait));
+  // 記事の設定(タグ・カテゴリなど)は、画像を上げる前に入れる。ページは画像を上げたあとに自動保存(save_draft)を送り、
+  // その返事で記事の設定を、送ったときの中身に描き直す(実機で、返事のあとにタグの一部とカテゴリの値が消えた。#207)。
+  // 先に入れておけば、保存に含まれるので消えない
   if (article.publishScope) await step("外部公開の範囲", () => setPublishScope(S, article.publishScope!, fieldWait));
-  const category = article.category?.trim() ?? "";
   if (category) await step("カテゴリ", () => setCategory(S, category, fieldWait));
   if (summary) await step("要約", () => setSummary(S, summary, fieldWait));
   if (article.readingTime !== undefined) await step("読了目安時間", () => setReadingTime(S, article.readingTime!, fieldWait));
-  // タグは最後に入れる(ほかの設定や見出し画像のアップロードで、記事の設定が作り直されたときに消えないように)
   const settle = { quietMs: opts.settleQuietMs ?? SETTLE_QUIET_MS, maxMs: opts.settleMaxMs ?? SETTLE_MAX_MS };
   if (article.hashtags.length) await step("タグ", () => addTags(S, article.hashtags, fieldWait, settle));
-  // 記事の設定が作り直されると、カテゴリのボタンの文字は残ったまま、送る値(隠れた欄)だけが空になることがある
+
+  // ここから画像を上げる。上げたあとの自動保存の返事を待ってから、タグとカテゴリが残っているかを確かめる(保険)
+  const saves = watchSaves(S.saveDraftUrl);
+  let uploaded = false;
+  if (article.thumbnail) {
+    await step("見出し画像", () => setEyecatch(S, article.thumbnail!, fieldWait));
+    uploaded = true;
+  }
+  if (bodyOk && (article.images?.length || article.imageNotes?.length)) {
+    await step("本文の画像", () => insertBodyImages(S, article, opts.imageWaitMs ?? IMAGE_WAIT_MS, fieldWait, opts.onProgress));
+    uploaded ||= !!article.images?.length;
+  }
+  if (uploaded && saves.watching) {
+    opts.onProgress?.("ページの自動保存を待っています…");
+    // 最後の画像を上げ終えたあとに送られた保存を待つ(それより前の保存の返事だけでは終えない)。
+    // 画像が入ったのを見てから気づくまでのずれを見込んで、少し前からを数える
+    await saves.waitSettled(performance.now() - SAVE_SINCE_MARGIN_MS, settle.quietMs, opts.saveWaitMs ?? SAVE_WAIT_MS);
+    await waitQuiet(query(S.settingsMenu) ?? document.body, settle);
+  }
+  saves.stop();
+
+  // それでもタグが消えていたら、もう一度入れる(入れ直したことは画面に出さず、コンソールに残す)
+  const tagLine = lines.findIndex((l) => l.startsWith("✓ タグ"));
+  if (tagLine >= 0 && tagsMissing(S, article.hashtags)) {
+    opts.onProgress?.("タグを入れ直しています…");
+    try {
+      lines[tagLine] = `✓ タグ: ${await addTags(S, article.hashtags, fieldWait, settle)}`;
+    } catch (e) {
+      ok = false;
+      lines[tagLine] = `✗ タグ: ${(e as Error).message}`;
+    }
+  }
+  // 記事の設定が描き直されると、カテゴリのボタンの文字は残ったまま、送る値(隠れた欄)だけが空になることがある
   // (実機で、「確認画面へ」で「カテゴリを選択してください。」と出た)。最後に確かめ、空なら 1 回だけ選び直す
   const catLine = lines.findIndex((l) => l.startsWith("✓ カテゴリ"));
   if (category && catLine >= 0 && categoryValueLost(S)) {
@@ -437,6 +472,64 @@ async function addTagsOnce(S: ExtraSiteSelectors, tags: string[], fieldWait: num
     else failed.push(tag);
   }
   return { entered, failed };
+}
+
+/** 入れたいタグのうち、画面に無いものがあるか */
+function tagsMissing(S: ExtraSiteSelectors, tags: string[]): boolean {
+  return tags.map((t) => t.replace(/^[#＃]/, "").trim()).filter(Boolean).some((t) => countTag(S, t) === 0);
+}
+
+/**
+ * ページの自動保存の通信の返事が来たかを見張る。ページの Performance に載る、終わった通信の URL と時刻だけを見る
+ * (中身は読まない。拡張の権限も要らない)。見張れないときは watching が false で、待たない
+ */
+function watchSaves(patterns: string[]) {
+  /** 返事が来た保存の、送り始めた時刻(performance.now() と同じ物差し) */
+  const starts: number[] = [];
+  let notify: (() => void) | null = null;
+  let po: PerformanceObserver | null = null;
+  try {
+    po = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (!patterns.some((p) => e.name.includes(p))) continue;
+        starts.push(e.startTime);
+        notify?.();
+      }
+    });
+    po.observe({ type: "resource" });
+  } catch {
+    po = null;
+  }
+  /** 次の返事か、deadline まで待つ。返事が来たら true */
+  const next = (deadline: number) =>
+    new Promise<boolean>((resolve) => {
+      const t = setTimeout(() => done(false), Math.max(0, deadline - performance.now()));
+      notify = () => done(true);
+      function done(got: boolean) {
+        clearTimeout(t);
+        notify = null;
+        resolve(got);
+      }
+    });
+  return {
+    watching: po !== null,
+    /**
+     * since より後に送られた保存の返事が来るまで待つ(画像を上げ終えた時刻を since にすると、最後の画像に伴う保存を待てる)。
+     * 来たあとも、quietMs のあいだ次の返事が来なくなるまで待つ(保存が続けて送られたとき、最後の返事まで待つため)。最長 maxMs
+     */
+    async waitSettled(since: number, quietMs: number, maxMs: number): Promise<void> {
+      const deadline = performance.now() + maxMs;
+      while (!starts.some((t) => t >= since)) {
+        if (!(await next(deadline))) return;
+      }
+      while (await next(Math.min(deadline, performance.now() + quietMs))) {
+        // 続けて返事が来たら、また quietMs 待つ
+      }
+    },
+    stop() {
+      po?.disconnect();
+    },
+  };
 }
 
 /** 画面が落ち着くのを待つ設定(しばらく作り直されなければ落ち着いたとみる) */

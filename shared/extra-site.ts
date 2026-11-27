@@ -93,6 +93,11 @@ export type ExtraSiteSelectors = {
   accountIcon: string[];
   /** ログイン中のアカウントの名前(マイページの左の欄。編集画面には無い) */
   accountName: string[];
+  /**
+   * ページの自動保存の通信の URL に含まれる文字(セレクタではない)。画像を上げたあと、この通信の返事が来るのを待つ
+   * (返事で記事の設定が描き直されるため)。終わった通信の URL を見るだけで、中身は読まない
+   */
+  saveDraftUrl: string[];
 };
 
 /** selectors/extra-site.json が無い・読めないときの値。ファイルがあっても、欠けた項目はこの値を使う */
@@ -122,6 +127,7 @@ export const EXTRA_SITE_DEFAULT_SELECTORS: ExtraSiteSelectors = {
   readingTime: ["#setting_estimatedReadingTime"],
   accountIcon: [".btn_mypage img.rounded-circle", ".mypageSide .profile_img img.rounded-circle"],
   accountName: [".mypageSide .profile_name"],
+  saveDraftUrl: ["/articles/save_draft"],
 };
 
 /**
