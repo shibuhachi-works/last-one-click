@@ -23,6 +23,7 @@ name: リリースを作る
 # ストアへのアップロード(#134): リリースに添えた ZIP を、Chrome Web Store API で上げるところまで行う(別のジョブ)。
 # - 「審査のため送信」は人が押す(説明文・画像・プライバシーの回答を確かめてから)。この workflow は送信しない
 # - Google には、鍵ファイルを置かずに GitHub の OIDC で入る(Workload Identity 連携)。id-token の権限は、上げるジョブにだけ付ける
+# - 上げるジョブは保護された Environment(chrome-web-store)で動かす。承認した実行だけが Google に入れる(Google 側の条件にも入れる)
 #   (ZIP を作る手順で動く依存のコードに、Google に入る権限を渡さないため)
 # - Variables(CWS_WIF_PROVIDER・CWS_SERVICE_ACCOUNT・CWS_PUBLISHER_ID)のどれかが無ければ、上げずに成功で終わる
 # - upload_only を付けると、リリースは作らず、既にあるリリースの ZIP を上げるだけにする(上げるのだけ失敗したときのやり直し)
@@ -142,6 +143,9 @@ jobs:
     # リリースを作ったとき(release が成功)か、upload_only のとき(release は飛ばされる)
     if: ${{ always() && inputs.upload_to_store && (needs.release.result == 'success' || (inputs.upload_only && needs.release.result == 'skipped')) }}
     runs-on: ubuntu-latest
+    # 保護された Environment。起動のたびにメンテナーの承認が要る。Google 側の条件にもこの Environment を入れているので、
+    # 承認を通らない実行(workflow の書き換え・リリースの ZIP の差し替えを含む)は Google に入れない
+    environment: chrome-web-store
     permissions:
       contents: read
       id-token: write

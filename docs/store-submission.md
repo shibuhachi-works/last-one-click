@@ -45,7 +45,7 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 「リリースを作る」が、リリースに添えた ZIP をストアにアップロードするところまで行う。**「審査のため送信」は押さない。**
 
 1. 前の版が審査中でないことを確かめる(審査中なら、アップロードの手順は上げずに止まる。審査中の版は差し替えない)
-2. 「リリースを作る」を、タグとコミットを入れて起動する(「ストアにアップロードする」はオンのまま)
+2. 「リリースを作る」を、タグとコミットを入れて起動する(「ストアにアップロードする」はオンのまま)。リリースができたあと、「ストアにアップロードする」のジョブが承認待ちになるので、Actions の画面で「Review deployments」→ 承認する
    - リリースに添えた ZIP を取ってきて、`SHA256SUMS` と合うか、ZIP の `manifest.json` の version がタグと同じかを確かめてから上げる(作り直さない)
    - 下の「準備」の Variables が無ければ、上げずに成功で終わる(ログに「飛ばしました」と出る)
 3. ダッシュボードを開き、説明文・画像・プライバシーの回答をこの版に合わせる(下の「ダッシュボードで申請する」の 2〜5。申請用のツールができたら、ツールで入れる)
@@ -55,7 +55,7 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 
 #### 準備(1 回だけ)
 
-鍵ファイルは作らない。GitHub の Actions が、このリポジトリの main から動いたときだけ、Google のサービスアカウントとして入れるようにする(Workload Identity 連携)。GitHub に置くのは識別子だけで、秘密の値は置かない。
+鍵ファイルは作らない。GitHub の Actions が、このリポジトリの保護された Environment(`chrome-web-store`。起動のたびにメンテナーが承認する)で動いたときだけ、Google のサービスアカウントとして入れるようにする(Workload Identity 連携)。GitHub に置くのは識別子だけで、秘密の値は置かない。リポジトリに書き込める人でも、承認を通らなければストアには届かない。
 
 1. ストアのデベロッパー アカウントで、2 段階認証を有効にする
 2. Google Cloud でプロジェクトを作り、「Chrome Web Store API」を有効にする
@@ -63,12 +63,15 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 4. ストアのダッシュボードの「アカウント」で、3. のサービスアカウントのメールを足す(足せるのは 1 つだけ)
 5. Google Cloud の「Workload Identity 連携」で、プールとプロバイダを作る
    - プロバイダは OIDC。発行元は `https://token.actions.githubusercontent.com`
-   - 属性のマッピング: `google.subject=assertion.sub`、`attribute.repository=assertion.repository`、`attribute.ref=assertion.ref`
-   - 属性の条件: `assertion.repository=='shibuhachi-works/last-one-click' && assertion.ref=='refs/heads/main'`(このリポジトリの main から動いた workflow だけ)
+   - 属性のマッピング: `google.subject=assertion.sub`、`attribute.repository=assertion.repository`、`attribute.environment=assertion.environment`、`attribute.ref=assertion.ref`
+   - 属性の条件: `assertion.repository=='shibuhachi-works/last-one-click' && assertion.environment=='chrome-web-store' && assertion.ref=='refs/heads/main'`(このリポジトリの main で、承認を通ったアップロードのジョブだけ)
    - プロバイダのリソース名(`projects/<番号>/locations/global/workloadIdentityPools/<プール>/providers/<プロバイダ>`)を控える
 6. 3. のサービスアカウントの「権限」で、`principalSet://iam.googleapis.com/projects/<番号>/locations/global/workloadIdentityPools/<プール>/attribute.repository/shibuhachi-works/last-one-click` に「Workload Identity ユーザー」と「サービス アカウント トークン作成者」を付ける
 7. 公開者 ID を控える(ダッシュボードの「パブリッシャー」→「設定」)
-8. GitHub のリポジトリの Settings → Secrets and variables → Actions の **Variables** に、次の 3 つを入れる(Secrets ではない。秘密の値ではないため)
+8. GitHub のリポジトリの Settings → Environments で `chrome-web-store` を作る
+   - 「Required reviewers」に自分を入れる(起動のたびに、ここで承認する)
+   - 「Deployment branches and tags」を「Selected branches」にして、`main` だけにする
+9. GitHub のリポジトリの Settings → Secrets and variables → Actions の **Variables** に、次の 3 つを入れる(Secrets ではない。秘密の値ではないため)
    - `CWS_WIF_PROVIDER`(5. のプロバイダのリソース名)
    - `CWS_SERVICE_ACCOUNT`(3. のメール)
    - `CWS_PUBLISHER_ID`(7. の公開者 ID)
