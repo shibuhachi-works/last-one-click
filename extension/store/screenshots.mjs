@@ -12,13 +12,15 @@ import path from "node:path";
 
 const dir = path.dirname(new URL(import.meta.url).pathname);
 const dist = path.resolve(dir, "../dist");
+// ポップアップのいちばん下の版(popup.js が manifest から入れる。ここでは同じ値を直接入れる)
+const VERSION = JSON.parse(readFileSync(path.resolve(dir, "../manifest.json"), "utf8")).version;
 const browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {});
 mkdirSync(dir, { recursive: true });
 
 // 1) ポップアップ。popup.js は chrome.* が無いと動かないので読み込まず、静的な HTML に例を入れて撮る
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
-  const html = readFileSync(path.join(dist, "popup.html"), "utf8").replace('<script src="popup.js"></script>', "");
+  const html = readFileSync(path.join(dist, "popup.html"), "utf8").replace('<script src="popup.js"></script>', "").replace(">v</button>", `>v${VERSION}</button>`);
   // popup.css の body 向けの指定を .popup(模した枠)に当てる
   const popupCss = readFileSync(path.join(dist, "popup.css"), "utf8").replace(/\bbody\b/g, ".popup");
   await page.setContent(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>${popupCss}</style><style>
@@ -66,6 +68,8 @@ mkdirSync(dir, { recursive: true });
     const credit = document.querySelector("#credit-link");
     if (credit) credit.checked = true;
     document.querySelector("#status").hidden = true;
+    // md を読み込んだあとなので、作成のボタンは押せる(popup.html では、md を入れる前の押せない状態で置いてある)
+    document.querySelector("#submit")?.removeAttribute("disabled");
   });
   // ポップアップが画面の高さを超えたら、撮る前に気づけるようにする
   const h = await page.evaluate(() => document.querySelector(".popup").getBoundingClientRect().height);
@@ -133,13 +137,13 @@ const bannerHtml = (kind, text) =>
      <div style="position:absolute;left:520px;top:220px;width:760px;height:580px;overflow:hidden">
        <div style="position:absolute;left:-160px;top:-10px;width:1150px;height:460px">${art.replace('width="1400" height="560"', 'width="1150" height="460"')}</div>
      </div>
-     ${bannerHtml("ok", "✅ 入力が終わりました。内容を確認して、公開ボタンを自分で押してください。<br>タイトル ✓ / 本文 ✓ / 見出し画像 ✓ / 公開設定 ✓").replace('class="banner"', 'class="banner" style="right:56px;bottom:56px;max-width:420px;"')}`,
+     ${bannerHtml("ok", "✅ 公開設定を入れました。<br>確認して「投稿する」を押してください。").replace('class="banner"', 'class="banner" style="right:56px;bottom:56px;max-width:420px;"')}`,
   );
 }
 
 // screenshot-3: md ファイルと見出し画像を、ドラッグ＆ドロップするだけ(ウィンドウ表示のポップアップ。ドロップ中の見た目 + 飛んでくるファイル)
 {
-  const html = readFileSync(path.join(dist, "popup.html"), "utf8").replace('<script src="popup.js"></script>', "");
+  const html = readFileSync(path.join(dist, "popup.html"), "utf8").replace('<script src="popup.js"></script>', "").replace(">v</button>", `>v${VERSION}</button>`);
   const popupCss = readFileSync(path.join(dist, "popup.css"), "utf8").replace(/\bbody\b/g, ".popup");
   const chip = (x, y, rot, label, color) =>
     `<div style="position:absolute;left:${x}px;top:${y}px;transform:rotate(${rot}deg);background:#fff;border-radius:12px;padding:14px 18px 14px 56px;box-shadow:0 14px 36px rgba(0,0,0,.18);font:700 17px/1 ${FONT};color:#1f2d2a">
@@ -150,7 +154,7 @@ const bannerHtml = (kind, text) =>
     `<div style="position:absolute;left:72px;top:150px;width:620px"><span class="tag">ドラッグ＆ドロップ</span>
        <h1 style="font-size:42px">md ファイルと見出し画像を、<br>ドラッグ＆ドロップするだけ。</h1>
        <p class="sub">2 つ同時でも構いません。<br>タイトル・ハッシュタグ・マガジンも記事ファイルから<br>読み取るので、入力し直す必要はありません。</p></div>
-     <div class="popup dropping" style="position:absolute;left:700px;top:200px;width:520px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.15)">${html.replace(/^[\s\S]*<body>/, "").replace(/<\/body>[\s\S]*$/, "")}</div>
+     <div class="popup dropping no-md" style="position:absolute;left:700px;top:200px;width:520px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.15)">${html.replace(/^[\s\S]*<body>/, "").replace(/<\/body>[\s\S]*$/, "")}</div>
      ${chip(540, 520, -10, "2026-10-28-weekly-note.md", "#41c9b4")}
      ${chip(590, 610, 7, "thumbnail.png", "#e8b96a")}
      <svg style="position:absolute;left:930px;top:395px" width="28" height="34" viewBox="0 0 28 34"><path d="M2 2 L2 28 L9 21 L14 32 L19 30 L14 19 L24 19 Z" fill="#1f2d2a" stroke="#fff" stroke-width="2"/></svg>`,

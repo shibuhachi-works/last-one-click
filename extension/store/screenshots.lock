@@ -1,6 +1,7 @@
 {
-  "hash": "fd46a88acc3949626a44b093a735cc6f382c4336fed5846361fc9ec5e6df2d73",
+  "hash": "7b50e66141a9f2d61f1fae7149b986045a94cbfcf57e4584a8dbb45f7796ee45",
   "inputs": [
+    "manifest.json",
     "src/popup.html",
     "src/popup.css",
     "store/marquee.svg",
