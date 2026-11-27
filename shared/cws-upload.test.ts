@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 // @ts-expect-error 型の無い .mjs
-import { checkUpload, pendingReview, upload, DEFAULT_ITEM_ID } from "../extension/store/cws-upload.mjs";
+import { accessTokenFromGitHub, checkUpload, pendingReview, upload, DEFAULT_ITEM_ID } from "../extension/store/cws-upload.mjs";
 
 type Call = { url: string; method: string; headers: Record<string, string>; body: unknown };
 
@@ -93,3 +93,57 @@ describe("upload", () => {
     assert.doesNotMatch(src, /:(publish|cancelSubmission|rollback|setPublishedDeployPercentage)`/);
   });
 });
+
+describe("accessTokenFromGitHub", () => {
+  const provider = "projects/123/locations/global/workloadIdentityPools/github/providers/github-actions";
+  const args = { requestUrl: "https://gh.example/token?api-version=2.0", requestToken: "req", provider, serviceAccount: "sa@p.iam.gserviceaccount.com" };
+
+  it("GitHub の OIDC → STS → サービスアカウントのトークン、の順に作り、どれも伏せる", async () => {
+    const { fetch, calls } = fakeFetch([
+      { json: { value: "eyJa.b.c" } },
+      { json: { access_token: "ya29.federated" } },
+      { json: { accessToken: "ya29.sa" } },
+    ]);
+    const masked: string[] = [];
+    const token = await accessTokenFromGitHub({ ...args, fetch, mask: (v: string) => masked.push(v) });
+    assert.equal(token, "ya29.sa");
+    assert.deepEqual(masked, ["eyJa.b.c", "ya29.federated", "ya29.sa"]);
+    // 1. オーディエンスはプロバイダ。既にある問い合わせ(api-version)は残す
+    const u = new URL(calls[0]!.url);
+    assert.equal(u.searchParams.get("audience"), `https://iam.googleapis.com/${provider}`);
+    assert.equal(u.searchParams.get("api-version"), "2.0");
+    assert.equal(calls[0]!.headers.authorization, "bearer req");
+    // 2. STS
+    assert.equal(calls[1]!.url, "https://sts.googleapis.com/v1/token");
+    const sts = JSON.parse(String(calls[1]!.body));
+    assert.equal(sts.audience, `//iam.googleapis.com/${provider}`);
+    assert.equal(sts.subjectToken, "eyJa.b.c");
+    assert.equal(sts.subjectTokenType, "urn:ietf:params:oauth:token-type:jwt");
+    // 3. サービスアカウントのトークン。スコープはストアだけ、期限は短い
+    assert.equal(calls[2]!.url, "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa%40p.iam.gserviceaccount.com:generateAccessToken");
+    assert.equal(calls[2]!.headers.authorization, "Bearer ya29.federated");
+    assert.deepEqual(JSON.parse(String(calls[2]!.body)), { scope: ["https://www.googleapis.com/auth/chromewebstore"], lifetime: "600s" });
+  });
+
+  it("id-token の権限が無い・設定が足りないときは、どこにも繋がずに止まる", async () => {
+    const { fetch, calls } = fakeFetch([]);
+    await assert.rejects(accessTokenFromGitHub({ ...args, requestUrl: undefined, fetch, mask: () => {} }), /id-token/);
+    await assert.rejects(accessTokenFromGitHub({ ...args, provider: "", fetch, mask: () => {} }), /CWS_WIF_PROVIDER/);
+    await assert.rejects(accessTokenFromGitHub({ ...args, serviceAccount: "", fetch, mask: () => {} }), /CWS_SERVICE_ACCOUNT/);
+    assert.equal(calls.length, 0);
+  });
+
+  it("STS が断ったら止まり、エラーの文にトークンを出さない", async () => {
+    const { fetch } = fakeFetch([
+      { json: { value: "eyJhead.body.sig" } },
+      { status: 400, text: '{"error":"unauthorized_client","detail":"eyJhead.body.sig"}' },
+    ]);
+    await assert.rejects(accessTokenFromGitHub({ ...args, fetch, mask: () => {} }), (e: Error) => {
+      assert.match(e.message, /HTTP 400/);
+      assert.match(e.message, /属性条件/);
+      assert.doesNotMatch(e.message, /eyJhead/);
+      return true;
+    });
+  });
+});
+
