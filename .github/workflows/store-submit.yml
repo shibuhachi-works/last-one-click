@@ -1,0 +1,70 @@
+name: ストアに申請する
+
+# リリース(「リリースを作る」で作ったもの)に添えた ZIP を、Chrome ウェブストアに上げて審査に出す(手で起動する)。
+# 起動できるのはリポジトリに書き込める人だけ(workflow_dispatch の決まり)。手順は docs/store-submission.md。
+# - ZIP はリリースから取ってきて、SHA256SUMS と合うか、manifest.json の version がタグと同じかを確かめてから上げる(作り直さない)
+# - 掲載文・画像・プライバシーの回答は API では変えられない。変えた版は、先にダッシュボードで直す
+# - 鍵は Secrets(CWS_CLIENT_ID・CWS_CLIENT_SECRET・CWS_REFRESH_TOKEN・CWS_PUBLISHER_ID)から、申請の手順にだけ渡す
+# - 同じ版の ZIP は、ストアが 2 回目を受け付けない。ZIP を上げたあとで審査に出すところだけ失敗したら、ダッシュボードで「審査のため送信」を押す
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "申請する版のタグ(例: v0.1.9)。そのリリースに添えた ZIP を上げる"
+        required: true
+        type: string
+      publish:
+        description: "審査に通ったあと"
+        required: true
+        type: choice
+        default: "止めておく(ダッシュボードで公開する)"
+        options:
+          - "止めておく(ダッシュボードで公開する)"
+          - "すぐ公開する"
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    name: ストアに申請する
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: リリースの ZIP を取ってきて確かめる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -eu
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "タグ名は v1.2.3 の形にしてください: $TAG"; exit 1; }
+          VERSION="${TAG#v}"
+          ZIPNAME="last-one-click-$VERSION.zip"
+          mkdir -p "$RUNNER_TEMP/assets"
+          gh release download "$TAG" --repo "$REPO" --dir "$RUNNER_TEMP/assets" --pattern "$ZIPNAME" --pattern SHA256SUMS
+          ( cd "$RUNNER_TEMP/assets" && sha256sum -c SHA256SUMS )
+          ZIP_VERSION=$(unzip -p "$RUNNER_TEMP/assets/$ZIPNAME" manifest.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          [[ "$ZIP_VERSION" == "$VERSION" ]] || { echo "ZIP の manifest.json の version（$ZIP_VERSION）がタグ（$TAG）と違います"; exit 1; }
+          echo "ZIP: $ZIPNAME(版 $VERSION。SHA-256 はリリースのものと同じ)"
+      - name: ストアに上げて、審査に出す
+        env:
+          TAG: ${{ inputs.tag }}
+          PUBLISH: ${{ inputs.publish }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          # アイテム ID は公開されている値なので、変えるときだけ Variables に入れる(無ければ cws-submit.mjs の値)
+          CWS_ITEM_ID: ${{ vars.CWS_ITEM_ID }}
+        run: |
+          set -eu
+          VERSION="${TAG#v}"
+          case "$PUBLISH" in
+            "すぐ公開する") TYPE=DEFAULT_PUBLISH ;;
+            *) TYPE=STAGED_PUBLISH ;;
+          esac
+          node extension/store/cws-submit.mjs "$RUNNER_TEMP/assets/last-one-click-$VERSION.zip" "$VERSION" "$TYPE"
