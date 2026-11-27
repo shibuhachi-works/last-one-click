@@ -32,7 +32,7 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse: (r: Wh
   }
   // 拡張のページ(ポップアップ。独立したウィンドウ・タブで開いたときも)からだけ受ける。
   // content script(note のページ)からは受けない(タブの中で自分で問い合わせる)
-  // 追加の対応先の新規記事を開いて入れる(開発用のビルドだけ)。ポップアップからだけ受ける。
+  // 追加の対応先の新規記事を開いて入れる。ポップアップからだけ受ける。
   // タブを開いたら、すぐに返す(タブがアクティブになるとポップアップは閉じる。続きはそのページのバナーに出る)
   if (msg?.type === "extraSiteOpenAndFill" && fromExtensionPage(sender)) {
     if (!EXTRA_SITE_ENABLED) {
@@ -110,7 +110,7 @@ async function sendToTab(tabId: number, message: Message, tries = 20): Promise<E
 const syncExtraSiteScript = () => {
   syncExtraSite(chromeExtraSiteApi).catch((e) => console.warn("追加の対応先の登録を合わせられませんでした", e));
 };
-// 実機で下書きの入力を確かめるまでは、ふつうのビルドでは登録しない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
+// 追加の対応先の登録を、許可に合わせる(EXTRA_SITE_ENABLED。shared/extra-site.ts)
 if (EXTRA_SITE_ENABLED) {
   syncExtraSiteScript();
   chrome.runtime.onStartup.addListener(syncExtraSiteScript);
