@@ -19,6 +19,14 @@ name: リリースを作る
 # - 本文の末尾に、ZIP の SHA-256 と「通常はストアから入れる」の注意を足す
 # - ストアの画像(extension/store/*.png)が今のポップアップ・素材から作ったものか確かめ、古ければ止める(check-screenshots.mjs)
 # - ストアには、リリースに添えた ZIP をそのまま上げる(手元で作り直さない。ZIP は作るたびに中身の時刻が変わる)
+#
+# ストアへのアップロード(#134): リリースに添えた ZIP を、Chrome Web Store API で上げるところまで行う(別のジョブ)。
+# - 「審査のため送信」は人が押す(説明文・画像・プライバシーの回答を確かめてから)。この workflow は送信しない
+# - Google には、鍵ファイルを置かずに GitHub の OIDC で入る(Workload Identity 連携)。id-token の権限は、上げるジョブにだけ付ける
+# - 上げるジョブは保護された Environment(chrome-web-store)で動かす。承認した実行だけが Google に入れる(Google 側の条件にも入れる)
+#   (ZIP を作る手順で動く依存のコードに、Google に入る権限を渡さないため)
+# - Variables(CWS_WIF_PROVIDER・CWS_SERVICE_ACCOUNT・CWS_PUBLISHER_ID)のどれかが無ければ、上げずに成功で終わる
+# - upload_only を付けると、リリースは作らず、既にあるリリースの ZIP を上げるだけにする(上げるのだけ失敗したときのやり直し)
 on:
   workflow_dispatch:
     inputs:
@@ -27,17 +35,30 @@ on:
         required: true
         type: string
       sha:
-        description: "リリースするコミット(40 文字の SHA。main に入っているものだけ)"
-        required: true
+        description: "リリースするコミット(40 文字の SHA。main に入っているものだけ)。upload_only のときは使わない(空でよい)"
+        required: false
         type: string
+      upload_to_store:
+        description: "リリースの ZIP を Chrome ウェブストアにアップロードする(審査のため送信はしない)"
+        required: false
+        type: boolean
+        default: true
+      upload_only:
+        description: "リリースは作らず、既にあるリリースの ZIP をストアにアップロードするだけにする(やり直し用)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
     name: リリースを作る
+    if: ${{ !inputs.upload_only }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -115,3 +136,72 @@ jobs:
             gh release create "$TAG" --repo "$REPO" --target "$SHA" --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "$RUNNER_TEMP/assets/$ZIPNAME" "$RUNNER_TEMP/assets/SHA256SUMS"
             echo "タグとリリースを作りました: $TAG → $SHA"
           fi
+
+  store-upload:
+    name: ストアにアップロードする
+    needs: release
+    # リリースを作ったとき(release が成功)か、upload_only のとき(release は飛ばされる)
+    if: ${{ always() && inputs.upload_to_store && (needs.release.result == 'success' || (inputs.upload_only && needs.release.result == 'skipped')) }}
+    runs-on: ubuntu-latest
+    # 保護された Environment。起動のたびにメンテナーの承認が要る。Google 側の条件にもこの Environment を入れているので、
+    # 承認を通らない実行(workflow の書き換え・リリースの ZIP の差し替えを含む)は Google に入れない
+    environment: chrome-web-store
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: 設定があるかを見る
+        id: config
+        env:
+          WIF: ${{ vars.CWS_WIF_PROVIDER }}
+          SA: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          PUB: ${{ vars.CWS_PUBLISHER_ID }}
+        run: |
+          if [[ -n "$WIF" && -n "$SA" && -n "$PUB" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ストアへのアップロードは飛ばしました(設定が無い: Variables の CWS_WIF_PROVIDER・CWS_SERVICE_ACCOUNT・CWS_PUBLISHER_ID)"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.config.outputs.ready == 'true'
+      - uses: actions/setup-node@v7
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: 22
+      - name: リリースの ZIP を取ってきて確かめる
+        if: steps.config.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -eu
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "タグ名は v1.2.3 の形にしてください: $TAG"; exit 1; }
+          VERSION="${TAG#v}"
+          ZIPNAME="last-one-click-$VERSION.zip"
+          mkdir -p "$RUNNER_TEMP/store"
+          gh release download "$TAG" --repo "$REPO" --dir "$RUNNER_TEMP/store" --pattern "$ZIPNAME" --pattern SHA256SUMS
+          ( cd "$RUNNER_TEMP/store" && sha256sum -c SHA256SUMS )
+          ZIP_VERSION=$(unzip -p "$RUNNER_TEMP/store/$ZIPNAME" manifest.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          [[ "$ZIP_VERSION" == "$VERSION" ]] || { echo "ZIP の manifest.json の version（$ZIP_VERSION）がタグ（$TAG）と違います"; exit 1; }
+      - name: Google に入る(鍵ファイルを使わない。Workload Identity 連携)
+        if: steps.config.outputs.ready == 'true'
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.CWS_WIF_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+      - name: ZIP をストアにアップロードする(審査のため送信はしない)
+        if: steps.config.outputs.ready == 'true'
+        env:
+          TAG: ${{ inputs.tag }}
+          CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+        run: |
+          set -eu
+          echo "::add-mask::$CWS_ACCESS_TOKEN"
+          VERSION="${TAG#v}"
+          node extension/store/cws-upload.mjs "$RUNNER_TEMP/store/last-one-click-$VERSION.zip" "$VERSION"
