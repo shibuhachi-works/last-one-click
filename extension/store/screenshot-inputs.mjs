@@ -9,6 +9,8 @@ const dir = path.dirname(new URL(import.meta.url).pathname);
 
 /** 画像の見た目を決めるファイル(extension/ からの相対パス)。画像に写る部品を足したら、ここにも足す */
 export const SCREENSHOT_INPUTS = [
+  // 版(v0.1.x)を画像に写すので、版を上げたら作り直す
+  "manifest.json",
   "src/popup.html",
   "src/popup.css",
   "store/marquee.svg",
