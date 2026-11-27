@@ -3,6 +3,7 @@
 // このファイルには、ボタンなどへの登録と、開いたときに 1 回だけ行うことを、動く順番のまま置く。
 // 中身の関数は lib/popup/ にある(状態は lib/popup/state.ts、画面の要素は lib/popup/elements.ts)。
 import { checkSelectorsUrl } from "../../shared/selectors-url";
+import { VERSION_TAPS, nextTapCount, versionTapMessage } from "../../shared/version-egg";
 import { parsePullUrl } from "../../shared/github-pr";
 import { collectFolderFiles, type FsDirEntry, type FsFileEntry } from "../../shared/bundle";
 import { MAX_ZIP_ENTRIES, isBundleFile } from "../../shared/zip";
@@ -162,7 +163,6 @@ if (EXTRA_SITE_ENABLED) {
 
 // 上級者向け(GitHub から読み込む・貼り付け・selectors の URL・GitHub トークン)は普段は隠す。
 // 「拡張機能の設定」のチェックで表示/非表示を切り替え、chrome.storage に覚える
-$<HTMLParagraphElement>("version").textContent = `Last One Click v${chrome.runtime.getManifest().version}`;
 advancedToggle.addEventListener("change", async () => {
   const next = advancedToggle.checked;
   await chrome.storage.local.set({ [STORAGE.advancedMode]: next });
@@ -339,3 +339,19 @@ thumbnailEl.addEventListener("change", renderPicked);
 submitEl.addEventListener("click", () => void submitArticle(false));
 // 書き換えられる記事を開いていても、新しい下書きとして作れるように(#174)
 submitNewEl.addEventListener("click", () => void submitArticle(true));
+
+// 版はいちばん下にいつも出す。続けて押すと一言が出る(見た目の遊び。機能の解放・通信・保存はしない。#198)
+{
+  const versionEl = $<HTMLButtonElement>("version");
+  const eggEl = $("version-egg");
+  versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  let taps = { count: 0, at: 0 };
+  versionEl.addEventListener("click", () => {
+    const now = Date.now();
+    taps = { count: nextTapCount(taps, now), at: now };
+    const msg = versionTapMessage(taps.count);
+    eggEl.hidden = !msg;
+    eggEl.textContent = msg ?? "";
+    if (taps.count >= VERSION_TAPS) taps = { count: 0, at: 0 };
+  });
+}

@@ -91,7 +91,6 @@ magazine: マガジン名
 
   <details>
     <summary>拡張機能の設定</summary>
-    <p id="version" class="hint">Last One Click</p>
     <label class="check tip" title="GitHub から読み込む・selectors の URL・GitHub トークンの欄を出します。"><input id="advanced-toggle" type="checkbox">上級者向けの設定を表示する</label>
     <p id="status-advanced" class="status" hidden></p>
     <div id="advanced-settings" hidden>
@@ -140,6 +139,12 @@ magazine: マガジン名
       <textarea id="diagnose-out" readonly placeholder="(ここに結果が出ます)" style="min-height:90px"></textarea>
     </details>
   </details>
+
+  <!-- 版はいつもいちばん下に出す。続けて押すと一言が出る(#198) -->
+  <div class="version-foot">
+    <span id="version-egg" class="version-egg" aria-live="polite" hidden></span>
+    <button id="version" type="button" class="version-tap" title="Last One Click の版">v</button>
+  </div>
 
   <script src="popup.js"></script>
 </body>
