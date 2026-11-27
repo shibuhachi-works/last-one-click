@@ -185,23 +185,15 @@ jobs:
           ( cd "$RUNNER_TEMP/store" && sha256sum -c SHA256SUMS )
           ZIP_VERSION=$(unzip -p "$RUNNER_TEMP/store/$ZIPNAME" manifest.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
           [[ "$ZIP_VERSION" == "$VERSION" ]] || { echo "ZIP の manifest.json の version（$ZIP_VERSION）がタグ（$TAG）と違います"; exit 1; }
-      - name: Google に入る(鍵ファイルを使わない。Workload Identity 連携)
-        if: steps.config.outputs.ready == 'true'
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.CWS_WIF_PROVIDER }}
-          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
       - name: ZIP をストアにアップロードする(審査のため送信はしない)
         if: steps.config.outputs.ready == 'true'
+        # Google には、cws-upload.mjs が GitHub の OIDC のトークンから入る(Workload Identity 連携。外の Action は使わない。#216)
         env:
           TAG: ${{ inputs.tag }}
-          CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CWS_WIF_PROVIDER: ${{ vars.CWS_WIF_PROVIDER }}
+          CWS_SERVICE_ACCOUNT: ${{ vars.CWS_SERVICE_ACCOUNT }}
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
         run: |
           set -eu
-          echo "::add-mask::$CWS_ACCESS_TOKEN"
           VERSION="${TAG#v}"
           node extension/store/cws-upload.mjs "$RUNNER_TEMP/store/last-one-click-$VERSION.zip" "$VERSION"
