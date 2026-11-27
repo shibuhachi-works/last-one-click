@@ -25,7 +25,7 @@ export const state = {
    * そのときは主のボタンを「この記事を書き換える」にし、「新しい下書きとして作る」も出す
    */
   rewriteTarget: undefined as { tabId: number; key: string; title: string } | undefined,
-  /** 追加の対応先の許可があるか(開発用のビルドだけ。showExtraSiteSetting で決まる) */
+  /** 追加の対応先の許可があるか(showExtraSiteSetting で決まる) */
   extraSiteGranted: false,
   /** 追加の対応先のアカウントを出せたか(読めたときだけ true) */
   extraSiteAccountShown: false,

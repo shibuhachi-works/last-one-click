@@ -26,16 +26,13 @@ export const EXTENSION_DIST = path.join(EXTENSION_DIR, "dist");
 const LOCAL_SELECTORS = path.resolve(process.cwd(), "selectors/note.json");
 
 /**
- * 拡張をビルドする(毎回。手元の拡張のコードと同じ動きにするため)。
- * 開発用のビルド(EXTRA_SITE=1)にはしない。失敗したら投げる
+ * 拡張をビルドする(毎回。手元の拡張のコードと同じ動きにするため)。失敗したら投げる
  */
 export function buildExtension(): void {
   if (!existsSync(path.join(EXTENSION_DIR, "node_modules"))) {
     throw new Error("拡張の依存が入っていません。先に `cd extension && npm ci` を実行してください。");
   }
-  const env = { ...process.env };
-  delete env.EXTRA_SITE;
-  const r = spawnSync("npm", ["run", "build"], { cwd: EXTENSION_DIR, env, encoding: "utf8" });
+  const r = spawnSync("npm", ["run", "build"], { cwd: EXTENSION_DIR, encoding: "utf8" });
   if (r.status !== 0) throw new Error(`拡張のビルドに失敗しました。\n${r.stdout ?? ""}${r.stderr ?? ""}`);
   if (!existsSync(path.join(EXTENSION_DIST, "manifest.json"))) throw new Error("拡張のビルドが dist/manifest.json を作りませんでした。");
 }

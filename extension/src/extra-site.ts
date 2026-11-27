@@ -1,6 +1,6 @@
 // 追加の対応先(library.libecity.com)のページで動く content script。
 // ポップアップで許可されたときだけ、chrome.scripting.registerContentScripts で登録する(manifest の content_scripts には書かない)。
-// 開発用のビルド(EXTRA_SITE=1 npm run build)でだけ登録される(shared/extra-site.ts の EXTRA_SITE_ENABLED)。
+// 追加の対応先の許可があるときだけ登録される(shared/extra-site.ts)。
 // 受けるのは 4 つ:
 //   1. ポップアップの「DOM 情報を取得」に、診断のレポートを返す(読むだけ。#118)
 //   2. ポップアップの「今開いているページに下書きを入れる」で、このタブの編集画面に記事を入れて止まる(#120。./lib/extra-site-fill.ts)。

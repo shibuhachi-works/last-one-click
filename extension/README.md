@@ -33,9 +33,9 @@ npm run build        # → dist/ ができる
 2. 右上の「デベロッパーモード」を ON
 3. 「パッケージ化されていない拡張機能を読み込む」→ `extension/dist/` を選ぶ
 
-### 開発用のビルド(追加の対応先を試すとき)
+### 追加の対応先で使う(v0.2.0 から)
 
-追加の対応先の入口(そのサイトのページでの案内・「記事の設定」のスイッチ・content script の登録・そのエディタでの診断・下書きの入力)は、実機で確かめるまで、ストアの版とふつうのビルドには入っていません。試すときだけ、`extension/` で `EXTRA_SITE=1 npm run build` として、できた `dist/` を読み込み直してください。この開発用のビルドだけ、`dist/manifest.json` に `activeTab`・`scripting` と `optional_host_permissions`(このホストだけ)が足され、chrome://extensions の版に「開発用」と出ます(`host_permissions` は増やしません)。そのサイトのページ(記事の一覧など、エディタでなくてもよい)でツールバーのアイコンを押すと、ポップアップに「使えるようにする」の案内が出ます。開発用のビルドでは(v0.1.8 から)、そのサイトの記事の編集画面(新規でも下書きでもよい)のタブでポップアップを開くと、「note の下書きを作成」のボタンが「今開いているページに下書きを入れる」になります。押すと、新しいタブは開かず、今のタブにタイトル・本文・本文の画像(png・jpg だけ)・見出し画像・タグを入れて止まります。中身を確かめてから、そのページの「下書き保存」を自分で押してください(拡張は「下書き保存」も「確認画面へ」も押しません。要約・カテゴリ・公開範囲は入れません)。追加の対応先のエディタで入らない書き方(目次・埋め込みなど)は、ポップアップとページの知らせに出ます。セレクタは `selectors/extra-site.json`(無くても、コードの既定値で動きます)。ふつうの `npm run build` と、ストアに出す ZIP を作る `npm run package` は、`EXTRA_SITE` を付けても入口と権限の無いまま作ります。開発用のビルドの dist/ を読み込んでいる間は、`shared/manifest-permissions.test.ts` の dist/manifest.json の検査が落ちるので、テストの前にふつうのビルドで作り直してください。
+note のほかに、追加の対応先の記事の編集画面にも下書きを入れられます。入れるときの権限の警告は増えません。そのサイトのページ(記事の一覧など、エディタでなくてもよい)でツールバーのアイコンを押すと、ポップアップに「使えるようにする」の案内が出ます。押して許可すると(このホストだけ。`optional_host_permissions`)、そのサイトの記事の編集画面(新規でも下書きでもよい)のタブでポップアップを開いたとき、「note の下書きを作成」のボタンが「今開いているページに下書きを入れる」になります。押すと、新しいタブは開かず、今のタブにタイトル・本文・記事の設定(外部公開の範囲・カテゴリ・要約・読了目安時間・タグ)・見出し画像・本文の画像(png・jpg だけ)を入れて止まります。中身を確かめてから、そのページの「下書き保存」か「確認画面へ」を自分で押してください(拡張はどちらも押しません)。追加の対応先のエディタで入らない書き方(目次・埋め込みなど)は、ポップアップとページの知らせに出ます。セレクタは `selectors/extra-site.json`(無くても、コードの既定値で動きます)。許可は、ポップアップの「記事の設定」のスイッチでいつでも外せます。
 
 ## 使い方
 
@@ -131,20 +131,19 @@ note の DOM が変わる
 
 ```
 manifest.json          # MV3。権限は storage・clipboardWrite と note.com / raw.githubusercontent.com(追加の対応先の入口は、下書きの入力ができるまで外している)
-build.mjs              # esbuild でバンドル → dist/(EXTRA_SITE=1 のときは開発用のビルド)
-extra-site-manifest.mjs # 開発用のビルドで dist/manifest.json に足す、追加の対応先の権限
+build.mjs              # esbuild でバンドル → dist/
 package.mjs            # dist/ を ZIP にする(ストアに上げる用)
 icons/                 # icon.svg(全サイズ共通の元)と PNG(render.mjs で生成)
 store/                 # ストアの掲載文(listing.md)・スクリーンショット・生成スクリプト
 src/
   popup.html/css/ts    # 入力 UI。記事を組み立てて chrome.storage に置き、note を開く(開いている記事の編集画面なら、そのタブを書き換える)
   content.ts           # note.com のタブで動く。pending の記事をエディタに入力して止まる(工程の順番と、ポップアップからの知らせの受け口)
-  background.ts        # service worker。content script に自分のタブ ID を教える(ポップアップが開いたタブでだけ動かすため)。追加の対応先の登録を許可に合わせる(開発用のビルドだけ。shared/extra-site.ts の EXTRA_SITE_ENABLED)
-  extra-site.ts        # 追加の対応先のページで動く content script(開発用のビルドだけ。許可されたときだけ登録する。診断のレポートを返し、ポップアップから受けた記事をこのタブに入れる)
+  background.ts        # service worker。content script に自分のタブ ID を教える(ポップアップが開いたタブでだけ動かすため)。追加の対応先の登録を許可に合わせる
+  extra-site.ts        # 追加の対応先のページで動く content script(許可されたときだけ登録する。診断のレポートを返し、ポップアップから受けた記事をこのタブに入れる)
   lib/
     article.ts         # md → ArticlePayload(GitHub 取得・サムネイルの base64 化。front matter などは ../shared/article.ts)
     selectors.ts       # selectors/note.json の読み込み(remote → cache → bundled)
-    extra-site.ts      # 追加の対応先の許可・登録・確かめを chrome の API につなぐ(開発用のビルドだけ。中身は ../shared/extra-site.ts)
+    extra-site.ts      # 追加の対応先の許可・登録・確かめを chrome の API につなぐ(中身は ../shared/extra-site.ts)
     diagnose-extra-site.ts # 追加の対応先のエディタの診断(読むだけ。中身・名前・ID は出さない)
     extra-site-fill.ts # 追加の対応先の編集画面に、記事を下書きとして入れる(「確認画面へ」「下書き保存」は押さない)
     types.ts           # 型と storage キー
