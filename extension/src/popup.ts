@@ -107,7 +107,7 @@ creditLinkEl.addEventListener("change", () => chrome.storage.local.set({ [STORAG
 
 void refreshRewriteTarget();
 
-// 実機で下書きの入力を確かめるまでは、ふつうのビルドでは入口を出さない(EXTRA_SITE_ENABLED。shared/extra-site.ts)
+// 追加の対応先の入口(EXTRA_SITE_ENABLED。shared/extra-site.ts)
 if (EXTRA_SITE_ENABLED) {
   chromeExtraSiteApi.hasPermission().then(showExtraSiteSetting, () => showExtraSiteSetting(false));
   // 別ウィンドウで開いたときは、今のウィンドウ = この画面なので、ページは見ない
@@ -186,7 +186,7 @@ $("save-selectors").addEventListener("click", async () => {
 });
 
 // 診断:アクティブなタブ(note)の content script にレポートを作らせてコピーする。
-// 開発用のビルドでは、今のタブが追加の対応先のページなら、そちらの content script にレポートを作らせる(#118)
+// 今のタブが追加の対応先のページなら、そちらの content script にレポートを作らせる(#118)
 $("diagnose").addEventListener("click", async () => {
   const out = $<HTMLTextAreaElement>("diagnose-out");
   try {

@@ -50,7 +50,7 @@ export function showExtraSiteSetting(granted: boolean) {
 }
 
 /**
- * 診断の相手にする追加の対応先のタブ。開発用のビルドで、ツールバーのポップアップの今のタブがそのページのときだけ。
+ * 診断の相手にする追加の対応先のタブ。ツールバーのポップアップの今のタブがそのページのときだけ。
  * (独立したウィンドウでは今のタブ = この画面なので、見ない)
  */
 export async function findExtraSiteTab(): Promise<chrome.tabs.Tab | undefined> {
