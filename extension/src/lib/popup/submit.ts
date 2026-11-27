@@ -113,7 +113,7 @@ export async function rewriteNoteTab(target: { tabId: number; key: string }, art
     throw new Error(res?.error ?? "ページを再読み込みしてから、もう一度押してください。");
   }
   if (isWindow) await chrome.tabs.update(target.tabId, { active: true }).catch(() => undefined);
-  setStatus("書き換えを始めました。続きは右下に出ます。", { near: "submit" });
+  setStatus("書き換えを始めました。続きは右下のバナーで案内します。", { near: "submit" });
 }
 
 /**
@@ -127,7 +127,7 @@ export async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnTyp
   if (!res) throw new Error("ページを再読み込みしてから、もう一度押してください。");
   if (!res.ok) throw new Error(res.error);
   setStatus(
-    "入れ始めました。続きは右下に出ます。" + notesText(notes),
+    "入れ始めました。続きは右下のバナーで案内します。" + notesText(notes),
     { error: notes.length > 0, near: "submit" },
   );
 }
@@ -139,7 +139,7 @@ export async function fillExtraSiteTab(tabId: number, article: Awaited<ReturnTyp
 export async function openExtraSiteAndFill(article: Awaited<ReturnType<typeof buildArticle>>) {
   const { notes, extraArticle } = extraSiteMessage(article);
   // 閉じる前に読めるよう、知らせを先に出しておく
-  setStatus("新規記事を新しいタブで開いています。続きは右下に出ます。" + notesText(notes), { error: notes.length > 0, near: "submit" });
+  setStatus("新規記事を新しいタブで開いています。続きは右下のバナーで案内します。" + notesText(notes), { error: notes.length > 0, near: "submit" });
   const res = (await chrome.runtime.sendMessage({ type: "extraSiteOpenAndFill", article: extraArticle, notes } satisfies Message).catch(() => null)) as ExtraSiteFillResponse | null;
   if (!res) throw new Error("新しいタブを開けませんでした。もう一度押してください。");
   if (!res.ok) throw new Error(res.error);
