@@ -58,8 +58,8 @@ npm run package     # → extension/release/last-one-click-<version>.zip
 鍵ファイルは作らない。GitHub の Actions が、このリポジトリの保護された Environment(`chrome-web-store`。起動のたびにメンテナーが承認する)で動いたときだけ、Google のサービスアカウントとして入れるようにする(Workload Identity 連携)。GitHub に置くのは識別子だけで、秘密の値は置かない。リポジトリに書き込める人でも、承認を通らなければストアには届かない。
 
 1. ストアのデベロッパー アカウントで、2 段階認証を有効にする
-2. Google Cloud でプロジェクトを作り、「Chrome Web Store API」を有効にする
-3. サービスアカウントを作る(Google Cloud 側のロールは要らない)。メールアドレスを控える
+2. Google Cloud でプロジェクトを作り、「Chrome Web Store API」と「IAM Service Account Credentials API」を有効にする(後者は、GitHub からサービスアカウントとして入るときに使う)
+3. サービスアカウントを作る(プロジェクトのロールは付けない。ストアに上げてよいかは 4. で決まる)。鍵ファイルは作らない。メールアドレスを控える
 4. ストアのダッシュボードの「アカウント」で、3. のサービスアカウントのメールを足す(足せるのは 1 つだけ)
 5. Google Cloud の「Workload Identity 連携」で、プールとプロバイダを作る
    - プロバイダは OIDC。発行元は `https://token.actions.githubusercontent.com`
