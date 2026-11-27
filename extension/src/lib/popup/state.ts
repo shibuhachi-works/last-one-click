@@ -18,6 +18,8 @@ export const state = {
   extraSiteOffer: null as ExtraSiteOffer,
   /** 下書きを入れる追加の対応先のタブ(今のタブがその編集画面のときだけ。それ以外は note のタブを開く) */
   extraSiteFillTabId: undefined as number | undefined,
+  /** 今のタブが追加の対応先のページか(編集画面でなくてもよい)。md を入れる前のアカウントの出し分けに使う(#201) */
+  onExtraSitePage: false,
   /**
    * 書き換える note の記事(#174)。今のタブが、すでにある記事の編集画面(/notes/<ID>/edit)のときだけ。
    * そのときは主のボタンを「この記事を書き換える」にし、「新しい下書きとして作る」も出す
