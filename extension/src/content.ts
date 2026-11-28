@@ -294,7 +294,12 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
     const magazine = article.magazine;
     if (opened && magazine) await step("マガジン", results, () => selectMagazine(S, magazine));
     // 有料・価格も別の工程にする(失敗しても、ハッシュタグとマガジンの結果は残す)
-    const priced = opened && price ? await step("有料・価格", results, () => setPaidPrice(S, price, anchor !== undefined)) : false;
+    // step() は普通のエラーでも先へ進む(true を返す)ので、入ったかどうかは記録した結果の行(✗ が無いか)で見る
+    let priced = false;
+    if (opened && price) {
+      await step("有料・価格", results, () => setPaidPrice(S, price, anchor !== undefined));
+      priced = !results[results.length - 1]!.includes(" ✗ ");
+    }
     // 本文に「ここから有料」の印があっても、ここでは「有料エリア設定」を押さない。「有料エリア設定」を押すと画面が移り、
     // ハッシュタグ・マガジン・価格を見られなくなるので、公開設定の画面でいったん止め、確かめてからバナーの「有料ラインを引く」で進めてもらう
     if (priced && anchor !== undefined) {
