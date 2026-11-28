@@ -130,7 +130,7 @@ note の DOM が変わる
 ## ファイル構成
 
 ```
-manifest.json          # MV3。権限は storage・clipboardWrite と note.com / raw.githubusercontent.com(追加の対応先の入口は、下書きの入力ができるまで外している)
+manifest.json          # MV3。権限は storage・clipboardWrite・activeTab・scripting と note.com / raw.githubusercontent.com。追加の対応先は optional_host_permissions(許可されたときだけ)
 build.mjs              # esbuild でバンドル → dist/
 package.mjs            # dist/ を ZIP にする(ストアに上げる用)
 icons/                 # icon.svg(全サイズ共通の元)と PNG(render.mjs で生成)

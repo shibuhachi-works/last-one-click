@@ -1,5 +1,5 @@
 {
-  "hash": "7b50e66141a9f2d61f1fae7149b986045a94cbfcf57e4584a8dbb45f7796ee45",
+  "hash": "bca032a74e400b5fd95b900f790506777b3ebde6b55a83e09a4b7e37f42b66fe",
   "inputs": [
     "manifest.json",
     "src/popup.html",
