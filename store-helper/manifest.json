@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Last One Click 申請ヘルパー(開発用)",
+  "version": "0.0.1",
+  "description": "Chrome ウェブストアのダッシュボードの画面の作りを書き出す(読むだけ)。ストアには出さず、手元で読み込む",
+  "permissions": ["activeTab", "scripting"],
+  "action": { "default_popup": "popup.html", "default_title": "申請ヘルパー" }
+}
