@@ -294,16 +294,41 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
     const magazine = article.magazine;
     if (opened && magazine) await step("マガジン", results, () => selectMagazine(S, magazine));
     // 有料・価格も別の工程にする(失敗しても、ハッシュタグとマガジンの結果は残す)
-    if (opened && price) await step("有料・価格", results, () => setPaidPrice(S, price, anchor !== undefined));
-    // 本文に「ここから有料」の印があれば、「有料エリア設定」を押して、その位置にラインを引く(別の工程。失敗してもほかの結果は残す)。
-    // ラインを引いたら止まる。その画面の「投稿する」「キャンセル」は押さない
-    if (opened && price && anchor !== undefined) await step("有料エリア", results, () => setPaywallLine(S, anchor));
+    const priced = opened && price ? await step("有料・価格", results, () => setPaidPrice(S, price, anchor !== undefined)) : false;
+    // 本文に「ここから有料」の印があっても、ここでは「有料エリア設定」を押さない。「有料エリア設定」を押すと画面が移り、
+    // ハッシュタグ・マガジン・価格を見られなくなるので、公開設定の画面でいったん止め、確かめてからバナーの「有料ラインを引く」で進めてもらう
+    if (priced && anchor !== undefined) {
+      await showPublishResults(S, article, before, keyRef, results, anchor);
+      return;
+    }
   }
+  await showPublishResults(S, article, before, keyRef, results);
+}
+
+/**
+ * 公開設定の結果をバナーに出す。anchor を渡したときは、公開設定の画面で止めたまま「有料ラインを引く」のボタンを出す
+ */
+async function showPublishResults(S: Selectors, article: ArticlePayload, before: string[], keyRef: ArticleKeyRef, results: string[], anchor?: string) {
   // 失敗した工程は、たたんだままでも読めるように見出しに出す(「詳細」の中だけだと気づけない)。
   // 工程名は外し、失敗の文言(複数行のこともある)をそのまま ⚠️ 付きで並べる
   const failed = results.filter((r) => r.includes(" ✗ ")).map((r) => r.slice(r.indexOf(" ✗ ") + 3));
   // 公開設定を入れたあとにも、どのアカウントかを 1 回だけ読んで出す(#106)。「投稿する」を押す前に気づけるように
   const account = await readAccount(S);
+  const retry = { label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) };
+  if (anchor !== undefined) {
+    const line = { label: "有料ラインを引く", onClick: () => runPaywallLine(S, article, before, keyRef, results, anchor) };
+    banner(
+      accountWarning(results) +
+        (failed.length
+          ? `${failed.map((m) => `⚠️ ${m}`).join("\n")}\n足りないものを入れてから「有料ラインを引く」を押してください。\n\n`
+          : `✅ 公開設定を入れました。\nハッシュタグ・マガジン・価格を確かめて「有料ラインを引く」を押してください。\n\n`) +
+        results.join("\n"),
+      failed.length ? "warn" : "ok",
+      [line, retry],
+      account,
+    );
+    return;
+  }
   banner(
     accountWarning(results) +
       (failed.length
@@ -311,9 +336,27 @@ async function runPublishSettings(S: Selectors, article: ArticlePayload, before:
         : `✅ 公開設定を入れました。\n確認して「投稿する」を押してください。\n\n`) +
       results.join("\n"),
     failed.length ? "warn" : "ok",
-    [{ label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) }],
+    [retry],
     account,
   );
+}
+
+/**
+ * バナーの「有料ラインを引く」から呼ぶ。「有料エリア設定」を押し、本文の印の位置にラインを引いて止まる。
+ * その画面の「投稿する」「キャンセル」は押さない
+ */
+async function runPaywallLine(S: Selectors, article: ArticlePayload, before: string[], keyRef: ArticleKeyRef, publishResults: string[], anchor: string) {
+  // 公開設定を入れたときと別の記事が開いていたら引かない
+  if (!isSameArticle(keyRef.key, articleKey(location.pathname))) {
+    banner(`⚠️ 別の記事が開いています。\n元の記事に戻って、「もう一度入れる」を押してください。\n\n${publishResults.join("\n")}`, "warn", [
+      { label: "もう一度入れる", onClick: () => runPublishSettings(S, article, before, keyRef) },
+    ]);
+    return;
+  }
+  banner("有料エリアのラインを引いています...");
+  const results = [...publishResults];
+  await step("有料エリア", results, () => setPaywallLine(S, anchor));
+  await showPublishResults(S, article, before, keyRef, results);
 }
 
 /**
