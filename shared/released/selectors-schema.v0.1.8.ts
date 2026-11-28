@@ -1,4 +1,4 @@
-// タグ v0.1.7 の写し。直さない(ストアに出ている版の読み込み処理。shared/selectors-released.test.ts で使う)
+// タグ v0.1.8 の写し。直さない(ストアに出ている版の読み込み処理。shared/selectors-released.test.ts で使う)
 // ストアで新しい版が公開されたら、その版のタグの shared/selectors-schema.ts に置き換え、ファイル名の版も変える(docs/store-submission.md)
 //
 // selectors/*.json の形の検査。拡張(GitHub から取る)と Playwright 版(ローカルで読む)で共通。
